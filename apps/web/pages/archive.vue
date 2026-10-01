@@ -23,6 +23,8 @@ interface Pagination {
 }
 
 const { primaryTenant, canManageTenant, canAccessWorkspace } = useAuth();
+const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
+const { intlLocale } = useAppLocale();
 
 const appointments = ref<AppointmentListItem[]>([]);
 const pagination = ref<Pagination>({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
@@ -111,7 +113,7 @@ function appointmentTitle(appointment: AppointmentListItem) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",

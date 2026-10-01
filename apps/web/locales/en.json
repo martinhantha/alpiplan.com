@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "home": "Home",
+    "appointments": "Appointments",
+    "archive": "Archive",
+    "users": "Users",
+    "lessonTypes": "Appointment types",
+    "conflicts": "Conflicts",
+    "trash": "Trash",
+    "tenants": "Tenants"
+  },
+  "layout": {
+    "dashboard": "Dashboard",
+    "account": "Account",
+    "noActiveTenant": "No active tenant",
+    "settings": "Settings",
+    "logout": "Log out"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Multi-tenant context for the prototype screens.",
+    "cardHint": "Use the email and password stored in the API / database.",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "name{'@'}example.com",
+    "submit": "Sign in",
+    "failed": "Sign-in failed"
+  },
+  "home": {
+    "breadcrumb": "Alpiplan · Dashboard",
+    "title": "Overview",
+    "subtitle": "Quick view of appointments, daily schedule, and core flows.",
+    "signedInAs": "Signed in as",
+    "tenant": "Tenant",
+    "statsUpcoming": "Appointments (14 days)",
+    "statsToday": "Today",
+    "quickCapture": "Quick capture",
+    "quickCaptureWithAssistant": "Quick capture & assistant",
+    "reloadAppointments": "Reload appointments",
+    "appointmentsOnDay": "Appointments on selected day",
+    "noTenantForAppointments": "You need a tenant membership to view appointments.",
+    "noAppointmentsOnDay": "No appointments on this day.",
+    "resource": "Resource",
+    "type": "Type",
+    "calendar": "Calendar",
+    "calendarHint": "14-day view. Pick a day to see appointments on the left.",
+    "loadAppointmentsFailed": "Could not load appointments",
+    "markCompletedFailed": "Could not mark appointment as done",
+    "deleteConfirm": "Delete appointment “{title}”? You can restore it from the trash.",
+    "deleteFailed": "Could not delete appointment",
+    "noContact": "Appointment without contact",
+    "editAppointment": "Edit appointment",
+    "newQuickCapture": "New appointment · quick capture",
+    "editHint": "Adjust date, contact, and assignments, then save.",
+    "captureHintVoice": "Capture by voice or text, assign {teacher}{resource}, then save.",
+    "captureHintText": "Capture by text, assign {teacher}{resource}, then save.",
+    "resourceSuffix": "/resource"
+  },
+  "appointment": {
+    "status": {
+      "draft": "Draft",
+      "completed": "Done",
+      "cancelled": "Cancelled"
+    }
+  },
+  "settings": {
+    "breadcrumb": "Alpiplan · Settings",
+    "title": "Settings",
+    "subtitleAccount": "Account and device",
+    "subtitleTenantOptions": "· Tenant options",
+    "language": {
+      "title": "Language",
+      "description": "UI language for this app on this device. Stored in your browser.",
+      "saved": "Language set to {language}."
+    },
+    "tabs": {
+      "account": "Account",
+      "lessonTypes": "Appointment types",
+      "availability": "Default hours",
+      "users": "Users"
+    },
+    "roles": {
+      "superadmin": "Superadmin",
+      "admin": "Admin"
+    }
+  },
+  "languages": {
+    "de": "Deutsch",
+    "en": "English",
+    "it": "Italiano"
+  }
+}

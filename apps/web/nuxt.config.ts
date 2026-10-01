@@ -1,5 +1,25 @@
 export default defineNuxtConfig({
-  modules: ["@nuxt/ui"],
+  modules: ["@nuxt/ui", "@nuxtjs/i18n"],
+  i18n: {
+    restructureDir: false,
+    locales: [
+      { code: "de", name: "Deutsch", file: "de.json" },
+      { code: "en", name: "English", file: "en.json" },
+      { code: "it", name: "Italiano", file: "it.json" },
+    ],
+    defaultLocale: "de",
+    lazy: true,
+    langDir: "locales",
+    bundle: {
+      optimizeTranslationDirective: false,
+    },
+    strategy: "no_prefix",
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: "alpiplan.locale",
+      fallbackLocale: "de",
+    },
+  },
   css: ["~/assets/css/main.css"],
   devtools: { enabled: true },
   compatibilityDate: "2025-04-01",

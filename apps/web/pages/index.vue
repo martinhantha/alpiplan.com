@@ -28,6 +28,8 @@ interface AppointmentListItem {
 
 const { user, primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } =
   useAuth();
+const { t, intlLocale } = useAppLocale();
+const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 
 function teachersCaption(appointment: AppointmentListItem) {
@@ -86,7 +88,7 @@ function setError(msg: string) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -96,7 +98,7 @@ function formatDateTime(value: string) {
 }
 
 function formatDayLabel(value: Date) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -115,7 +117,7 @@ function dateKeyFromIso(value: string) {
 }
 
 function appointmentTitle(appointment: AppointmentListItem) {
-  return appointment.customer?.displayName || appointment.appointmentContactText || "Termin ohne Kontakt";
+  return appointment.customer?.displayName || appointment.appointmentContactText || t("home.noContact");
 }
 
 const upcomingCount = computed(() => appointments.value.length);
@@ -172,7 +174,7 @@ async function loadAppointments() {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     appointmentsError.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termine konnten nicht geladen werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("home.loadAppointmentsFailed");
   } finally {
     appointmentsLoading.value = false;
   }
@@ -351,7 +353,7 @@ async function markCompleted(appointment: AppointmentListItem) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     appointmentsError.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht abgehakt werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("home.markCompletedFailed");
   } finally {
     savingId.value = "";
   }
@@ -359,7 +361,15 @@ async function markCompleted(appointment: AppointmentListItem) {
 
 async function deleteAppointment(appointment: AppointmentListItem) {
   if (!primaryTenant.value?.tenantId) return;
-  if (!confirm(`Termin „${appointmentTitle(appointment)}“ wirklich löschen? Er kann im Papierkorb wiederhergestellt werden.`)) return;
+  if (
+    !confirm(
+      t("home.deleteConfirm", {
+        title: appointmentTitle(appointment),
+      }),
+    )
+  ) {
+    return;
+  }
   savingId.value = appointment.id;
   appointmentsError.value = "";
   try {
@@ -371,7 +381,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     appointmentsError.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht gelöscht werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("home.deleteFailed");
   } finally {
     savingId.value = "";
   }
@@ -381,15 +391,15 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 <template>
   <UContainer class="py-8 space-y-6">
     <div class="space-y-2">
-      <p class="text-sm text-muted font-medium">Alpiplan · Dashboard</p>
-      <h1 class="text-2xl font-semibold tracking-tight">Übersicht</h1>
+      <p class="text-sm text-muted font-medium">{{ $t("home.breadcrumb") }}</p>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ $t("home.title") }}</h1>
       <p class="text-neutral-600 dark:text-neutral-400 max-w-prose">
-        Schneller Überblick über Termine, Tagesplan und wichtige Kernflows.
+        {{ $t("home.subtitle") }}
       </p>
       <p v-if="user" class="text-sm text-neutral-600 dark:text-neutral-400">
-        Angemeldet als <strong>{{ user.name || user.email }}</strong>
+        {{ $t("home.signedInAs") }} <strong>{{ user.name || user.email }}</strong>
         <template v-if="primaryTenant">
-          · Mandant <strong>{{ primaryTenant.tenantName }}</strong>
+          · {{ $t("home.tenant") }} <strong>{{ primaryTenant.tenantName }}</strong>
         </template>
         <template v-if="user.isSuperadmin"> · <strong>Superadmin</strong></template>
       </p>
@@ -397,21 +407,21 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 
     <div class="grid grid-cols-2 gap-3">
       <UCard>
-        <p class="text-xs uppercase tracking-wide text-neutral-500">Termine (14 Tage)</p>
+        <p class="text-xs uppercase tracking-wide text-neutral-500">{{ $t("home.statsUpcoming") }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ upcomingCount }}</p>
       </UCard>
       <UCard>
-        <p class="text-xs uppercase tracking-wide text-neutral-500">Heute</p>
+        <p class="text-xs uppercase tracking-wide text-neutral-500">{{ $t("home.statsToday") }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ todayCount }}</p>
       </UCard>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
       <UButton to="/appointments" block size="xl" variant="soft" color="primary" icon="i-lucide-calendar-days">
-        Termine
+        {{ $t("nav.appointments") }}
       </UButton>
       <UButton to="/archive" block size="xl" variant="outline" color="neutral" icon="i-lucide-archive">
-        Archiv
+        {{ $t("nav.archive") }}
       </UButton>
       <UButton
         v-if="canAccessWorkspace"
@@ -421,7 +431,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         icon="i-lucide-zap"
         @click="openAssistant"
       >
-        {{ speechRecognitionEnabled ? "Schnellerfassung & Assistent" : "Schnellerfassung" }}
+        {{ speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture") }}
       </UButton>
       <UButton
         v-if="canManageTenant"
@@ -431,10 +441,10 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         variant="outline"
         icon="i-lucide-git-merge"
       >
-        Konflikte
+        {{ $t("nav.conflicts") }}
       </UButton>
       <UButton size="xl" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="appointmentsLoading" @click="loadAppointments">
-        Termine neu laden
+        {{ $t("home.reloadAppointments") }}
       </UButton>
     </div>
 
@@ -450,16 +460,16 @@ async function deleteAppointment(appointment: AppointmentListItem) {
       <UCard class="lg:col-span-2">
         <template #header>
           <div class="flex items-center justify-between gap-3">
-            <h2 class="text-lg font-semibold">Termine am gewählten Tag</h2>
+            <h2 class="text-lg font-semibold">{{ $t("home.appointmentsOnDay") }}</h2>
             <span class="text-sm text-neutral-500">{{ selectedDateKey }}</span>
           </div>
         </template>
 
         <div v-if="!primaryTenant" class="text-sm text-neutral-600 dark:text-neutral-400">
-          Für Termine brauchst du eine Mandanten-Mitgliedschaft.
+          {{ $t("home.noTenantForAppointments") }}
         </div>
         <div v-else-if="!selectedDateAppointments.length && !appointmentsLoading" class="text-sm text-neutral-600 dark:text-neutral-400">
-          Keine Termine für diesen Tag.
+          {{ $t("home.noAppointmentsOnDay") }}
         </div>
         <div v-else class="space-y-3">
           <div
@@ -487,8 +497,8 @@ async function deleteAppointment(appointment: AppointmentListItem) {
                 </div>
                 <div class="mt-1.5 flex flex-wrap gap-2 text-xs text-neutral-600 dark:text-neutral-400">
                   <span v-if="teachersCaption(appointment)">{{ teachersCaption(appointment) }}</span>
-                  <span v-if="resourcesEnabled && appointment.resource">Ressource: {{ appointment.resource.name }}</span>
-                  <span v-if="appointment.lessonType">Art: {{ appointment.lessonType.name }}</span>
+                  <span v-if="resourcesEnabled && appointment.resource">{{ $t("home.resource") }}: {{ appointment.resource.name }}</span>
+                  <span v-if="appointment.lessonType">{{ $t("home.type") }}: {{ appointment.lessonType.name }}</span>
                 </div>
               </div>
               <AppointmentQuickActions
@@ -509,7 +519,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 
       <UCard>
         <template #header>
-          <h2 class="text-lg font-semibold">Kalender</h2>
+          <h2 class="text-lg font-semibold">{{ $t("home.calendar") }}</h2>
         </template>
         <div class="space-y-3">
           <UInput v-model="selectedDateKey" type="date" />
@@ -528,7 +538,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
             </UButton>
           </div>
           <p class="text-xs text-neutral-500">
-            14-Tage-Ansicht. Wähle einen Tag, um rechts die Termine zu sehen.
+            {{ $t("home.calendarHint") }}
           </p>
         </div>
       </UCard>
@@ -716,12 +726,17 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="min-w-0">
             <h2 class="font-medium">
-              {{ editingAppointment ? "Termin bearbeiten" : "Neuer Termin · Schnellerfassung" }}
+              {{ editingAppointment ? $t("home.editAppointment") : $t("home.newQuickCapture") }}
             </h2>
             <p class="text-xs text-neutral-500">
-              <template v-if="editingAppointment">Datum, Kontakt und Zuordnung anpassen und speichern.</template>
+              <template v-if="editingAppointment">{{ $t("home.editHint") }}</template>
               <template v-else>
-                Per <template v-if="speechRecognitionEnabled">Sprache oder </template>Text erfassen, {{ teacherLabel }}<template v-if="resourcesEnabled">/Ressource</template> zuordnen, speichern.
+                {{
+                  $t(speechRecognitionEnabled ? "home.captureHintVoice" : "home.captureHintText", {
+                    teacher: teacherLabel,
+                    resource: resourcesEnabled ? $t("home.resourceSuffix") : "",
+                  })
+                }}
               </template>
             </p>
           </div>

@@ -6,6 +6,7 @@ definePageMeta({
 
 const config = useRuntimeConfig().public;
 const { login } = useAuth();
+const { t } = useI18n();
 
 const email = ref();
 const password = ref("");
@@ -26,7 +27,7 @@ async function onSubmit() {
     await navigateTo(safe);
   } catch (e: unknown) {
     const err = e as { data?: { message?: string }; statusMessage?: string };
-    errorMsg.value = err?.data?.message || err?.statusMessage || "Anmeldung fehlgeschlagen";
+    errorMsg.value = err?.data?.message || err?.statusMessage || t("login.failed");
   } finally {
     pending.value = false;
   }
@@ -40,16 +41,16 @@ async function onSubmit() {
     <div class="w-full max-w-md space-y-6">
       <div class="text-center space-y-3">
         <AppLogo class="mx-auto h-10" />
-        <h1 class="text-2xl font-semibold tracking-tight">Anmelden</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">{{ $t("login.title") }}</h1>
         <p class="text-sm text-neutral-600 dark:text-neutral-400">
-          Mitorganisation und Nutzerkontext für die Prototyp-Seiten.
+          {{ $t("login.subtitle") }}
         </p>
       </div>
 
       <UCard>
         <template #header>
           <p class="text-sm text-neutral-600 dark:text-neutral-400">
-            E-Mail und Passwort wie in der API / Datenbank hinterlegt.
+            {{ $t("login.cardHint") }}
           </p>
         </template>
 
@@ -63,17 +64,17 @@ async function onSubmit() {
         />
 
         <form class="space-y-4" @submit.prevent="onSubmit">
-          <UFormField label="E-Mail" name="email">
+          <UFormField :label="$t('login.email')" name="email">
             <UInput
               v-model="email"
               type="email"
               autocomplete="username"
               size="lg"
               class="w-full"
-              placeholder="name@beispiel.de"
+              :placeholder="$t('login.emailPlaceholder')"
             />
           </UFormField>
-          <UFormField label="Passwort" name="password">
+          <UFormField :label="$t('login.password')" name="password">
             <UInput
               v-model="password"
               type="password"
@@ -83,7 +84,7 @@ async function onSubmit() {
             />
           </UFormField>
           <UButton type="submit" block size="lg" :loading="pending" :disabled="pending">
-            Anmelden
+            {{ $t("login.submit") }}
           </UButton>
         </form>
 

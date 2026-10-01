@@ -36,6 +36,8 @@ interface SchedulingOptions {
 }
 
 const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } = useAuth();
+const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
+const { intlLocale } = useAppLocale();
 
 const appointments = ref<AppointmentListItem[]>([]);
 const pagination = ref<Pagination>({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
@@ -128,7 +130,7 @@ function appointmentTitle(appointment: AppointmentListItem) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -233,21 +235,21 @@ function appointmentsByDay(key: string) {
 }
 
 function formatDayHeader(date: Date) {
-  return new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", day: "2-digit", month: "2-digit" }).format(date);
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat(intlLocale.value, { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
 const calendarRangeLabel = computed(() => {
   if (calendarMode.value === "week") {
     const start = weekStart.value;
     const end = addDays(start, 6);
-    const fmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const fmt = new Intl.DateTimeFormat(intlLocale.value, { day: "2-digit", month: "2-digit", year: "numeric" });
     return `${fmt.format(start)} – ${fmt.format(end)}`;
   }
-  const fmt = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" });
+  const fmt = new Intl.DateTimeFormat(intlLocale.value, { month: "long", year: "numeric" });
   return fmt.format(monthAnchor.value);
 });
 

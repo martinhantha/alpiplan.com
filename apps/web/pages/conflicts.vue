@@ -2,8 +2,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { useAuth } from "../composables/useAuth";
-import { appointmentStatusColor, appointmentStatusLabel } from "../utils/appointment-status";
 import { formatAppointmentTeachers } from "../utils/appointment-contact";
+
+const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
+const { intlLocale } = useAppLocale();
 
 interface ConflictAppointment {
   id: string;
@@ -91,7 +93,7 @@ function addDays(date: Date, days: number) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -101,7 +103,7 @@ function formatDateTime(value: string) {
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));

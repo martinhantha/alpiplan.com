@@ -1,23 +1,24 @@
 <script setup lang="ts">
 const route = useRoute();
 const { user, primaryTenant, logout, canManageTenant } = useAuth();
+const { t } = useI18n();
 
 const links = computed(() => {
   const base = [
-    { to: "/", label: "Home", icon: "i-lucide-house" },
-    { to: "/appointments", label: "Termine", icon: "i-lucide-calendar-days" },
-    { to: "/archive", label: "Archiv", icon: "i-lucide-archive" },
+    { to: "/", label: t("nav.home"), icon: "i-lucide-house" },
+    { to: "/appointments", label: t("nav.appointments"), icon: "i-lucide-calendar-days" },
+    { to: "/archive", label: t("nav.archive"), icon: "i-lucide-archive" },
   ];
   if (canManageTenant.value) {
     base.push(
-      { to: "/users", label: "Benutzer", icon: "i-lucide-users" },
-      { to: "/lesson-types", label: "Termintypen", icon: "i-lucide-list-checks" },
-      { to: "/conflicts", label: "Konflikte", icon: "i-lucide-git-merge" },
-      { to: "/trash", label: "Papierkorb", icon: "i-lucide-trash-2" },
+      { to: "/users", label: t("nav.users"), icon: "i-lucide-users" },
+      { to: "/lesson-types", label: t("nav.lessonTypes"), icon: "i-lucide-list-checks" },
+      { to: "/conflicts", label: t("nav.conflicts"), icon: "i-lucide-git-merge" },
+      { to: "/trash", label: t("nav.trash"), icon: "i-lucide-trash-2" },
     );
   }
   if (user.value?.isSuperadmin) {
-    base.push({ to: "/tenants", label: "Mandanten", icon: "i-lucide-building-2" });
+    base.push({ to: "/tenants", label: t("nav.tenants"), icon: "i-lucide-building-2" });
   }
   return base;
 });
@@ -33,7 +34,7 @@ const links = computed(() => {
           <NuxtLink to="/" class="inline-flex items-center" aria-label="Alpiplan">
             <AppLogo class="h-8" />
           </NuxtLink>
-          <p class="mt-1 text-xs text-neutral-500">Dashboard</p>
+          <p class="mt-1 text-xs text-neutral-500">{{ $t("layout.dashboard") }}</p>
         </div>
 
         <nav class="space-y-1 overflow-y-auto flex-1 min-h-0 pr-1">
@@ -55,16 +56,16 @@ const links = computed(() => {
 
         <div class="shrink-0">
           <UCard>
-            <p class="text-sm font-medium truncate">{{ user?.name || user?.email || "Account" }}</p>
+            <p class="text-sm font-medium truncate">{{ user?.name || user?.email || $t("layout.account") }}</p>
             <p class="text-xs text-neutral-500 truncate mt-1">
-              {{ primaryTenant?.tenantName || "Kein Mandant aktiv" }}
+              {{ primaryTenant?.tenantName || $t("layout.noActiveTenant") }}
             </p>
             <div class="mt-3 grid grid-cols-2 gap-2">
               <UButton to="/settings" size="sm" variant="soft" color="neutral" icon="i-lucide-settings-2">
-                Settings
+                {{ $t("layout.settings") }}
               </UButton>
               <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-log-out" @click="logout()">
-                Logout
+                {{ $t("layout.logout") }}
               </UButton>
             </div>
           </UCard>

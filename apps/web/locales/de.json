@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "home": "Home",
+    "appointments": "Termine",
+    "archive": "Archiv",
+    "users": "Benutzer",
+    "lessonTypes": "Termintypen",
+    "conflicts": "Konflikte",
+    "trash": "Papierkorb",
+    "tenants": "Mandanten"
+  },
+  "layout": {
+    "dashboard": "Dashboard",
+    "account": "Account",
+    "noActiveTenant": "Kein Mandant aktiv",
+    "settings": "Einstellungen",
+    "logout": "Abmelden"
+  },
+  "login": {
+    "title": "Anmelden",
+    "subtitle": "Mitorganisation und Nutzerkontext für die Prototyp-Seiten.",
+    "cardHint": "E-Mail und Passwort wie in der API / Datenbank hinterlegt.",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "emailPlaceholder": "name{'@'}beispiel.de",
+    "submit": "Anmelden",
+    "failed": "Anmeldung fehlgeschlagen"
+  },
+  "home": {
+    "breadcrumb": "Alpiplan · Dashboard",
+    "title": "Übersicht",
+    "subtitle": "Schneller Überblick über Termine, Tagesplan und wichtige Kernflows.",
+    "signedInAs": "Angemeldet als",
+    "tenant": "Mandant",
+    "statsUpcoming": "Termine (14 Tage)",
+    "statsToday": "Heute",
+    "quickCapture": "Schnellerfassung",
+    "quickCaptureWithAssistant": "Schnellerfassung & Assistent",
+    "reloadAppointments": "Termine neu laden",
+    "appointmentsOnDay": "Termine am gewählten Tag",
+    "noTenantForAppointments": "Für Termine brauchst du eine Mandanten-Mitgliedschaft.",
+    "noAppointmentsOnDay": "Keine Termine für diesen Tag.",
+    "resource": "Ressource",
+    "type": "Art",
+    "calendar": "Kalender",
+    "calendarHint": "14-Tage-Ansicht. Wähle einen Tag, um rechts die Termine zu sehen.",
+    "loadAppointmentsFailed": "Termine konnten nicht geladen werden",
+    "markCompletedFailed": "Termin konnte nicht abgehakt werden",
+    "deleteConfirm": "Termin „{title}“ wirklich löschen? Er kann im Papierkorb wiederhergestellt werden.",
+    "deleteFailed": "Termin konnte nicht gelöscht werden",
+    "noContact": "Termin ohne Kontakt",
+    "editAppointment": "Termin bearbeiten",
+    "newQuickCapture": "Neuer Termin · Schnellerfassung",
+    "editHint": "Datum, Kontakt und Zuordnung anpassen und speichern.",
+    "captureHintVoice": "Per Sprache oder Text erfassen, {teacher}{resource} zuordnen, speichern.",
+    "captureHintText": "Per Text erfassen, {teacher}{resource} zuordnen, speichern.",
+    "resourceSuffix": "/Ressource"
+  },
+  "appointment": {
+    "status": {
+      "draft": "Entwurf",
+      "completed": "Erledigt",
+      "cancelled": "Storniert"
+    }
+  },
+  "settings": {
+    "breadcrumb": "Alpiplan · Settings",
+    "title": "Einstellungen",
+    "subtitleAccount": "Account und Gerät",
+    "subtitleTenantOptions": "· Mandanten-Optionen",
+    "language": {
+      "title": "Sprache",
+      "description": "Oberflächensprache für diese App auf diesem Gerät. Wird im Browser gespeichert.",
+      "saved": "Sprache auf {language} gesetzt."
+    },
+    "tabs": {
+      "account": "Account",
+      "lessonTypes": "Termintypen",
+      "availability": "Standard-Uhrzeiten",
+      "users": "Benutzer"
+    },
+    "roles": {
+      "superadmin": "Superadmin",
+      "admin": "Admin"
+    }
+  },
+  "languages": {
+    "de": "Deutsch",
+    "en": "English",
+    "it": "Italiano"
+  }
+}

@@ -29,6 +29,7 @@ interface AvailabilityRule {
 }
 
 const { user, session, primaryTenant, refreshSession, canManageTenant, speechRecognitionEnabled } = useAuth();
+const { locale, locales, setAppLocale, t } = useAppLocale();
 const { device, setCallHintsOptIn } = useDeviceCapabilities();
 const {
   isNative,
@@ -59,6 +60,14 @@ watch(
 function onWhatsAppAppChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value;
   setWhatsAppApp(value === "business" ? "business" : "whatsapp");
+}
+
+async function onLocaleChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  if (!isAppLocaleCode(value) || value === locale.value) return;
+  await setAppLocale(value);
+  const label = t(`languages.${value}`);
+  setInfo(t("settings.language.saved", { language: label }));
 }
 
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
@@ -197,17 +206,17 @@ function saveTeacherLabel() {
 }
 
 const tabs = computed(() => {
-  const t = [{ id: "account", label: "Account", icon: "i-lucide-user" }];
+  const items = [{ id: "account", label: t("settings.tabs.account"), icon: "i-lucide-user" }];
   if (canEdit.value) {
-    t.push(
-      { id: "lesson-types", label: "Termintypen", icon: "i-lucide-tag" },
-      { id: "availability", label: "Standard-Uhrzeiten", icon: "i-lucide-clock" },
+    items.push(
+      { id: "lesson-types", label: t("settings.tabs.lessonTypes"), icon: "i-lucide-tag" },
+      { id: "availability", label: t("settings.tabs.availability"), icon: "i-lucide-clock" },
     );
   }
   if (isSuperadmin.value) {
-    t.push({ id: "users", label: "Benutzer", icon: "i-lucide-users" });
+    items.push({ id: "users", label: t("settings.tabs.users"), icon: "i-lucide-users" });
   }
-  return t;
+  return items;
 });
 const activeTab = ref("account");
 
@@ -711,14 +720,14 @@ onMounted(() => {
 <template>
   <UContainer class="py-8 space-y-6">
     <div class="space-y-2">
-      <p class="text-sm text-muted font-medium">Alpiplan · Settings</p>
-      <h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
+      <p class="text-sm text-muted font-medium">{{ $t("settings.breadcrumb") }}</p>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ $t("settings.title") }}</h1>
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
-        Account und Gerät
+        {{ $t("settings.subtitleAccount") }}
         <template v-if="canEdit">
-          · Mandanten-Optionen
+          {{ $t("settings.subtitleTenantOptions") }}
           <UBadge color="primary" variant="subtle" class="ml-1">
-            {{ isSuperadmin ? "Superadmin" : "Admin" }}
+            {{ isSuperadmin ? $t("settings.roles.superadmin") : $t("settings.roles.admin") }}
           </UBadge>
         </template>
       </p>
@@ -742,6 +751,21 @@ onMounted(() => {
     </div>
 
     <section v-if="activeTab === 'account'" class="grid gap-4 lg:grid-cols-2">
+      <UCard class="lg:col-span-2">
+        <template #header><h2 class="font-medium">{{ $t("settings.language.title") }}</h2></template>
+        <div class="space-y-2 text-sm">
+          <p class="text-xs text-neutral-500">{{ $t("settings.language.description") }}</p>
+          <select
+            class="w-full max-w-md rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+            :value="locale"
+            @change="onLocaleChange"
+          >
+            <option v-for="loc in locales" :key="loc.code" :value="loc.code">
+              {{ $t(`languages.${loc.code}`) }}
+            </option>
+          </select>
+        </div>
+      </UCard>
       <UCard class="lg:col-span-2">
         <template #header><h2 class="font-medium">Benachrichtigungen</h2></template>
         <div class="flex items-start justify-between gap-4">

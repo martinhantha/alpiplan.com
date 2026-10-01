@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "home": "Home",
+    "appointments": "Appuntamenti",
+    "archive": "Archivio",
+    "users": "Utenti",
+    "lessonTypes": "Tipi di appuntamento",
+    "conflicts": "Conflitti",
+    "trash": "Cestino",
+    "tenants": "Tenant"
+  },
+  "layout": {
+    "dashboard": "Dashboard",
+    "account": "Account",
+    "noActiveTenant": "Nessun tenant attivo",
+    "settings": "Impostazioni",
+    "logout": "Esci"
+  },
+  "login": {
+    "title": "Accedi",
+    "subtitle": "Contesto multi-tenant per le pagine prototipo.",
+    "cardHint": "Usa e-mail e password come registrate nell’API / database.",
+    "email": "E-mail",
+    "password": "Password",
+    "emailPlaceholder": "nome{'@'}esempio.it",
+    "submit": "Accedi",
+    "failed": "Accesso non riuscito"
+  },
+  "home": {
+    "breadcrumb": "Alpiplan · Dashboard",
+    "title": "Panoramica",
+    "subtitle": "Vista rapida di appuntamenti, programma giornaliero e flussi principali.",
+    "signedInAs": "Accesso come",
+    "tenant": "Tenant",
+    "statsUpcoming": "Appuntamenti (14 giorni)",
+    "statsToday": "Oggi",
+    "quickCapture": "Inserimento rapido",
+    "quickCaptureWithAssistant": "Inserimento rapido e assistente",
+    "reloadAppointments": "Ricarica appuntamenti",
+    "appointmentsOnDay": "Appuntamenti nel giorno selezionato",
+    "noTenantForAppointments": "Serve un’appartenenza al tenant per vedere gli appuntamenti.",
+    "noAppointmentsOnDay": "Nessun appuntamento in questo giorno.",
+    "resource": "Risorsa",
+    "type": "Tipo",
+    "calendar": "Calendario",
+    "calendarHint": "Vista 14 giorni. Scegli un giorno per vedere gli appuntamenti a sinistra.",
+    "loadAppointmentsFailed": "Impossibile caricare gli appuntamenti",
+    "markCompletedFailed": "Impossibile segnare l’appuntamento come completato",
+    "deleteConfirm": "Eliminare l’appuntamento «{title}»? Puoi ripristinarlo dal cestino.",
+    "deleteFailed": "Impossibile eliminare l’appuntamento",
+    "noContact": "Appuntamento senza contatto",
+    "editAppointment": "Modifica appuntamento",
+    "newQuickCapture": "Nuovo appuntamento · inserimento rapido",
+    "editHint": "Modifica data, contatto e assegnazioni, poi salva.",
+    "captureHintVoice": "Inserisci a voce o per testo, assegna {teacher}{resource}, poi salva.",
+    "captureHintText": "Inserisci per testo, assegna {teacher}{resource}, poi salva.",
+    "resourceSuffix": "/risorsa"
+  },
+  "appointment": {
+    "status": {
+      "draft": "Bozza",
+      "completed": "Completato",
+      "cancelled": "Annullato"
+    }
+  },
+  "settings": {
+    "breadcrumb": "Alpiplan · Impostazioni",
+    "title": "Impostazioni",
+    "subtitleAccount": "Account e dispositivo",
+    "subtitleTenantOptions": "· Opzioni tenant",
+    "language": {
+      "title": "Lingua",
+      "description": "Lingua dell’interfaccia su questo dispositivo. Salvata nel browser.",
+      "saved": "Lingua impostata su {language}."
+    },
+    "tabs": {
+      "account": "Account",
+      "lessonTypes": "Tipi di appuntamento",
+      "availability": "Orari predefiniti",
+      "users": "Utenti"
+    },
+    "roles": {
+      "superadmin": "Superadmin",
+      "admin": "Admin"
+    }
+  },
+  "languages": {
+    "de": "Deutsch",
+    "en": "English",
+    "it": "Italiano"
+  }
+}
