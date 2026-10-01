@@ -845,16 +845,21 @@ watch(
     <UModal v-model:open="quickOpen" :ui="{ content: 'max-w-2xl' }">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
-          <div class="min-w-0">
-            <h2 class="font-medium">
-              {{ editingAppointment ? "Termin bearbeiten" : "Neuer Termin · Schnellerfassung" }}
+          <div class="min-w-0 flex items-center gap-1">
+            <h2 class="font-medium truncate">
+              {{ editingAppointment ? $t("home.editAppointment") : $t("home.newQuickCapture") }}
             </h2>
-            <p class="text-xs text-neutral-500">
-              <template v-if="editingAppointment">Datum, Kontakt und Zuordnung anpassen und speichern.</template>
+            <FieldInfoPopover :aria-label="$t('home.modalHintAria')">
+              <template v-if="editingAppointment">{{ $t("home.editHint") }}</template>
               <template v-else>
-                Kontakt erfassen, {{ teacherLabel }}<template v-if="resourcesEnabled">/Ressource</template> zuordnen, speichern.
+                {{
+                  $t(speechRecognitionEnabled ? "home.captureHintVoice" : "home.captureHintText", {
+                    teacher: teacherLabel,
+                    resource: resourcesEnabled ? $t("home.resourceSuffix") : "",
+                  })
+                }}
               </template>
-            </p>
+            </FieldInfoPopover>
           </div>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="closeQuickCapture" />
         </div>

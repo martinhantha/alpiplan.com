@@ -43,6 +43,7 @@
     "resource": "Resource",
     "type": "Type",
     "calendar": "Calendar",
+    "allTeachers": "All {teacher}",
     "calendarHint": "14-day view. Pick a day to see appointments on the left.",
     "loadAppointmentsFailed": "Could not load appointments",
     "markCompletedFailed": "Could not mark appointment as done",
@@ -54,7 +55,8 @@
     "editHint": "Adjust date, contact, and assignments, then save.",
     "captureHintVoice": "Capture by voice or text, assign {teacher}{resource}, then save.",
     "captureHintText": "Capture by text, assign {teacher}{resource}, then save.",
-    "resourceSuffix": "/resource"
+    "resourceSuffix": "/resource",
+    "modalHintAria": "Quick guide"
   },
   "appointment": {
     "status": {

@@ -171,6 +171,72 @@ function getPrimaryPilot(flight: LegacyFlight): LegacyPilot | null {
   return null;
 }
 
+function pilotImportEmail(
+  pilot: LegacyPilot,
+  tenantSlug: string
+): string | null {
+  const direct = normalizeOptionalString(pilot.email)?.toLowerCase();
+  if (direct) return direct;
+  const name = normalizeOptionalString(pilot.name);
+  if (!name) return null;
+  const slug = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+  if (!slug) return null;
+  const legacyId = normalizeOptionalString(pilot._id)?.replace(/[^a-z0-9]/gi, "");
+  const suffix = legacyId ? `.${legacyId.slice(-8)}` : "";
+  return `legacy.${slug}${suffix}@${tenantSlug}.import.local`;
+}
+
+function collectLegacyPilots(flight: LegacyFlight): LegacyPilot[] {
+  const seen = new Set<string>();
+  const result: LegacyPilot[] = [];
+  const push = (pilot: LegacyPilot | null | undefined) => {
+    if (!pilot) return;
+    if (!normalizeOptionalString(pilot.email) && !normalizeOptionalString(pilot.name)) {
+      return;
+    }
+    const key =
+      normalizeOptionalString(pilot.email)?.toLowerCase() ??
+      normalizeOptionalString(pilot.name)?.toLowerCase() ??
+      normalizeOptionalString(pilot._id);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(pilot);
+  };
+  push(flight.pilot ?? undefined);
+  if (Array.isArray(flight.pilots)) {
+    for (const pilot of flight.pilots) push(pilot);
+  }
+  return result;
+}
+
+function pilotStatsLabel(
+  pilot: LegacyPilot | null,
+  tenantSlug: string
+): string {
+  if (!pilot) return "(ohne Pilot)";
+  const email = pilotImportEmail(pilot, tenantSlug);
+  const name = normalizePilotName(normalizeOptionalString(pilot.name), email);
+  return name ?? email ?? "(ohne Pilot)";
+}
+
+async function syncAppointmentTeachers(
+  tx: Prisma.TransactionClient,
+  appointmentId: string,
+  teacherIds: string[]
+): Promise<void> {
+  await tx.appointmentTeacher.deleteMany({ where: { appointmentId } });
+  if (!teacherIds.length) return;
+  await tx.appointmentTeacher.createMany({
+    data: teacherIds.map((teacherId) => ({ appointmentId, teacherId })),
+    skipDuplicates: true,
+  });
+}
+
 function getFlightTypeInfo(ftype: LegacyFlight["ftype"]): {
   legacyFtypeId: string | null;
   lessonTypeName: string | null;
@@ -221,9 +287,11 @@ async function loadFlights(filePath: string): Promise<LegacyFlight[]> {
 async function ensureTeacherProfile(
   tx: Prisma.TransactionClient,
   tenantId: string,
+  tenantSlug: string,
   pilot: LegacyPilot | undefined
 ): Promise<string | null> {
-  const email = normalizeOptionalString(pilot?.email)?.toLowerCase();
+  if (!pilot) return null;
+  const email = pilotImportEmail(pilot, tenantSlug);
   if (!email) return null;
 
   const rawPilotName = normalizeOptionalString(pilot?.name);
@@ -379,6 +447,7 @@ async function main(): Promise<void> {
   let created = 0;
   let skipped = 0;
   let updated = 0;
+  const flightsPerPilot = new Map<string, number>();
 
   const tenant = await prisma.tenant.findUnique({
     where: { slug: options.tenant },
@@ -417,7 +486,8 @@ async function main(): Promise<void> {
       const phoneRaw = normalizeOptionalString(flight.phone);
       const phoneE164 = toE164Fallback(phoneRaw);
       const note = normalizeOptionalString(flight.info);
-      const pilot = getPrimaryPilot(flight);
+      const legacyPilots = collectLegacyPilots(flight);
+      const primaryPilot = getPrimaryPilot(flight) ?? legacyPilots[0] ?? null;
       const deleted = isDeletedFlight(flight.deleted);
       const { legacyFtypeId, lessonTypeName } = getFlightTypeInfo(flight.ftype);
       const existingAppointmentId = appointmentIdByLegacyId.get(legacyId) ?? null;
@@ -428,7 +498,17 @@ async function main(): Promise<void> {
           return;
         }
 
-        const teacherId = await ensureTeacherProfile(tx, tenant.id, pilot);
+        const teacherIds: string[] = [];
+        for (const legacyPilot of legacyPilots) {
+          const id = await ensureTeacherProfile(
+            tx,
+            tenant.id,
+            tenant.slug,
+            legacyPilot
+          );
+          if (id && !teacherIds.includes(id)) teacherIds.push(id);
+        }
+        const teacherId = teacherIds[0] ?? null;
         const lessonTypeId = await findOrCreateLessonType(
           tx,
           tenant.id,
@@ -445,12 +525,12 @@ async function main(): Promise<void> {
           legacyId,
           legacySource: LEGACY_SOURCE,
           createdByEmail: normalizeOptionalString(flight.user),
-          pilotColor: normalizeOptionalString(pilot?.color),
-          pilotInfo: normalizeOptionalString(pilot?.info),
+          pilotColor: normalizeOptionalString(primaryPilot?.color),
+          pilotInfo: normalizeOptionalString(primaryPilot?.info),
           legacyDeleted: deleted,
           legacyFtypeId,
           legacyFtypeName: lessonTypeName,
-          legacyPilots: Array.isArray(flight.pilots) ? flight.pilots : null,
+          legacyPilots: legacyPilots.length ? legacyPilots : null,
         };
 
         const appointmentData: Prisma.AppointmentUncheckedCreateInput = {
@@ -474,6 +554,7 @@ async function main(): Promise<void> {
           deletedByUserId: null,
         };
 
+        let appointmentId = existingAppointmentId;
         if (existingAppointmentId) {
           await tx.appointment.update({
             where: { id: existingAppointmentId },
@@ -485,10 +566,18 @@ async function main(): Promise<void> {
             data: appointmentData,
             select: { id: true },
           });
+          appointmentId = createdAppointment.id;
           appointmentIdByLegacyId.set(legacyId, createdAppointment.id);
           created += 1;
         }
+
+        if (appointmentId) {
+          await syncAppointmentTeachers(tx, appointmentId, teacherIds);
+        }
       });
+
+      const statsKey = pilotStatsLabel(primaryPilot, tenant.slug);
+      flightsPerPilot.set(statsKey, (flightsPerPilot.get(statsKey) ?? 0) + 1);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown import error";
@@ -518,6 +607,9 @@ async function main(): Promise<void> {
         skipped,
         errors: errors.length,
         errorReport: errorOutputAbsolutePath,
+        flightsPerPilot: Object.fromEntries(
+          [...flightsPerPilot.entries()].sort((a, b) => b[1] - a[1])
+        ),
       },
       null,
       2

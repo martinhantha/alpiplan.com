@@ -43,6 +43,7 @@
     "resource": "Risorsa",
     "type": "Tipo",
     "calendar": "Calendario",
+    "allTeachers": "Tutti i {teacher}",
     "calendarHint": "Vista 14 giorni. Scegli un giorno per vedere gli appuntamenti a sinistra.",
     "loadAppointmentsFailed": "Impossibile caricare gli appuntamenti",
     "markCompletedFailed": "Impossibile segnare l’appuntamento come completato",
@@ -54,7 +55,8 @@
     "editHint": "Modifica data, contatto e assegnazioni, poi salva.",
     "captureHintVoice": "Inserisci a voce o per testo, assegna {teacher}{resource}, poi salva.",
     "captureHintText": "Inserisci per testo, assegna {teacher}{resource}, poi salva.",
-    "resourceSuffix": "/risorsa"
+    "resourceSuffix": "/risorsa",
+    "modalHintAria": "Guida rapida"
   },
   "appointment": {
     "status": {

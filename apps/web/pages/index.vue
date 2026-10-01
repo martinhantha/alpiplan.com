@@ -44,7 +44,13 @@ const overview = ref<SuperadminOverview | null>(null);
 const saLoading = ref(false);
 const saError = ref("");
 const saInfo = ref("");
+interface SchedulingOptions {
+  teachers: { id: string; displayName: string }[];
+}
+
 const appointments = ref<AppointmentListItem[]>([]);
+const schedulingOptions = ref<SchedulingOptions | null>(null);
+const filterTeacherId = ref("");
 const appointmentsLoading = ref(false);
 const appointmentsError = ref("");
 const savingId = ref("");
@@ -146,6 +152,18 @@ const selectedDateAppointments = computed(() =>
     .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()),
 );
 
+async function loadSchedulingOptions() {
+  if (!primaryTenant.value?.tenantId || !canManageTenant.value) {
+    schedulingOptions.value = null;
+    filterTeacherId.value = "";
+    return;
+  }
+  schedulingOptions.value = await $fetch<SchedulingOptions>(
+    `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`,
+    { credentials: "include" },
+  );
+}
+
 async function loadAppointments() {
   if (!primaryTenant.value) {
     appointments.value = [];
@@ -167,6 +185,7 @@ async function loadAppointments() {
           to: to.toISOString(),
           pageSize: 500,
           sort: "desc",
+          teacherId: filterTeacherId.value || undefined,
         },
       },
     );
@@ -289,12 +308,13 @@ async function updateUser() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   selectedDateKey.value = toDateKey(new Date());
   if (isSuperadmin.value) {
-    loadOverview();
+    await loadOverview();
   }
-  loadAppointments();
+  await loadSchedulingOptions();
+  await loadAppointments();
 });
 
 useAppointmentListSync(loadAppointments);
@@ -308,10 +328,15 @@ watch(quickOpen, (open) => {
 
 watch(
   () => primaryTenant.value?.tenantId,
-  () => {
-    loadAppointments();
+  async () => {
+    await loadSchedulingOptions();
+    await loadAppointments();
   },
 );
+
+watch(filterTeacherId, () => {
+  loadAppointments();
+});
 
 function openAssistant() {
   editingAppointment.value = null;
@@ -522,6 +547,16 @@ async function deleteAppointment(appointment: AppointmentListItem) {
           <h2 class="text-lg font-semibold">{{ $t("home.calendar") }}</h2>
         </template>
         <div class="space-y-3">
+          <select
+            v-if="canManageTenant && schedulingOptions?.teachers?.length"
+            v-model="filterTeacherId"
+            class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+          >
+            <option value="">{{ $t("home.allTeachers", { teacher: teacherLabel }) }}</option>
+            <option v-for="teacher in schedulingOptions.teachers" :key="teacher.id" :value="teacher.id">
+              {{ teacher.displayName }}
+            </option>
+          </select>
           <UInput v-model="selectedDateKey" type="date" />
           <div class="grid grid-cols-2 gap-2">
             <UButton
@@ -724,11 +759,11 @@ async function deleteAppointment(appointment: AppointmentListItem) {
     <UModal v-model:open="quickOpen" :ui="{ content: 'max-w-2xl' }">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
-          <div class="min-w-0">
-            <h2 class="font-medium">
+          <div class="min-w-0 flex items-center gap-1">
+            <h2 class="font-medium truncate">
               {{ editingAppointment ? $t("home.editAppointment") : $t("home.newQuickCapture") }}
             </h2>
-            <p class="text-xs text-neutral-500">
+            <FieldInfoPopover :aria-label="$t('home.modalHintAria')">
               <template v-if="editingAppointment">{{ $t("home.editHint") }}</template>
               <template v-else>
                 {{
@@ -738,7 +773,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
                   })
                 }}
               </template>
-            </p>
+            </FieldInfoPopover>
           </div>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="closeQuickCapture" />
         </div>

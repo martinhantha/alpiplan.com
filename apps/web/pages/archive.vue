@@ -22,12 +22,17 @@ interface Pagination {
   totalPages: number;
 }
 
-const { primaryTenant, canManageTenant, canAccessWorkspace } = useAuth();
+const { primaryTenant, teacherLabel, canManageTenant, canAccessWorkspace } = useAuth();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
 const { intlLocale } = useAppLocale();
 
+interface SchedulingOptions {
+  teachers: { id: string; displayName: string }[];
+}
+
 const appointments = ref<AppointmentListItem[]>([]);
 const pagination = ref<Pagination>({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
+const options = ref<SchedulingOptions | null>(null);
 const loading = ref(false);
 const error = ref("");
 const savingId = ref("");
@@ -77,6 +82,7 @@ function lastYearRange() {
 const initialRange = currentMonthRange();
 const filters = reactive({
   q: "",
+  teacherId: "",
   status: "completed,cancelled",
   from: initialRange.from,
   to: initialRange.to,
@@ -95,6 +101,7 @@ const canLoad = computed(() => Boolean(primaryTenant.value?.tenantId));
 const activeFilterCount = computed(() => {
   let n = 0;
   if (filters.q) n += 1;
+  if (filters.teacherId) n += 1;
   if (filters.status !== "completed,cancelled") n += 1;
   if (filters.from) n += 1;
   if (filters.to) n += 1;
@@ -146,6 +153,7 @@ async function loadArchive() {
         credentials: "include",
         query: {
           q: filters.q || undefined,
+          teacherId: filters.teacherId || undefined,
           status: filters.status,
           from: filters.from ? toIsoDateStart(filters.from) : undefined,
           to: filters.to ? toIsoDateEndExclusive(filters.to) : undefined,
@@ -197,9 +205,18 @@ const activeDatePreset = computed(() => {
   );
 });
 
+async function loadOptions() {
+  if (!primaryTenant.value?.tenantId) return;
+  options.value = await $fetch<SchedulingOptions>(
+    `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`,
+    { credentials: "include" },
+  );
+}
+
 function resetFilters() {
   const range = currentMonthRange();
   filters.q = "";
+  filters.teacherId = "";
   filters.status = "completed,cancelled";
   filters.from = range.from;
   filters.to = range.to;
@@ -259,15 +276,19 @@ watch(pageSize, () => {
   loadArchive();
 });
 
-onMounted(loadArchive);
+onMounted(async () => {
+  await loadOptions();
+  await loadArchive();
+});
 
 useAppointmentListSync(loadArchive);
 
 watch(
   () => primaryTenant.value?.tenantId,
-  () => {
+  async () => {
     page.value = 1;
-    loadArchive();
+    await loadOptions();
+    await loadArchive();
   },
 );
 </script>
@@ -354,8 +375,18 @@ watch(
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
         </div>
       </template>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <UInput v-model="filters.q" placeholder="Suche Kunde oder Kontakttext" />
+        <select
+          v-if="canManageTenant"
+          v-model="filters.teacherId"
+          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+        >
+          <option value="">Alle {{ teacherLabel }}</option>
+          <option v-for="teacher in options?.teachers || []" :key="teacher.id" :value="teacher.id">
+            {{ teacher.displayName }}
+          </option>
+        </select>
         <select
           v-model="filters.status"
           class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
@@ -408,6 +439,9 @@ watch(
             <p class="font-medium">{{ appointmentTitle(appointment) }}</p>
             <p class="text-sm text-neutral-600 dark:text-neutral-400">
               {{ formatDateTime(appointment.startsAt) }}–{{ formatDateTime(appointment.endsAt).split(', ').pop() }}
+            </p>
+            <p v-if="appointment.teacher" class="mt-1 text-xs text-neutral-500">
+              {{ teacherLabel }}: {{ appointment.teacher.displayName }}
             </p>
           </div>
           <div class="flex items-center gap-2">

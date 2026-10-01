@@ -43,6 +43,7 @@
     "resource": "Ressource",
     "type": "Art",
     "calendar": "Kalender",
+    "allTeachers": "Alle {teacher}",
     "calendarHint": "14-Tage-Ansicht. Wähle einen Tag, um rechts die Termine zu sehen.",
     "loadAppointmentsFailed": "Termine konnten nicht geladen werden",
     "markCompletedFailed": "Termin konnte nicht abgehakt werden",
@@ -54,7 +55,8 @@
     "editHint": "Datum, Kontakt und Zuordnung anpassen und speichern.",
     "captureHintVoice": "Per Sprache oder Text erfassen, {teacher}{resource} zuordnen, speichern.",
     "captureHintText": "Per Text erfassen, {teacher}{resource} zuordnen, speichern.",
-    "resourceSuffix": "/Ressource"
+    "resourceSuffix": "/Ressource",
+    "modalHintAria": "Kurzanleitung"
   },
   "appointment": {
     "status": {
