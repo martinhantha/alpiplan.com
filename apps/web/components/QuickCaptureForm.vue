@@ -951,44 +951,42 @@ onMounted(() => {
       :description="conflictType ? `${error} (${conflictType})` : error"
     />
 
-    <div class="rounded-lg border border-primary-200 dark:border-primary-900 bg-primary-50/70 dark:bg-primary-950/30 p-3 space-y-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <UButton
-          v-if="speechRecognitionEnabled"
-          type="button"
-          :color="speechListening ? 'error' : 'primary'"
-          :variant="speechListening ? 'solid' : undefined"
-          :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
-          :loading="parseLoading"
-          @click="toggleVoiceAssistant"
-        >
-          {{ speechListening ? "Stoppen & Felder füllen" : "Sprachassistent" }}
-        </UButton>
-        <UButton
-          type="button"
-          variant="outline"
-          color="neutral"
-          icon="i-lucide-sparkles"
-          :loading="parseLoading"
-          :disabled="!text.trim()"
-          @click="parseFromText"
-        >
-          Text auswerten
-        </UButton>
-        <FieldInfoPopover aria-label="Hinweise zu Sprachassistent und Textauswertung">
-          <p>
-            Beispiel: „morgen Flug Martin, Passagier Alexandra, Telefon +49 333 6788{{
-              speechRecognitionEnabled ? ". Fertig." : "."
-            }}“
-          </p>
-          <p v-if="speechRecognitionEnabled" class="mt-2">
-            Am Ende „Fertig“, „Speichern“ oder „OK“ sagen, dann stoppt die Aufnahme.
-          </p>
-          <p class="mt-2">
-            Ohne Uhrzeit wird der nächste freie Termin mit der höchsten Priorität vorgeschlagen.
-          </p>
-        </FieldInfoPopover>
-      </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <UButton
+        v-if="speechRecognitionEnabled"
+        type="button"
+        :color="speechListening ? 'error' : 'primary'"
+        :variant="speechListening ? 'solid' : undefined"
+        :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
+        :loading="parseLoading"
+        @click="toggleVoiceAssistant"
+      >
+        {{ speechListening ? "Stoppen & Felder füllen" : "Sprachassistent" }}
+      </UButton>
+      <UButton
+        type="button"
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-sparkles"
+        :loading="parseLoading"
+        :disabled="!text.trim()"
+        @click="parseFromText"
+      >
+        Text auswerten
+      </UButton>
+      <FieldInfoPopover aria-label="Hinweise zu Sprachassistent und Textauswertung">
+        <p>
+          Beispiel: „morgen Flug Martin, Passagier Alexandra, Telefon +49 333 6788{{
+            speechRecognitionEnabled ? ". Fertig." : "."
+          }}“
+        </p>
+        <p v-if="speechRecognitionEnabled" class="mt-2">
+          Am Ende „Fertig“, „Speichern“ oder „OK“ sagen, dann stoppt die Aufnahme.
+        </p>
+        <p class="mt-2">
+          Ohne Uhrzeit wird der nächste freie Termin mit der höchsten Priorität vorgeschlagen.
+        </p>
+      </FieldInfoPopover>
     </div>
 
     <UAlert
@@ -1091,84 +1089,12 @@ onMounted(() => {
       description="Dieser Browser unterstützt die Web-Speech-API nicht. In Chrome/Edge (Desktop, Android) oder Safari (iOS 14+) funktioniert die Diktierfunktion."
     />
 
-    <UFormField label="Datum">
-      <UInput v-model="form.date" type="date" />
-    </UFormField>
-
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
-      <UFormField class="min-w-0 flex-1">
-        <template #label>
-          <span class="inline-flex items-center gap-1">
-            Telefon (optional)
-            <FieldInfoPopover
-              v-if="showCallHintsOptInHint"
-              aria-label="Hinweis zu Anruf-Vorschlägen"
-            >
-              Letzte Anrufe als Vorschlag: in den Einstellungen aktivieren (Android-App).
-            </FieldInfoPopover>
-          </span>
-        </template>
-        <div class="space-y-2">
-          <div class="flex gap-2">
-            <UInput v-model="form.phone" class="flex-1 min-w-0" type="tel" placeholder="+43 ..." />
-            <UButton
-              v-if="canPickContact"
-              type="button"
-              variant="soft"
-              color="neutral"
-              icon="i-lucide-contact"
-              :loading="pickingContact"
-              class="shrink-0"
-              @click="pickDeviceContact"
-            >
-              Kontakt
-            </UButton>
-          </div>
-          <div v-if="callHints.length" class="flex flex-col gap-1">
-            <button
-              v-for="hint in callHints"
-              :key="`${hint.lastSeenAt}:${hint.e164 || hint.raw}`"
-              type="button"
-              class="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
-              @click="applyCallHint(hint)"
-            >
-              <span class="block truncate">{{ hint.e164 || hint.raw }}</span>
-              <span class="block text-xs text-neutral-500">{{ formatCallHintTime(hint.lastSeenAt) }}</span>
-            </button>
-          </div>
-          <div v-if="canManageDeviceContact" class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-if="canSaveDeviceContact"
-              type="button"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-user-plus"
-              :loading="savingDeviceContact || checkingDeviceContact"
-              @click="saveDeviceContact"
-            >
-              Aufs Telefon speichern
-            </UButton>
-            <UButton
-              v-else-if="canRemoveDeviceContact"
-              type="button"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-user-minus"
-              :loading="removingDeviceContact || checkingDeviceContact"
-              @click="removeDeviceContact"
-            >
-              Vom Telefon entfernen
-            </UButton>
-            <span v-if="deviceContactStatusLabel || deviceContactHint" class="text-xs text-neutral-500">
-              {{ deviceContactHint || deviceContactStatusLabel }}
-            </span>
-          </div>
-        </div>
+    <div class="grid grid-cols-2 gap-3">
+      <UFormField label="Datum">
+        <UInput v-model="form.date" type="date" />
       </UFormField>
-      <UFormField label="Uhrzeit" class="w-full shrink-0 sm:w-[9.25rem]">
-        <UInput v-model="form.time" type="time" class="w-full" />
+      <UFormField label="Uhrzeit">
+        <UInput v-model="form.time" type="time" />
       </UFormField>
     </div>
 
@@ -1186,17 +1112,6 @@ onMounted(() => {
           {{ minutes }} Min
         </UButton>
       </div>
-    </div>
-    <div
-      v-else
-      class="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-2"
-    >
-      <UIcon name="i-lucide-clock" class="size-4" />
-      <span>
-        Dauer aus Terminart:
-        <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ effectiveDuration }} Min</span>
-        <span v-if="!selectedLessonType?.defaultDurationMin" class="ml-1 text-xs">(Standard 60 Min)</span>
-      </span>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
@@ -1249,15 +1164,23 @@ onMounted(() => {
       </UFormField>
 
       <UFormField label="Terminart">
-        <select
-          v-model="form.lessonTypeId"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          <option value="">Ohne Terminart</option>
-          <option v-for="lessonType in options?.lessonTypes || []" :key="lessonType.id" :value="lessonType.id">
-            {{ lessonType.name }}
-          </option>
-        </select>
+        <div class="flex items-center gap-2">
+          <select
+            v-model="form.lessonTypeId"
+            class="min-w-0 flex-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+          >
+            <option value="">Ohne Terminart</option>
+            <option v-for="lessonType in options?.lessonTypes || []" :key="lessonType.id" :value="lessonType.id">
+              {{ lessonType.name }}
+            </option>
+          </select>
+          <span
+            v-if="useTypeDuration"
+            class="shrink-0 text-sm font-medium tabular-nums text-neutral-600 dark:text-neutral-400"
+          >
+            {{ effectiveDuration }} Min
+          </span>
+        </div>
       </UFormField>
 
       <UFormField label="Passagier / Kunde" class="sm:col-span-2">
@@ -1285,6 +1208,77 @@ onMounted(() => {
         </div>
       </UFormField>
 
+      <UFormField class="sm:col-span-2">
+        <template #label>
+          <span class="inline-flex items-center gap-1">
+            Telefon (optional)
+            <FieldInfoPopover
+              v-if="showCallHintsOptInHint"
+              aria-label="Hinweis zu Anruf-Vorschlägen"
+            >
+              Letzte Anrufe als Vorschlag: in den Einstellungen aktivieren (Android-App).
+            </FieldInfoPopover>
+          </span>
+        </template>
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <UInput v-model="form.phone" class="flex-1 min-w-0" type="tel" placeholder="+43 ..." />
+            <UButton
+              v-if="canPickContact"
+              type="button"
+              variant="soft"
+              color="neutral"
+              icon="i-lucide-contact"
+              :loading="pickingContact"
+              class="shrink-0"
+              @click="pickDeviceContact"
+            >
+              Kontakt
+            </UButton>
+          </div>
+          <div v-if="callHints.length" class="flex flex-col gap-1">
+            <button
+              v-for="hint in callHints"
+              :key="`${hint.lastSeenAt}:${hint.e164 || hint.raw}`"
+              type="button"
+              class="flex w-full items-center justify-between gap-3 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              @click="applyCallHint(hint)"
+            >
+              <span class="min-w-0 truncate">{{ hint.e164 || hint.raw }}</span>
+              <span class="shrink-0 text-xs text-neutral-500 tabular-nums">{{ formatCallHintTime(hint.lastSeenAt) }}</span>
+            </button>
+          </div>
+          <div v-if="canManageDeviceContact" class="flex flex-wrap items-center gap-2">
+            <UButton
+              v-if="canSaveDeviceContact"
+              type="button"
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-user-plus"
+              :loading="savingDeviceContact || checkingDeviceContact"
+              @click="saveDeviceContact"
+            >
+              Aufs Telefon speichern
+            </UButton>
+            <UButton
+              v-else-if="canRemoveDeviceContact"
+              type="button"
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-user-minus"
+              :loading="removingDeviceContact || checkingDeviceContact"
+              @click="removeDeviceContact"
+            >
+              Vom Telefon entfernen
+            </UButton>
+            <span v-if="deviceContactStatusLabel || deviceContactHint" class="text-xs text-neutral-500">
+              {{ deviceContactHint || deviceContactStatusLabel }}
+            </span>
+          </div>
+        </div>
+      </UFormField>
     </div>
 
     <div class="flex items-center justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">

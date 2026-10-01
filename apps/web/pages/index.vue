@@ -417,10 +417,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
   <UContainer class="py-8 space-y-6">
     <div class="space-y-2">
       <p class="text-sm text-muted font-medium">{{ $t("home.breadcrumb") }}</p>
-      <h1 class="text-2xl font-semibold tracking-tight">{{ $t("home.title") }}</h1>
-      <p class="text-neutral-600 dark:text-neutral-400 max-w-prose">
-        {{ $t("home.subtitle") }}
-      </p>
+      <div class="flex items-center gap-1.5">
+        <h1 class="text-2xl font-semibold tracking-tight">{{ $t("home.title") }}</h1>
+        <FieldInfoPopover :aria-label="$t('home.pageHintAria')">
+          {{ $t("home.subtitle") }}
+        </FieldInfoPopover>
+      </div>
       <p v-if="user" class="text-sm text-neutral-600 dark:text-neutral-400">
         {{ $t("home.signedInAs") }} <strong>{{ user.name || user.email }}</strong>
         <template v-if="primaryTenant">
@@ -544,7 +546,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 
       <UCard>
         <template #header>
-          <h2 class="text-lg font-semibold">{{ $t("home.calendar") }}</h2>
+          <div class="flex items-center gap-1">
+            <h2 class="text-lg font-semibold">{{ $t("home.calendar") }}</h2>
+            <FieldInfoPopover :aria-label="$t('home.calendarHintAria')">
+              {{ $t("home.calendarHint") }}
+            </FieldInfoPopover>
+          </div>
         </template>
         <div class="space-y-3">
           <select
@@ -572,9 +579,6 @@ async function deleteAppointment(appointment: AppointmentListItem) {
               <UBadge :color="day.count ? 'primary' : 'neutral'" variant="subtle">{{ day.count }}</UBadge>
             </UButton>
           </div>
-          <p class="text-xs text-neutral-500">
-            {{ $t("home.calendarHint") }}
-          </p>
         </div>
       </UCard>
     </section>

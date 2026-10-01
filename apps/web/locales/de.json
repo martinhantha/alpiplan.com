@@ -56,7 +56,9 @@
     "captureHintVoice": "Per Sprache oder Text erfassen, {teacher}{resource} zuordnen, speichern.",
     "captureHintText": "Per Text erfassen, {teacher}{resource} zuordnen, speichern.",
     "resourceSuffix": "/Ressource",
-    "modalHintAria": "Kurzanleitung"
+    "modalHintAria": "Kurzanleitung",
+    "pageHintAria": "Seitenbeschreibung",
+    "calendarHintAria": "Hinweis zur Kalenderansicht"
   },
   "appointment": {
     "status": {

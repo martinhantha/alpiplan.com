@@ -56,7 +56,9 @@
     "captureHintVoice": "Inserisci a voce o per testo, assegna {teacher}{resource}, poi salva.",
     "captureHintText": "Inserisci per testo, assegna {teacher}{resource}, poi salva.",
     "resourceSuffix": "/risorsa",
-    "modalHintAria": "Guida rapida"
+    "modalHintAria": "Guida rapida",
+    "pageHintAria": "Informazioni sulla pagina",
+    "calendarHintAria": "Informazioni sul calendario"
   },
   "appointment": {
     "status": {

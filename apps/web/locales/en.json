@@ -56,7 +56,9 @@
     "captureHintVoice": "Capture by voice or text, assign {teacher}{resource}, then save.",
     "captureHintText": "Capture by text, assign {teacher}{resource}, then save.",
     "resourceSuffix": "/resource",
-    "modalHintAria": "Quick guide"
+    "modalHintAria": "Quick guide",
+    "pageHintAria": "About this page",
+    "calendarHintAria": "About the calendar"
   },
   "appointment": {
     "status": {
