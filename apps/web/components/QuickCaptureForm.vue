@@ -534,9 +534,35 @@ if (props.appointment?.customer?.displayName || props.appointment?.appointmentCo
 
 const durationOptions = [30, 45, 60, 90, 120];
 const useTypeDuration = computed(() => primaryTenant.value?.useDefaultDuration ?? true);
+const CUSTOMER_SUGGEST_MIN_LEN = 3;
+
+const customerSuggestions = computed(() => {
+  const query = passengerName.value.trim();
+  if (query.length < CUSTOMER_SUGGEST_MIN_LEN) return [];
+  const q = query.toLowerCase();
+  return (options.value?.customers ?? [])
+    .filter((customer) => customer.displayName.toLowerCase().includes(q))
+    .slice(0, 8);
+});
+
+const showCustomerSuggestions = computed(() => {
+  const query = passengerName.value.trim();
+  if (query.length < CUSTOMER_SUGGEST_MIN_LEN || !customerSuggestions.value.length) return false;
+  const selected = form.customerId
+    ? options.value?.customers.find((item) => item.id === form.customerId)
+    : null;
+  if (selected && selected.displayName === query) return false;
+  return true;
+});
+
 const willCreateCustomer = computed(
   () => Boolean(passengerName.value.trim().length >= 2) && !form.customerId,
 );
+
+function pickCustomerSuggestion(customer: CustomerOption) {
+  form.customerId = customer.id;
+  passengerName.value = customer.displayName;
+}
 const canPickContact = computed(() => device.value.features.pickContact);
 const { lookup: deviceContactLookup, checking: checkingDeviceContact, canDelete: canDeleteDeviceContactFeature, savedOnDevice, refresh: refreshDeviceContact } =
   useDeviceContactLookup(() => form.phone);
@@ -662,11 +688,6 @@ async function removeDeviceContact() {
   } finally {
     removingDeviceContact.value = false;
   }
-}
-
-function onCustomerSelect() {
-  const selected = options.value?.customers.find((item) => item.id === form.customerId);
-  if (selected) passengerName.value = selected.displayName;
 }
 
 watch(passengerName, (name) => {
@@ -1159,29 +1180,31 @@ onMounted(() => {
       </UFormField>
     </div>
 
-    <UFormField label="Name" class="w-full">
-      <UInput
-        v-model="passengerName"
-        size="md"
-        class="w-full"
-        :ui="captureInputUi"
-        placeholder="z. B. Alexandra"
-      />
-    </UFormField>
-
-    <UFormField label="Kunde" class="w-full">
-      <select v-model="form.customerId" :class="captureSelectClass" @change="onCustomerSelect">
-        <option value="">
-          {{
-            passengerName.trim()
-              ? `Neu anlegen: ${passengerName.trim()}`
-              : "Kein Kunde / nur Kontakttext"
-          }}
-        </option>
-        <option v-for="customer in options?.customers || []" :key="customer.id" :value="customer.id">
-          {{ customer.displayName }}
-        </option>
-      </select>
+    <UFormField label="Passagier / Kunde" class="w-full">
+      <div class="relative">
+        <UInput
+          v-model="passengerName"
+          size="md"
+          class="w-full"
+          :ui="captureInputUi"
+          placeholder="Name, z. B. Alexandra"
+          autocomplete="off"
+        />
+        <ul
+          v-if="showCustomerSuggestions"
+          class="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-neutral-200 bg-white py-1 shadow-md dark:border-neutral-700 dark:bg-neutral-900"
+        >
+          <li v-for="customer in customerSuggestions" :key="customer.id">
+            <button
+              type="button"
+              class="w-full px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              @mousedown.prevent="pickCustomerSuggestion(customer)"
+            >
+              {{ customer.displayName }}
+            </button>
+          </li>
+        </ul>
+      </div>
       <p v-if="willCreateCustomer" class="mt-1.5 flex items-center gap-1 text-xs text-neutral-500">
         Neuer Kunde: {{ passengerName }}
         <FieldInfoPopover aria-label="Hinweis zur Kundenerstellung">
