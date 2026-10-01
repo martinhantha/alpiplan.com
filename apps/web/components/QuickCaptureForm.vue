@@ -684,6 +684,10 @@ const selectedLessonType = computed(() =>
 
 const effectiveDuration = computed(() => form.durationMinutes || selectedLessonType.value?.defaultDurationMin || 60);
 
+const captureSelectClass =
+  "w-full min-h-10 rounded-md border border-neutral-200 dark:border-neutral-800 bg-transparent px-3 py-2.5 text-sm";
+const captureInputUi = { base: "min-h-10 py-2.5" };
+
 const canSave = computed(() =>
   Boolean(primaryTenant.value && form.date && form.time && (text.value.trim() || passengerName.value.trim() || form.customerId)),
 );
@@ -924,7 +928,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-5">
     <UAlert
       v-if="!primaryTenant"
       color="warning"
@@ -951,21 +955,64 @@ onMounted(() => {
       :description="conflictType ? `${error} (${conflictType})` : error"
     />
 
-    <div class="flex flex-wrap items-center gap-2">
+    <UFormField required>
+      <template #label>
+        <span class="inline-flex items-center gap-1">
+          Kontakt oder Notiz
+          <FieldInfoPopover
+            v-if="speechRecognitionEnabled && speechSupported"
+            aria-label="Hinweis zur Diktierfunktion"
+          >
+            Oder nur diktieren – der Sprachassistent füllt die Felder.
+          </FieldInfoPopover>
+        </span>
+      </template>
+      <div class="relative">
+        <UTextarea
+          v-model="text"
+          autoresize
+          :rows="3"
+          :placeholder="`z. B. Morgen 14 Uhr mit Luis und ${teacherLabel} Martin`"
+          class="w-full min-h-[5.5rem] py-2.5 pr-12"
+        />
+        <UButton
+          v-if="speechRecognitionEnabled && speechSupported"
+          type="button"
+          size="sm"
+          :color="speechListening ? 'error' : 'neutral'"
+          :variant="speechListening ? 'solid' : 'ghost'"
+          :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
+          :title="speechListening ? 'Aufnahme stoppen' : 'Sprachaufnahme starten'"
+          class="absolute top-1 right-1"
+          @click="toggleSpeech"
+        />
+      </div>
+      <template v-if="speechListening" #help>
+        <span class="flex items-center gap-2 text-xs text-primary-700 dark:text-primary-300">
+          <span class="inline-block size-2 rounded-full bg-red-500 animate-pulse" />
+          Aufnahme läuft… Sage „Fertig“, „Speichern“ oder „OK“ zum Stoppen.
+          <span v-if="speechInterim" class="italic text-neutral-500 truncate">„{{ speechInterim }}"</span>
+        </span>
+      </template>
+    </UFormField>
+
+    <div class="flex flex-wrap items-center gap-1.5">
       <UButton
         v-if="speechRecognitionEnabled"
         type="button"
-        :color="speechListening ? 'error' : 'primary'"
-        :variant="speechListening ? 'solid' : undefined"
+        size="sm"
+        :color="speechListening ? 'error' : 'neutral'"
+        :variant="speechListening ? 'solid' : 'soft'"
         :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
         :loading="parseLoading"
         @click="toggleVoiceAssistant"
       >
-        {{ speechListening ? "Stoppen & Felder füllen" : "Sprachassistent" }}
+        {{ speechListening ? "Stoppen" : "Sprachassistent" }}
       </UButton>
       <UButton
         type="button"
-        variant="outline"
+        size="sm"
+        variant="ghost"
         color="neutral"
         icon="i-lucide-sparkles"
         :loading="parseLoading"
@@ -987,24 +1034,31 @@ onMounted(() => {
           Ohne Uhrzeit wird der nächste freie Termin mit der höchsten Priorität vorgeschlagen.
         </p>
       </FieldInfoPopover>
+      <span
+        v-if="speechRecognitionEnabled && !speechSupported"
+        class="inline-flex items-center gap-1 text-xs text-neutral-500"
+      >
+        Sprache nicht verfügbar
+        <FieldInfoPopover aria-label="Sprachassistent nicht verfügbar">
+          Dieser Browser unterstützt die Web-Speech-API nicht. In Chrome/Edge (Desktop, Android) oder Safari (iOS
+          14+) funktioniert die Diktierfunktion.
+        </FieldInfoPopover>
+      </span>
     </div>
 
-    <UAlert
-      v-if="parseHint"
-      color="success"
-      variant="subtle"
-      icon="i-lucide-sparkles"
-      :title="parseHint"
-    />
+    <p v-if="parseHint" class="text-sm text-neutral-600 dark:text-neutral-400">
+      {{ parseHint }}
+    </p>
 
-    <div v-if="questions.length" class="space-y-3">
-      <div v-for="question in questions" :key="question.id" class="space-y-2">
+    <div v-if="questions.length" class="space-y-2">
+      <div v-for="question in questions" :key="question.id" class="space-y-1.5">
         <p class="text-sm font-medium">{{ question.prompt }}</p>
-        <div class="flex flex-col gap-2">
+        <div class="flex flex-col gap-1.5">
           <UButton
             v-for="option in question.options"
             :key="option.value"
             block
+            size="sm"
             color="neutral"
             variant="soft"
             @click="answerQuestion(question.id, option.value)"
@@ -1015,98 +1069,28 @@ onMounted(() => {
       </div>
     </div>
 
-    <UAlert
-      v-if="willCreateCustomer"
-      color="info"
-      variant="subtle"
-      icon="i-lucide-user-plus"
-    >
-      <template #title>
-        <span class="inline-flex flex-wrap items-center gap-1.5">
-          Neuer Kunde wird angelegt: {{ passengerName }}
-          <FieldInfoPopover aria-label="Hinweis zur Kundenerstellung">
-            Beim Speichern wird der Passagier als Kunde erstellt, falls er noch nicht existiert.
-          </FieldInfoPopover>
-        </span>
-      </template>
-    </UAlert>
-
-    <UFormField required>
-      <template #label>
-        <span class="inline-flex items-center gap-1">
-          Kontakt oder Notiz
-          <FieldInfoPopover
-            v-if="speechRecognitionEnabled && speechSupported"
-            aria-label="Hinweis zur Diktierfunktion"
-          >
-            Oder nur diktieren – der Sprachassistent füllt die Felder.
-          </FieldInfoPopover>
-        </span>
-      </template>
-      <div class="relative">
-        <UTextarea
-          v-model="text"
-          autoresize
-          :rows="3"
-          :placeholder="`z. B. Morgen 14 Uhr Stunde mit Luis und ${teacherLabel} Martin`"
-          class="w-full pr-12"
-        />
-        <UButton
-          v-if="speechRecognitionEnabled && speechSupported"
-          type="button"
-          size="sm"
-          :color="speechListening ? 'error' : 'primary'"
-          :variant="speechListening ? 'solid' : 'soft'"
-          :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
-          :title="speechListening ? 'Aufnahme stoppen' : 'Sprachaufnahme starten'"
-          class="absolute top-1.5 right-1.5"
-          @click="toggleSpeech"
-        />
-      </div>
-      <template v-if="speechListening" #help>
-        <span class="flex items-center gap-2 text-xs text-primary-700 dark:text-primary-300">
-          <span class="inline-block size-2 rounded-full bg-red-500 animate-pulse" />
-          Aufnahme läuft… Sage „Fertig“, „Speichern“ oder „OK“ zum Stoppen.
-          <span v-if="speechInterim" class="italic text-neutral-500 truncate">„{{ speechInterim }}"</span>
-        </span>
-      </template>
-    </UFormField>
-    <UAlert
-      v-if="speechError"
-      color="warning"
-      variant="subtle"
-      icon="i-lucide-mic-off"
-      :title="speechError"
-      :close-button="{ icon: 'i-lucide-x', color: 'neutral', variant: 'link' }"
-      @close="speechError = ''"
-    />
-    <UAlert
-      v-if="speechRecognitionEnabled && !speechSupported"
-      color="neutral"
-      variant="subtle"
-      icon="i-lucide-info"
-      title="Sprachassistent nicht verfügbar"
-      description="Dieser Browser unterstützt die Web-Speech-API nicht. In Chrome/Edge (Desktop, Android) oder Safari (iOS 14+) funktioniert die Diktierfunktion."
-    />
+    <p v-if="speechError" class="text-sm text-amber-700 dark:text-amber-400">
+      {{ speechError }}
+    </p>
 
     <div class="grid grid-cols-2 gap-3">
       <UFormField label="Datum">
-        <UInput v-model="form.date" type="date" />
+        <UInput v-model="form.date" type="date" size="md" class="w-full" :ui="captureInputUi" />
       </UFormField>
       <UFormField label="Uhrzeit">
-        <UInput v-model="form.time" type="time" />
+        <UInput v-model="form.time" type="time" size="md" class="w-full" :ui="captureInputUi" />
       </UFormField>
     </div>
 
-    <div v-if="!useTypeDuration" class="space-y-2">
-      <span class="text-sm font-medium">Dauer</span>
-      <div class="flex flex-wrap gap-2">
+    <div v-if="!useTypeDuration" class="space-y-1.5">
+      <span class="text-sm text-neutral-600 dark:text-neutral-400">Dauer</span>
+      <div class="flex flex-wrap gap-1.5">
         <UButton
           v-for="minutes in durationOptions"
           :key="minutes"
-          size="sm"
-          :variant="form.durationMinutes === minutes ? 'solid' : 'soft'"
-          color="primary"
+          size="xs"
+          :variant="form.durationMinutes === minutes ? 'soft' : 'ghost'"
+          :color="form.durationMinutes === minutes ? 'primary' : 'neutral'"
           @click="form.durationMinutes = minutes"
         >
           {{ minutes }} Min
@@ -1127,14 +1111,14 @@ onMounted(() => {
             </FieldInfoPopover>
           </span>
         </template>
-        <div v-if="canManageTenant" class="flex flex-wrap gap-2">
+        <div v-if="canManageTenant" class="flex flex-wrap gap-1.5">
           <UButton
             v-for="teacher in options?.teachers || []"
             :key="teacher.id"
             type="button"
-            size="sm"
-            :variant="form.teacherIds.includes(teacher.id) ? 'solid' : 'soft'"
-            color="primary"
+            size="xs"
+            :variant="form.teacherIds.includes(teacher.id) ? 'soft' : 'ghost'"
+            :color="form.teacherIds.includes(teacher.id) ? 'primary' : 'neutral'"
             @click="toggleTeacher(teacher.id)"
           >
             {{ teacher.displayName }}
@@ -1143,19 +1127,13 @@ onMounted(() => {
             Keine {{ teacherLabel }} hinterlegt.
           </p>
         </div>
-        <p
-          v-else
-          class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
+        <p v-else class="text-sm text-neutral-600 dark:text-neutral-400">
           Mit: {{ colleagueNames }}
         </p>
       </UFormField>
 
       <UFormField v-if="resourcesEnabled" label="Ressource">
-        <select
-          v-model="form.resourceId"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
+        <select v-model="form.resourceId" :class="captureSelectClass">
           <option value="">Ohne Ressource</option>
           <option v-for="resource in options?.resources || []" :key="resource.id" :value="resource.id">
             {{ resource.name }} · Kapazität {{ resource.capacity }}
@@ -1165,10 +1143,7 @@ onMounted(() => {
 
       <UFormField label="Terminart">
         <div class="flex items-center gap-2">
-          <select
-            v-model="form.lessonTypeId"
-            class="min-w-0 flex-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-          >
+          <select v-model="form.lessonTypeId" :class="[captureSelectClass, 'min-w-0 flex-1']">
             <option value="">Ohne Terminart</option>
             <option v-for="lessonType in options?.lessonTypes || []" :key="lessonType.id" :value="lessonType.id">
               {{ lessonType.name }}
@@ -1182,36 +1157,43 @@ onMounted(() => {
           </span>
         </div>
       </UFormField>
+    </div>
 
-      <UFormField label="Passagier / Kunde" class="sm:col-span-2">
-        <div class="space-y-2">
-          <UInput
-            v-model="passengerName"
-            placeholder="Name, z. B. Alexandra"
-          />
-          <select
-            v-model="form.customerId"
-            class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-            @change="onCustomerSelect"
-          >
-            <option value="">
-              {{
-                passengerName.trim()
-                  ? `Neu anlegen: ${passengerName.trim()}`
-                  : "Kein Kunde / nur Kontakttext"
-              }}
-            </option>
-            <option v-for="customer in options?.customers || []" :key="customer.id" :value="customer.id">
-              {{ customer.displayName }}
-            </option>
-          </select>
-        </div>
-      </UFormField>
+    <UFormField label="Name" class="w-full">
+      <UInput
+        v-model="passengerName"
+        size="md"
+        class="w-full"
+        :ui="captureInputUi"
+        placeholder="z. B. Alexandra"
+      />
+    </UFormField>
 
-      <UFormField class="sm:col-span-2">
+    <UFormField label="Kunde" class="w-full">
+      <select v-model="form.customerId" :class="captureSelectClass" @change="onCustomerSelect">
+        <option value="">
+          {{
+            passengerName.trim()
+              ? `Neu anlegen: ${passengerName.trim()}`
+              : "Kein Kunde / nur Kontakttext"
+          }}
+        </option>
+        <option v-for="customer in options?.customers || []" :key="customer.id" :value="customer.id">
+          {{ customer.displayName }}
+        </option>
+      </select>
+      <p v-if="willCreateCustomer" class="mt-1.5 flex items-center gap-1 text-xs text-neutral-500">
+        Neuer Kunde: {{ passengerName }}
+        <FieldInfoPopover aria-label="Hinweis zur Kundenerstellung">
+          Beim Speichern wird der Passagier als Kunde erstellt, falls er noch nicht existiert.
+        </FieldInfoPopover>
+      </p>
+    </UFormField>
+
+    <UFormField class="w-full">
         <template #label>
           <span class="inline-flex items-center gap-1">
-            Telefon (optional)
+            Telefon
             <FieldInfoPopover
               v-if="showCallHintsOptInHint"
               aria-label="Hinweis zu Anruf-Vorschlägen"
@@ -1220,28 +1202,35 @@ onMounted(() => {
             </FieldInfoPopover>
           </span>
         </template>
-        <div class="space-y-2">
+        <div class="space-y-1.5">
           <div class="flex gap-2">
-            <UInput v-model="form.phone" class="flex-1 min-w-0" type="tel" placeholder="+43 ..." />
+            <UInput
+              v-model="form.phone"
+              type="tel"
+              size="md"
+              class="min-w-0 flex-1 w-full"
+              :ui="captureInputUi"
+              placeholder="+43 …"
+            />
             <UButton
               v-if="canPickContact"
               type="button"
-              variant="soft"
+              size="sm"
+              variant="ghost"
               color="neutral"
               icon="i-lucide-contact"
               :loading="pickingContact"
               class="shrink-0"
+              title="Kontakt wählen"
               @click="pickDeviceContact"
-            >
-              Kontakt
-            </UButton>
+            />
           </div>
-          <div v-if="callHints.length" class="flex flex-col gap-1">
+          <div v-if="callHints.length" class="flex flex-col gap-0.5">
             <button
               v-for="hint in callHints"
               :key="`${hint.lastSeenAt}:${hint.e164 || hint.raw}`"
               type="button"
-              class="flex w-full items-center justify-between gap-3 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              class="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800/80"
               @click="applyCallHint(hint)"
             >
               <span class="min-w-0 truncate">{{ hint.e164 || hint.raw }}</span>
@@ -1279,18 +1268,17 @@ onMounted(() => {
           </div>
         </div>
       </UFormField>
-    </div>
 
-    <div class="flex items-center justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-      <UButton variant="ghost" color="neutral" @click="emit('cancel')">Schließen</UButton>
+    <div class="flex items-center justify-end gap-2 pt-1">
+      <UButton size="sm" variant="ghost" color="neutral" @click="emit('cancel')">Schließen</UButton>
       <UButton
+        size="sm"
         color="primary"
-        icon="i-lucide-save"
         :disabled="!canSave || loading"
         :loading="saving"
         @click="saveAppointment"
       >
-        {{ isEditing ? "Änderungen speichern" : "Übernehmen & speichern" }}
+        Speichern
       </UButton>
     </div>
   </div>

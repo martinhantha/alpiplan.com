@@ -22,7 +22,7 @@ withDefaults(
       size="xs"
       icon="i-lucide-info"
       :aria-label="ariaLabel"
-      class="shrink-0 size-7 p-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+      class="shrink-0 size-6 p-0 text-neutral-400/80 hover:text-neutral-600 dark:hover:text-neutral-300"
     />
     <template #content>
       <slot />
