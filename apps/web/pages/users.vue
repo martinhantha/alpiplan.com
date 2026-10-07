@@ -652,7 +652,7 @@ watch(
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
         <p class="text-sm text-muted font-medium">Alpiplan · Benutzer</p>
-        <h1 class="text-2xl font-semibold tracking-tight">
+        <h1 class="font-display text-3xl sm:text-4xl">
           Benutzer
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ filteredUsers.length }})</span>
         </h1>

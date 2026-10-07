@@ -721,7 +721,7 @@ onMounted(() => {
   <UContainer class="py-8 space-y-6">
     <div class="space-y-2">
       <p class="text-sm text-muted font-medium">{{ $t("settings.breadcrumb") }}</p>
-      <h1 class="text-2xl font-semibold tracking-tight">{{ $t("settings.title") }}</h1>
+      <h1 class="font-display text-3xl sm:text-4xl">{{ $t("settings.title") }}</h1>
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
         {{ $t("settings.subtitleAccount") }}
         <template v-if="canEdit">

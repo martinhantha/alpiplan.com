@@ -36,20 +36,22 @@ async function onSubmit() {
 
 <template>
   <div
-    class="app-login-bg min-h-dvh flex flex-col items-center justify-center p-6 pt-[max(1.5rem,var(--app-safe-top))] pb-[max(1.5rem,var(--app-safe-bottom))] text-neutral-900 dark:text-neutral-50"
+    class="night-hero min-h-dvh flex flex-col items-center justify-center px-6 pt-[max(2rem,var(--app-safe-top))] pb-[max(12rem,var(--app-safe-bottom))] sm:pb-64"
   >
-    <div class="w-full max-w-md space-y-8">
-      <div class="text-center space-y-4">
-        <AppLogo size="lg" class="mx-auto" />
-        <div class="space-y-2">
-          <h1 class="text-2xl font-semibold tracking-tight text-ink-900 dark:text-ink-50">{{ $t("login.title") }}</h1>
-          <p class="text-sm text-ink-600 dark:text-ink-400 max-w-sm mx-auto leading-relaxed">
+    <AlpineRidge class="absolute inset-x-0 bottom-0 -z-10 h-48 w-full sm:h-72" />
+
+    <div class="w-full max-w-md space-y-8 animate-fade-in">
+      <div class="text-center space-y-5">
+        <AppLogo size="lg" inverted />
+        <div class="space-y-3">
+          <h1 class="font-display text-4xl leading-[1.05] sm:text-5xl">{{ $t("login.title") }}</h1>
+          <p class="text-base text-white/70 max-w-sm mx-auto leading-relaxed">
             {{ $t("login.subtitle") }}
           </p>
         </div>
       </div>
 
-      <UCard class="app-surface-card ring-1 ring-orchid-200/60 dark:ring-orchid-900/35">
+      <UCard class="rounded-[1.75rem] shadow-(--shadow-lift) ring-0 text-neutral-900 dark:text-neutral-50">
         <template #header>
           <p class="text-sm text-neutral-600 dark:text-neutral-400">
             {{ $t("login.cardHint") }}

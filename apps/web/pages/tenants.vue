@@ -157,7 +157,7 @@ onMounted(load);
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p class="text-sm text-muted font-medium">Alpiplan · Mandanten</p>
-          <h1 class="text-2xl font-semibold tracking-tight">
+          <h1 class="font-display text-3xl sm:text-4xl">
             Mandanten
             <span class="ml-2 text-sm font-normal text-neutral-500">({{ filtered.length }})</span>
           </h1>

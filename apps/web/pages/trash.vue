@@ -174,7 +174,7 @@ watch(
   <UContainer class="py-8 space-y-5">
     <div>
       <p class="text-sm text-muted font-medium">Alpiplan · Papierkorb</p>
-      <h1 class="text-2xl font-semibold tracking-tight">
+      <h1 class="font-display text-3xl sm:text-4xl">
         Papierkorb
         <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
       </h1>

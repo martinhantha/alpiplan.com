@@ -49,7 +49,7 @@ function cycle() {
       v-else
       role="radiogroup"
       :aria-label="$t('theme.title')"
-      class="inline-flex w-full rounded-lg bg-ink-100 p-0.5 dark:bg-ink-900"
+      class="inline-flex w-full rounded-full bg-neutral-200/60 p-1 dark:bg-neutral-800"
     >
       <button
         v-for="option in options"
@@ -58,11 +58,11 @@ function cycle() {
         role="radio"
         :aria-checked="colorMode.preference === option.value"
         :title="option.label"
-        class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition"
+        class="flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium transition"
         :class="
           colorMode.preference === option.value
-            ? 'bg-white text-ink-900 shadow-sm dark:bg-ink-700 dark:text-ink-50'
-            : 'text-ink-500 hover:text-ink-800 dark:text-ink-400 dark:hover:text-ink-100'
+            ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-600 dark:text-white'
+            : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100'
         "
         @click="select(option.value)"
       >
@@ -71,7 +71,7 @@ function cycle() {
       </button>
     </div>
     <template #fallback>
-      <div :class="compact ? 'size-8' : 'h-8 w-full'" />
+      <div :class="compact ? 'size-8' : 'h-9 w-full'" />
     </template>
   </ClientOnly>
 </template>

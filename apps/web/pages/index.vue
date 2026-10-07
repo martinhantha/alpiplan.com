@@ -414,34 +414,38 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 </script>
 
 <template>
-  <UContainer class="py-8 space-y-6">
-    <div class="space-y-2">
-      <p class="text-sm text-muted font-medium">{{ $t("home.breadcrumb") }}</p>
-      <div class="flex items-center gap-1.5">
-        <h1 class="text-2xl font-semibold tracking-tight">{{ $t("home.title") }}</h1>
-        <FieldInfoPopover :aria-label="$t('home.pageHintAria')">
-          {{ $t("home.subtitle") }}
-        </FieldInfoPopover>
-      </div>
-      <p v-if="user" class="text-sm text-neutral-600 dark:text-neutral-400">
-        {{ $t("home.signedInAs") }} <strong>{{ user.name || user.email }}</strong>
-        <template v-if="primaryTenant">
-          · {{ $t("home.tenant") }} <strong>{{ primaryTenant.tenantName }}</strong>
-        </template>
-        <template v-if="user.isSuperadmin"> · <strong>Superadmin</strong></template>
-      </p>
-    </div>
+  <UContainer class="py-6 sm:py-8 space-y-6">
+    <section
+      class="relative isolate overflow-hidden rounded-2xl border border-neutral-200 bg-gradient-to-br from-white to-primary-50/60 px-6 pb-20 pt-7 dark:border-neutral-800 dark:from-neutral-900 dark:to-primary-950/30 sm:px-8 sm:pb-24"
+    >
+      <AlpineRidge
+        variant="subtle"
+        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 aspect-[15/4] min-h-32 w-full text-primary-600 dark:text-primary-300"
+      />
 
-    <div class="grid grid-cols-2 gap-3">
-      <UCard class="app-stat-card">
-        <p class="text-xs font-medium uppercase tracking-wider text-orchid-700 dark:text-orchid-300">{{ $t("home.statsUpcoming") }}</p>
-        <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-ink-50">{{ upcomingCount }}</p>
-      </UCard>
-      <UCard class="app-stat-card">
-        <p class="text-xs font-medium uppercase tracking-wider text-orchid-700 dark:text-orchid-300">{{ $t("home.statsToday") }}</p>
-        <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-ink-50">{{ todayCount }}</p>
-      </UCard>
-    </div>
+      <p v-if="primaryTenant || user?.isSuperadmin" class="eyebrow flex items-center gap-2">
+        <span class="size-1.5 rounded-full bg-glow-500" aria-hidden="true" />
+        {{ primaryTenant?.tenantName || "Superadmin" }}
+      </p>
+      <h1 class="font-display mt-3 text-3xl sm:text-4xl">{{ $t("home.title") }}</h1>
+      <p class="mt-2 max-w-xl text-sm leading-relaxed text-neutral-600 dark:text-neutral-400 sm:text-base">
+        {{ $t("home.subtitle") }}
+      </p>
+      <p v-if="user" class="mt-1 text-sm text-neutral-500">
+        {{ $t("home.signedInAs") }} <span class="font-medium text-neutral-800 dark:text-neutral-200">{{ user.name || user.email }}</span>
+      </p>
+
+      <div class="mt-6 grid max-w-md grid-cols-2 gap-3">
+        <div class="rounded-xl bg-white/80 px-4 py-3 ring-1 ring-neutral-200 backdrop-blur dark:bg-neutral-950/50 dark:ring-neutral-800">
+          <p class="text-xs font-medium text-neutral-500">{{ $t("home.statsUpcoming") }}</p>
+          <p class="font-display mt-1 text-3xl tabular-nums">{{ upcomingCount }}</p>
+        </div>
+        <div class="rounded-xl bg-white/80 px-4 py-3 ring-1 ring-neutral-200 backdrop-blur dark:bg-neutral-950/50 dark:ring-neutral-800">
+          <p class="text-xs font-medium text-neutral-500">{{ $t("home.statsToday") }}</p>
+          <p class="font-display mt-1 text-3xl tabular-nums text-primary-600 dark:text-primary-300">{{ todayCount }}</p>
+        </div>
+      </div>
+    </section>
 
     <div class="grid gap-3 sm:grid-cols-2">
       <UButton to="/appointments" block size="xl" variant="soft" color="primary" icon="i-lucide-calendar-days">

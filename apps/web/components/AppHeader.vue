@@ -4,7 +4,7 @@ const { user, primaryTenant, logout } = useAuth();
 
 <template>
   <header
-    class="border-b border-ink-200/80 dark:border-ink-800/80 bg-white/85 dark:bg-ink-950/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-ink-950/70"
+    class="bg-neutral-50/80 backdrop-blur-xl backdrop-saturate-150 dark:bg-neutral-950/80"
   >
     <UContainer class="flex h-14 items-center justify-between gap-4">
       <div class="flex items-center gap-3 min-w-0">
