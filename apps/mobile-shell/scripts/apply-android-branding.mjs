@@ -7,6 +7,7 @@ const iconSrc = resolve(root, "resources/icon.png");
 const foregroundSrc = existsSync(resolve(root, "resources/icon-foreground.png"))
   ? resolve(root, "resources/icon-foreground.png")
   : iconSrc;
+const backgroundSrc = resolve(root, "resources/icon-background.png");
 const resDir = resolve(root, "android/app/src/main/res");
 
 if (!existsSync(iconSrc)) {
@@ -47,16 +48,39 @@ for (const { dir, launcher, foreground } of densities) {
     "--out",
     resolve(outDir, "ic_launcher_foreground.png"),
   ]);
+  if (existsSync(backgroundSrc)) {
+    runSips([
+      "-z",
+      String(foreground),
+      String(foreground),
+      backgroundSrc,
+      "--out",
+      resolve(outDir, "ic_launcher_background.png"),
+    ]);
+  }
 }
 
 writeFileSync(
   resolve(resDir, "values/ic_launcher_background.xml"),
   `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#000000</color>
+    <color name="ic_launcher_background">#1A1040</color>
 </resources>
 `,
 );
+
+const adaptiveBackground = existsSync(backgroundSrc)
+  ? "@mipmap/ic_launcher_background"
+  : "@color/ic_launcher_background";
+const adaptiveIcon = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="${adaptiveBackground}"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
+`;
+mkdirSync(resolve(resDir, "mipmap-anydpi-v26"), { recursive: true });
+writeFileSync(resolve(resDir, "mipmap-anydpi-v26/ic_launcher.xml"), adaptiveIcon);
+writeFileSync(resolve(resDir, "mipmap-anydpi-v26/ic_launcher_round.xml"), adaptiveIcon);
 
 const robot = resolve(resDir, "drawable-v24/ic_launcher_foreground.xml");
 if (existsSync(robot)) unlinkSync(robot);
