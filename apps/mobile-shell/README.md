@@ -37,6 +37,18 @@ Nach dem ersten `cap add android` in `android/app/src/main/AndroidManifest.xml` 
 
 `pnpm cap:add:ios` und `pnpm cap:sync` schreiben die Privacy-Keys in `ios/App/App/Info.plist` (Kontakte, Mikrofon, Spracherkennung). Ohne `NSContactsUsageDescription` stürzt iOS beim Speichern eines Kontakts ab. Dieselben Commands setzen App-Icon und Splash aus `resources/icon.png` (Android und iOS).
 
+## iOS-Push
+
+Der Server schickt iOS-Push wie Android über FCM (`FIREBASE_SERVICE_ACCOUNT`); APNs läuft über Firebase.
+
+1. Apple Developer (kostenpflichtiger Account): unter *Keys* einen APNs-Key (`.p8`) erstellen.
+2. Firebase → Projekteinstellungen → Cloud Messaging → *Apple-App-Konfiguration*: `.p8`, Key-ID und Team-ID hochladen.
+3. Firebase → iOS-App mit Bundle-ID `at.alpiplan.app` hinzufügen, `GoogleService-Info.plist` nach `apps/mobile-shell/` (oder Repo-Root) legen — ist gitignored.
+4. `pnpm cap:sync` — `scripts/patch-ios-push.mjs` kopiert die Plist, fügt `FirebaseMessaging`, Push-Entitlement und den generierten `AppDelegate.swift` hinzu und führt `pod install` aus.
+5. In Xcode beim Target *App* unter *Signing & Capabilities* das Team wählen.
+
+Ohne `GoogleService-Info.plist` setzt das Script nur das Deployment-Target (iOS 15) und lässt das Push-Entitlement weg, damit auch ein kostenloses Personal Team signieren kann. Im Vordergrund zeigt iOS nur die lokale Benachrichtigung der Web-App, keine doppelte Remote-Push.
+
 ## Produktion
 
 ```bash

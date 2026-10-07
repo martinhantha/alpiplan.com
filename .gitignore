@@ -14,5 +14,6 @@ apps/mobile-shell/android/
 apps/mobile-shell/ios/
 apps/mobile-shell/google-services.json
 google-services.json
+GoogleService-Info.plist
 .tmp*
 *.pem

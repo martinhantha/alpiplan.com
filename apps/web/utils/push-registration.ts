@@ -6,7 +6,9 @@ let registering = false;
 
 export async function registerNativePushToken(): Promise<void> {
   if (!import.meta.client) return;
-  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
+  if (!Capacitor.isNativePlatform()) return;
+  const platform = Capacitor.getPlatform();
+  if (platform !== "android" && platform !== "ios") return;
   if (registering) return;
   registering = true;
   try {
@@ -18,7 +20,7 @@ export async function registerNativePushToken(): Promise<void> {
     await $fetch("/api/auth/push-token", {
       method: "POST",
       credentials: "include",
-      body: { token, platform: "android" },
+      body: { token, platform },
     });
   } catch {
     // Permission denied or Firebase not configured on this build.

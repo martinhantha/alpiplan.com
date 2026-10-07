@@ -119,6 +119,8 @@ async function sendFcmMessage(
   body: string,
   data: Record<string, string>,
 ): Promise<"ok" | "gone" | "error"> {
+  // Same id as the web layer's local notification, so iOS replaces instead of duplicating.
+  const collapseId = data.appointmentId ? `${data.type}:${data.appointmentId}`.slice(0, 64) : undefined;
   try {
     const response = await fetch(
       `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -138,6 +140,15 @@ async function sendFcmMessage(
               notification: {
                 channelId: "alpiplan_appointments",
                 notificationCount: 1,
+              },
+            },
+            apns: {
+              headers: {
+                "apns-priority": "10",
+                ...(collapseId ? { "apns-collapse-id": collapseId } : {}),
+              },
+              payload: {
+                aps: { sound: "default" },
               },
             },
           },

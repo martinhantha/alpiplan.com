@@ -35,7 +35,7 @@ function alertCopy(event: AppointmentLiveEvent): { title: string; body: string }
 }
 
 async function notifyOs(event: AppointmentLiveEvent, title: string, body: string) {
-  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+  if (Capacitor.isNativePlatform()) {
     try {
       await AlpiplanDevice.showLocalNotification({
         title,
@@ -80,7 +80,7 @@ export function useAppointmentAlerts() {
 
   async function maybeRequestPush() {
     if (askedPushPermission) return;
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
+    if (!Capacitor.isNativePlatform()) return;
     askedPushPermission = true;
     try {
       await device.value.requestPushPermission();

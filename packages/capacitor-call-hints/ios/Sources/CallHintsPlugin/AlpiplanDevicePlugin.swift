@@ -2,9 +2,19 @@ import AVFoundation
 import Capacitor
 import Contacts
 import UIKit
+import UserNotifications
+
+extension Notification.Name {
+    /// Posted by the app's AppDelegate with `userInfo["token"]` once Firebase Messaging has an FCM token.
+    public static let alpiplanPushToken = Notification.Name("AlpiplanPushToken")
+}
 
 @objc(AlpiplanDevicePlugin)
 public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
+    /// Shared with the AppDelegate, which caches the latest FCM token under this key.
+    public static let pushTokenDefaultsKey = "alpiplan.pushToken"
+    private static let pushTokenTimeout: TimeInterval = 15
+
     public let identifier = "AlpiplanDevicePlugin"
     public let jsName = "AlpiplanDevice"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -24,16 +34,14 @@ public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc override public func checkPermissions(_ call: CAPPluginCall) {
-        call.resolve(permissionStatus())
+        resolvePermissionStatus(call)
     }
 
     @objc override public func requestPermissions(_ call: CAPPluginCall) {
         let alias = call.getString("alias")
         if alias == "contacts" {
             CNContactStore().requestAccess(for: .contacts) { _, _ in
-                DispatchQueue.main.async {
-                    call.resolve(self.permissionStatus())
-                }
+                self.resolvePermissionStatus(call)
             }
             return
         }
@@ -42,7 +50,14 @@ public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         if alias == "notifications" {
-            call.resolve(permissionStatus())
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                if granted {
+                    DispatchQueue.main.async {
+                        UIApplication.shared.registerForRemoteNotifications()
+                    }
+                }
+                self.resolvePermissionStatus(call)
+            }
             return
         }
         requestAllPermissions(call)
@@ -51,18 +66,14 @@ public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func requestAllPermissions(_ call: CAPPluginCall) {
         AVAudioSession.sharedInstance().requestRecordPermission { _ in
             CNContactStore().requestAccess(for: .contacts) { _, _ in
-                DispatchQueue.main.async {
-                    call.resolve(self.permissionStatus())
-                }
+                self.resolvePermissionStatus(call)
             }
         }
     }
 
     @objc func requestMicrophone(_ call: CAPPluginCall) {
         AVAudioSession.sharedInstance().requestRecordPermission { _ in
-            DispatchQueue.main.async {
-                call.resolve(self.permissionStatus())
-            }
+            self.resolvePermissionStatus(call)
         }
     }
 
@@ -231,11 +242,77 @@ public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func showLocalNotification(_ call: CAPPluginCall) {
-        call.resolve()
+        let content = UNMutableNotificationContent()
+        content.title = call.getString("title") ?? "Alpiplan"
+        content.body = call.getString("body") ?? ""
+        content.sound = .default
+        let id = call.getString("id")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let identifier = (id?.isEmpty == false) ? id! : UUID().uuidString
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { _ in
+            // Missing permission is not an error for callers; they keep the in-app alert.
+            call.resolve()
+        }
     }
 
     @objc func getPushToken(_ call: CAPPluginCall) {
-        call.resolve(["token": NSNull()])
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard Self.notificationsAllowed(settings.authorizationStatus) else {
+                call.resolve([:])
+                return
+            }
+            DispatchQueue.main.async {
+                if let cached = UserDefaults.standard.string(forKey: Self.pushTokenDefaultsKey), !cached.isEmpty {
+                    UIApplication.shared.registerForRemoteNotifications()
+                    call.resolve(["token": cached])
+                    return
+                }
+                self.awaitPushToken(call)
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+    }
+
+    private func awaitPushToken(_ call: CAPPluginCall) {
+        var observer: NSObjectProtocol?
+        var finished = false
+        let finish: ([String: Any]) -> Void = { result in
+            guard !finished else { return }
+            finished = true
+            if let observer {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            call.resolve(result)
+        }
+        observer = NotificationCenter.default.addObserver(
+            forName: .alpiplanPushToken,
+            object: nil,
+            queue: .main
+        ) { note in
+            if let token = note.userInfo?["token"] as? String, !token.isEmpty {
+                finish(["token": token])
+            }
+        }
+        // No Firebase config in this build, or APNs registration failed: resolve empty like Android.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pushTokenTimeout) {
+            finish([:])
+        }
+    }
+
+    private static func notificationsAllowed(_ status: UNAuthorizationStatus) -> Bool {
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func notificationState(_ status: UNAuthorizationStatus) -> String {
+        if notificationsAllowed(status) {
+            return "granted"
+        }
+        return status == .denied ? "denied" : "prompt"
     }
 
     @objc func startSpeechRecognition(_ call: CAPPluginCall) {
@@ -244,6 +321,16 @@ public class AlpiplanDevicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func stopSpeechRecognition(_ call: CAPPluginCall) {
         call.resolve()
+    }
+
+    private func resolvePermissionStatus(_ call: CAPPluginCall) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            var status = self.permissionStatus()
+            status["notifications"] = Self.notificationState(settings.authorizationStatus)
+            DispatchQueue.main.async {
+                call.resolve(status)
+            }
+        }
     }
 
     private func permissionStatus() -> [String: String] {

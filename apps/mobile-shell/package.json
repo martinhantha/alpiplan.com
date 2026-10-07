@@ -3,10 +3,10 @@
   "private": true,
   "description": "Capacitor native shell around the Alpiplan Nuxt app",
   "scripts": {
-    "cap:sync": "cap sync && node scripts/patch-ios-info-plist.mjs && node scripts/apply-ios-branding.mjs && node scripts/apply-android-identity.mjs && node scripts/apply-android-branding.mjs && node scripts/patch-android-push.mjs",
+    "cap:sync": "cap sync && node scripts/patch-ios-info-plist.mjs && node scripts/patch-ios-push.mjs && node scripts/apply-ios-branding.mjs && node scripts/apply-android-identity.mjs && node scripts/apply-android-branding.mjs && node scripts/patch-android-push.mjs",
     "cap:copy": "cap copy",
     "cap:add:android": "cap add android && node scripts/apply-android-identity.mjs && node scripts/apply-android-branding.mjs",
-    "cap:add:ios": "cap add ios && node scripts/patch-ios-info-plist.mjs && node scripts/apply-ios-branding.mjs",
+    "cap:add:ios": "cap add ios && node scripts/patch-ios-info-plist.mjs && node scripts/patch-ios-push.mjs && node scripts/apply-ios-branding.mjs",
     "cap:open:android": "cap open android",
     "cap:open:ios": "cap open ios"
   },

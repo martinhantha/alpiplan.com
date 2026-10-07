@@ -62,12 +62,15 @@ export class CapacitorDeviceCapabilities extends WebDeviceCapabilities implement
   }
 
   override async requestPushPermission(): Promise<NotificationPermission | "unsupported"> {
-    if (this.platform === "android") {
-      try {
-        await AlpiplanDevice.requestPermissions({ alias: "notifications" });
-      } catch {
-        // Continue with the Web Notification prompt if native request fails.
+    try {
+      const status = await AlpiplanDevice.requestPermissions({ alias: "notifications" });
+      // WKWebView has no Web Notification API, so the native answer is final on iOS.
+      if (this.platform === "ios") {
+        if (status.notifications === "granted") return "granted";
+        return status.notifications === "denied" ? "denied" : "default";
       }
+    } catch {
+      // Continue with the Web Notification prompt if native request fails.
     }
     return super.requestPushPermission();
   }
