@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Brand tokens from the Alpiplan logo: orchid mark #9054FC, magenta swoosh #CC00C0, violet #480CC0. */
 @theme static {
   --color-orchid-50: #f6f0ff;
@@ -54,4 +56,186 @@ html.capacitor-android {
 html.capacitor-ios {
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@layer base {
+  html {
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* App shell & auth backgrounds */
+.app-shell {
+  background-color: var(--color-ink-50);
+  background-image:
+    radial-gradient(
+      ellipse 90% 55% at 50% -15%,
+      color-mix(in oklab, var(--color-orchid-400) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 45% 35% at 100% 0%,
+      color-mix(in oklab, var(--color-violet-500) 14%, transparent),
+      transparent 65%
+    );
+}
+
+.dark .app-shell {
+  background-color: var(--color-ink-950);
+  background-image:
+    radial-gradient(
+      ellipse 85% 50% at 50% -10%,
+      color-mix(in oklab, var(--color-orchid-600) 28%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 40% 30% at 100% 5%,
+      color-mix(in oklab, var(--color-violet-600) 18%, transparent),
+      transparent 60%
+    );
+}
+
+.app-login-bg {
+  background-color: var(--color-ink-50);
+  background-image:
+    radial-gradient(
+      ellipse 70% 50% at 50% 0%,
+      color-mix(in oklab, var(--color-orchid-400) 28%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 100% 100%,
+      color-mix(in oklab, var(--color-violet-500) 16%, transparent),
+      transparent 55%
+    );
+}
+
+.dark .app-login-bg {
+  background-color: var(--color-ink-950);
+  background-image:
+    radial-gradient(
+      ellipse 65% 45% at 50% -5%,
+      color-mix(in oklab, var(--color-orchid-500) 32%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 45% 35% at 0% 100%,
+      color-mix(in oklab, var(--color-violet-600) 20%, transparent),
+      transparent 58%
+    );
+}
+
+.brand-wordmark {
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.brand-wordmark-alpi {
+  color: var(--color-ink-900);
+}
+
+.dark .brand-wordmark-alpi {
+  color: var(--color-ink-50);
+}
+
+.brand-wordmark-plan {
+  background: linear-gradient(
+    120deg,
+    var(--color-orchid-500) 0%,
+    #cc00c0 45%,
+    var(--color-violet-600) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.dark .brand-wordmark-plan {
+  background-image: linear-gradient(
+    120deg,
+    var(--color-orchid-300) 0%,
+    #e85ae0 50%,
+    var(--color-violet-400) 100%
+  );
+}
+
+.app-sidebar {
+  border-right: 1px solid color-mix(in oklab, var(--color-ink-200) 80%, transparent);
+  background: color-mix(in oklab, white 92%, var(--color-orchid-50));
+}
+
+.dark .app-sidebar {
+  border-right-color: color-mix(in oklab, var(--color-ink-800) 90%, transparent);
+  background: color-mix(in oklab, var(--color-ink-950) 94%, var(--color-violet-950));
+}
+
+.app-nav-link {
+  border-left: 2px solid transparent;
+  border-radius: 0.5rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.app-nav-link-active {
+  border-left-color: var(--color-orchid-500);
+  background: color-mix(in oklab, var(--color-orchid-100) 85%, white);
+  color: var(--color-orchid-900);
+  font-weight: 500;
+}
+
+.dark .app-nav-link-active {
+  border-left-color: var(--color-orchid-400);
+  background: color-mix(in oklab, var(--color-orchid-950) 55%, transparent);
+  color: var(--color-orchid-100);
+}
+
+.app-nav-link-idle {
+  color: var(--color-ink-700);
+}
+
+.app-nav-link-idle:hover {
+  background: color-mix(in oklab, var(--color-ink-100) 70%, transparent);
+}
+
+.dark .app-nav-link-idle {
+  color: var(--color-ink-300);
+}
+
+.dark .app-nav-link-idle:hover {
+  background: color-mix(in oklab, var(--color-ink-900) 65%, transparent);
+}
+
+.app-surface-card {
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--color-ink-900) 4%, transparent),
+    0 8px 24px color-mix(in oklab, var(--color-orchid-500) 6%, transparent);
+}
+
+.dark .app-surface-card {
+  box-shadow:
+    0 1px 2px color-mix(in oklab, black 35%, transparent),
+    0 8px 28px color-mix(in oklab, var(--color-orchid-600) 12%, transparent);
+}
+
+.app-stat-card {
+  border: 1px solid color-mix(in oklab, var(--color-orchid-200) 55%, var(--color-ink-200));
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, white 96%, var(--color-orchid-50)),
+    white
+  );
+}
+
+.dark .app-stat-card {
+  border-color: color-mix(in oklab, var(--color-orchid-900) 45%, var(--color-ink-800));
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--color-ink-900) 88%, var(--color-violet-950)),
+    color-mix(in oklab, var(--color-ink-950) 92%, transparent)
+  );
 }

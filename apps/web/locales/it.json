@@ -16,6 +16,13 @@
     "settings": "Impostazioni",
     "logout": "Esci"
   },
+  "theme": {
+    "title": "Aspetto",
+    "description": "Chiaro, scuro o come il sistema. Salvato su questo dispositivo.",
+    "system": "Sistema",
+    "light": "Chiaro",
+    "dark": "Scuro"
+  },
   "login": {
     "title": "Accedi",
     "subtitle": "Contesto multi-tenant per le pagine prototipo.",

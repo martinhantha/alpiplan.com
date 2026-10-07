@@ -767,6 +767,13 @@ onMounted(() => {
         </div>
       </UCard>
       <UCard class="lg:col-span-2">
+        <template #header><h2 class="font-medium">{{ $t("theme.title") }}</h2></template>
+        <div class="space-y-2 text-sm">
+          <p class="text-xs text-neutral-500">{{ $t("theme.description") }}</p>
+          <ThemeSwitcher class="max-w-md" />
+        </div>
+      </UCard>
+      <UCard class="lg:col-span-2">
         <template #header><h2 class="font-medium">Benachrichtigungen</h2></template>
         <div class="flex items-start justify-between gap-4">
           <div>

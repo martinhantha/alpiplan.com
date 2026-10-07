@@ -16,6 +16,13 @@
     "settings": "Settings",
     "logout": "Log out"
   },
+  "theme": {
+    "title": "Appearance",
+    "description": "Light, dark, or follow the system. Stored on this device.",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
   "login": {
     "title": "Sign in",
     "subtitle": "Multi-tenant context for the prototype screens.",

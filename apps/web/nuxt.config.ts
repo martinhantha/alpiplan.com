@@ -67,10 +67,16 @@ export default defineNuxtConfig({
       meta: [
         { name: "description", content: "Alpiplan — Prototyp Schnellerfassung & Planung" },
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-        { name: "theme-color", content: "#16121f", media: "(prefers-color-scheme: light)" },
-        { name: "theme-color", content: "#0c0814", media: "(prefers-color-scheme: dark)" },
+        { name: "theme-color", content: "#9054fc", media: "(prefers-color-scheme: light)" },
+        { name: "theme-color", content: "#2c125c", media: "(prefers-color-scheme: dark)" },
       ],
       link: [
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap",
+        },
         { rel: "icon", type: "image/png", href: "/favicon.png" },
         { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
         { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },

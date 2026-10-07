@@ -433,13 +433,13 @@ async function deleteAppointment(appointment: AppointmentListItem) {
     </div>
 
     <div class="grid grid-cols-2 gap-3">
-      <UCard>
-        <p class="text-xs uppercase tracking-wide text-neutral-500">{{ $t("home.statsUpcoming") }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ upcomingCount }}</p>
+      <UCard class="app-stat-card">
+        <p class="text-xs font-medium uppercase tracking-wider text-orchid-700 dark:text-orchid-300">{{ $t("home.statsUpcoming") }}</p>
+        <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-ink-50">{{ upcomingCount }}</p>
       </UCard>
-      <UCard>
-        <p class="text-xs uppercase tracking-wide text-neutral-500">{{ $t("home.statsToday") }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ todayCount }}</p>
+      <UCard class="app-stat-card">
+        <p class="text-xs font-medium uppercase tracking-wider text-orchid-700 dark:text-orchid-300">{{ $t("home.statsToday") }}</p>
+        <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-ink-50">{{ todayCount }}</p>
       </UCard>
     </div>
 

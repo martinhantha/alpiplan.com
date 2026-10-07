@@ -4,12 +4,12 @@ const { user, primaryTenant, logout } = useAuth();
 
 <template>
   <header
-    class="border-b border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-neutral-900/70"
+    class="border-b border-ink-200/80 dark:border-ink-800/80 bg-white/85 dark:bg-ink-950/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-ink-950/70"
   >
     <UContainer class="flex h-14 items-center justify-between gap-4">
       <div class="flex items-center gap-3 min-w-0">
-        <NuxtLink to="/" class="inline-flex items-center shrink-0" aria-label="Alpiplan">
-          <AppLogo class="h-7" />
+        <NuxtLink to="/" class="inline-flex h-8 shrink-0 items-center" aria-label="Alpiplan">
+          <AppLogo size="sm" />
         </NuxtLink>
         <span
           v-if="primaryTenant"

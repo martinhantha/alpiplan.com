@@ -36,18 +36,20 @@ async function onSubmit() {
 
 <template>
   <div
-    class="min-h-dvh flex flex-col items-center justify-center p-6 pt-[max(1.5rem,var(--app-safe-top))] pb-[max(1.5rem,var(--app-safe-bottom))] bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50"
+    class="app-login-bg min-h-dvh flex flex-col items-center justify-center p-6 pt-[max(1.5rem,var(--app-safe-top))] pb-[max(1.5rem,var(--app-safe-bottom))] text-neutral-900 dark:text-neutral-50"
   >
-    <div class="w-full max-w-md space-y-6">
-      <div class="text-center space-y-3">
-        <AppLogo class="mx-auto h-10" />
-        <h1 class="text-2xl font-semibold tracking-tight">{{ $t("login.title") }}</h1>
-        <p class="text-sm text-neutral-600 dark:text-neutral-400">
-          {{ $t("login.subtitle") }}
-        </p>
+    <div class="w-full max-w-md space-y-8">
+      <div class="text-center space-y-4">
+        <AppLogo size="lg" class="mx-auto" />
+        <div class="space-y-2">
+          <h1 class="text-2xl font-semibold tracking-tight text-ink-900 dark:text-ink-50">{{ $t("login.title") }}</h1>
+          <p class="text-sm text-ink-600 dark:text-ink-400 max-w-sm mx-auto leading-relaxed">
+            {{ $t("login.subtitle") }}
+          </p>
+        </div>
       </div>
 
-      <UCard>
+      <UCard class="app-surface-card ring-1 ring-orchid-200/60 dark:ring-orchid-900/35">
         <template #header>
           <p class="text-sm text-neutral-600 dark:text-neutral-400">
             {{ $t("login.cardHint") }}
