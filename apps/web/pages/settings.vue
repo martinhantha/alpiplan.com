@@ -28,6 +28,19 @@ interface AvailabilityRule {
   priority: number;
 }
 
+type AbsenceType = "vacation" | "sick" | "block";
+
+interface Absence {
+  id: string;
+  teacherId: string;
+  type: AbsenceType | "extra_open";
+  startsOn: string;
+  endsOn: string;
+  startTime: string | null;
+  endTime: string | null;
+  reason: string | null;
+}
+
 const { user, session, primaryTenant, refreshSession, canManageTenant, speechRecognitionEnabled } = useAuth();
 const { locale, locales, setAppLocale, t } = useAppLocale();
 const { device, setCallHintsOptIn } = useDeviceCapabilities();
@@ -205,8 +218,13 @@ function saveTeacherLabel() {
   saveTenantSettings({ teacherLabel: next });
 }
 
+const canManageAbsences = computed(() => canEdit.value || Boolean(primaryTenant.value?.teacherProfileId));
+
 const tabs = computed(() => {
   const items = [{ id: "account", label: t("settings.tabs.account"), icon: "i-lucide-user" }];
+  if (canManageAbsences.value) {
+    items.push({ id: "absences", label: t("settings.tabs.absences"), icon: "i-lucide-calendar-off" });
+  }
   if (canEdit.value) {
     items.push(
       { id: "lesson-types", label: t("settings.tabs.lessonTypes"), icon: "i-lucide-tag" },
@@ -568,6 +586,196 @@ async function deleteRule(item: AvailabilityRule) {
   }
 }
 
+const absenceTypeOptions: { value: AbsenceType; label: string }[] = [
+  { value: "vacation", label: "Urlaub" },
+  { value: "block", label: "Frei" },
+  { value: "sick", label: "Krank" },
+];
+
+function todayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const absenceTeachers = ref<TeacherOption[]>([]);
+const absenceTeacherId = ref("");
+const absences = ref<Absence[]>([]);
+const absencesLoading = ref(false);
+const showPastAbsences = ref(false);
+const absenceForm = reactive({
+  id: "",
+  type: "vacation" as AbsenceType,
+  startsOn: todayDateKey(),
+  endsOn: todayDateKey(),
+  allDay: true,
+  startTime: "12:00",
+  endTime: "14:00",
+  reason: "",
+});
+
+const visibleAbsences = computed(() => {
+  if (showPastAbsences.value) return absences.value;
+  const today = todayDateKey();
+  return absences.value.filter((item) => item.endsOn >= today);
+});
+
+const pastAbsenceCount = computed(() => absences.value.length - visibleAbsences.value.length);
+
+function absenceTypeLabel(type: Absence["type"]) {
+  if (type === "extra_open") return "Zusätzlich verfügbar";
+  return absenceTypeOptions.find((option) => option.value === type)?.label ?? type;
+}
+
+function absenceTypeColor(type: Absence["type"]) {
+  if (type === "vacation") return "primary" as const;
+  if (type === "sick") return "error" as const;
+  if (type === "extra_open") return "success" as const;
+  return "warning" as const;
+}
+
+function formatAbsenceDate(value: string) {
+  return new Intl.DateTimeFormat(locale.value, { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).format(
+    new Date(`${value}T00:00:00`),
+  );
+}
+
+function absenceRangeLabel(item: Absence) {
+  const dates =
+    item.startsOn === item.endsOn
+      ? formatAbsenceDate(item.startsOn)
+      : `${formatAbsenceDate(item.startsOn)} – ${formatAbsenceDate(item.endsOn)}`;
+  const time = item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : "ganzer Tag";
+  return `${dates} · ${time}`;
+}
+
+function absenceTeacherName(id: string) {
+  return absenceTeachers.value.find((teacher) => teacher.id === id)?.displayName ?? "";
+}
+
+async function loadAbsenceTeachers() {
+  if (!primaryTenant.value?.tenantId) return;
+  try {
+    const response = await $fetch<{ teachers: TeacherOption[] }>(
+      `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`,
+      { credentials: "include" },
+    );
+    absenceTeachers.value = response.teachers;
+    const own = primaryTenant.value.teacherProfileId;
+    if (!absenceTeachers.value.some((teacher) => teacher.id === absenceTeacherId.value)) {
+      absenceTeacherId.value =
+        (own && absenceTeachers.value.some((teacher) => teacher.id === own) ? own : absenceTeachers.value[0]?.id) ?? "";
+    }
+  } catch (e: unknown) {
+    setError(apiMessage(e, `${teacherLabelLocal.value} konnten nicht geladen werden`));
+  }
+}
+
+async function loadAbsences() {
+  if (!primaryTenant.value?.tenantId || !absenceTeacherId.value) {
+    absences.value = [];
+    return;
+  }
+  absencesLoading.value = true;
+  try {
+    const response = await $fetch<{ data: Absence[] }>(
+      `/api/v1/tenants/${primaryTenant.value.tenantId}/teachers/${absenceTeacherId.value}/availability/exceptions`,
+      { credentials: "include" },
+    );
+    absences.value = response.data;
+  } catch (e: unknown) {
+    setError(apiMessage(e, "Abwesenheiten konnten nicht geladen werden"));
+  } finally {
+    absencesLoading.value = false;
+  }
+}
+
+function resetAbsenceForm() {
+  absenceForm.id = "";
+  absenceForm.type = "vacation";
+  absenceForm.startsOn = todayDateKey();
+  absenceForm.endsOn = todayDateKey();
+  absenceForm.allDay = true;
+  absenceForm.startTime = "12:00";
+  absenceForm.endTime = "14:00";
+  absenceForm.reason = "";
+}
+
+function selectAbsence(item: Absence) {
+  absenceForm.id = item.id;
+  absenceForm.type = item.type === "extra_open" ? "block" : item.type;
+  absenceForm.startsOn = item.startsOn;
+  absenceForm.endsOn = item.endsOn;
+  absenceForm.allDay = !(item.startTime && item.endTime);
+  absenceForm.startTime = item.startTime ?? "12:00";
+  absenceForm.endTime = item.endTime ?? "14:00";
+  absenceForm.reason = item.reason ?? "";
+}
+
+watch(
+  () => absenceForm.startsOn,
+  (startsOn) => {
+    if (startsOn && (!absenceForm.endsOn || absenceForm.endsOn < startsOn)) absenceForm.endsOn = startsOn;
+  },
+);
+
+async function saveAbsence() {
+  if (!primaryTenant.value?.tenantId || !absenceTeacherId.value) return;
+  if (!absenceForm.startsOn || !absenceForm.endsOn) {
+    setError("Von- und Bis-Datum sind erforderlich");
+    return;
+  }
+  if (!absenceForm.allDay && absenceForm.startTime >= absenceForm.endTime) {
+    setError("Bis-Uhrzeit muss nach der Von-Uhrzeit liegen");
+    return;
+  }
+  absencesLoading.value = true;
+  try {
+    const base = `/api/v1/tenants/${primaryTenant.value.tenantId}/teachers/${absenceTeacherId.value}/availability/exceptions`;
+    const body = {
+      type: absenceForm.type,
+      startsOn: absenceForm.startsOn,
+      endsOn: absenceForm.endsOn,
+      startTime: absenceForm.allDay ? null : absenceForm.startTime,
+      endTime: absenceForm.allDay ? null : absenceForm.endTime,
+      reason: absenceForm.reason,
+    };
+    if (absenceForm.id) {
+      await $fetch(`${base}/${absenceForm.id}`, { method: "PATCH", credentials: "include", body });
+      setInfo("Abwesenheit aktualisiert");
+    } else {
+      await $fetch(base, { method: "POST", credentials: "include", body });
+      setInfo("Abwesenheit eingetragen");
+    }
+    resetAbsenceForm();
+    await loadAbsences();
+  } catch (e: unknown) {
+    setError(apiMessage(e, "Abwesenheit konnte nicht gespeichert werden"));
+  } finally {
+    absencesLoading.value = false;
+  }
+}
+
+async function deleteAbsence(item: Absence) {
+  if (!primaryTenant.value?.tenantId || !absenceTeacherId.value) return;
+  if (!confirm(`${absenceTypeLabel(item.type)} ${absenceRangeLabel(item)} löschen?`)) return;
+  try {
+    await $fetch(
+      `/api/v1/tenants/${primaryTenant.value.tenantId}/teachers/${absenceTeacherId.value}/availability/exceptions/${item.id}`,
+      { method: "DELETE", credentials: "include" },
+    );
+    setInfo("Abwesenheit gelöscht");
+    if (absenceForm.id === item.id) resetAbsenceForm();
+    await loadAbsences();
+  } catch (e: unknown) {
+    setError(apiMessage(e, "Abwesenheit konnte nicht gelöscht werden"));
+  }
+}
+
+watch(absenceTeacherId, () => {
+  resetAbsenceForm();
+  if (activeTab.value === "absences") loadAbsences();
+});
+
 const overview = ref<SuperadminOverview | null>(null);
 const overviewLoading = ref(false);
 const tenantForm = reactive({ name: "", slug: "" });
@@ -688,6 +896,10 @@ async function updateUser() {
 watch(activeTab, async (tab) => {
   info.value = "";
   error.value = "";
+  if (tab === "absences") {
+    await loadAbsenceTeachers();
+    await loadAbsences();
+  }
   if (tab === "lesson-types") await loadLessonTypes();
   if (tab === "availability") {
     await loadTeachers();
@@ -705,6 +917,10 @@ watch(canEdit, (ok) => {
   if (!ok && (activeTab.value === "lesson-types" || activeTab.value === "availability")) {
     activeTab.value = "account";
   }
+});
+
+watch(canManageAbsences, (ok) => {
+  if (!ok && activeTab.value === "absences") activeTab.value = "account";
 });
 
 onMounted(() => {
@@ -1081,6 +1297,132 @@ onMounted(() => {
           </select>
         </div>
       </UCard>
+    </section>
+
+    <section v-else-if="activeTab === 'absences' && canManageAbsences" class="space-y-4">
+      <UCard v-if="absenceTeachers.length > 1">
+        <template #header><h2 class="font-medium">{{ teacherLabelLocal }} wählen</h2></template>
+        <select
+          v-model="absenceTeacherId"
+          class="w-full max-w-md rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+        >
+          <option v-for="t in absenceTeachers" :key="t.id" :value="t.id">
+            {{ t.displayName }}{{ t.id === primaryTenant?.teacherProfileId ? " (ich)" : "" }}
+          </option>
+        </select>
+      </UCard>
+
+      <div v-if="!absenceTeachers.length && !absencesLoading" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
+        Für Abwesenheiten brauchst du ein {{ teacherLabelLocal }}-Profil in diesem Mandanten.
+      </div>
+
+      <div v-else class="grid gap-4 lg:grid-cols-3">
+        <UCard class="lg:col-span-2">
+          <template #header>
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="font-medium">
+                Abwesenheiten
+                <span v-if="absenceTeachers.length > 1" class="text-neutral-500 font-normal">
+                  · {{ absenceTeacherName(absenceTeacherId) }}
+                </span>
+              </h2>
+              <div class="flex items-center gap-2">
+                <label class="inline-flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 cursor-pointer">
+                  <input v-model="showPastAbsences" type="checkbox" />
+                  Vergangene{{ pastAbsenceCount && !showPastAbsences ? ` (${pastAbsenceCount})` : "" }}
+                </label>
+                <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="absencesLoading" @click="loadAbsences" />
+              </div>
+            </div>
+          </template>
+          <div v-if="!visibleAbsences.length" class="text-sm text-neutral-500">
+            Keine {{ showPastAbsences ? "" : "anstehenden " }}Abwesenheiten eingetragen.
+          </div>
+          <div v-else class="divide-y divide-neutral-200 dark:divide-neutral-800">
+            <div v-for="item in visibleAbsences" :key="item.id" class="flex items-center justify-between py-2 gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <UBadge :color="absenceTypeColor(item.type)" variant="subtle" size="sm">
+                    {{ absenceTypeLabel(item.type) }}
+                  </UBadge>
+                  <p class="font-medium text-sm">{{ absenceRangeLabel(item) }}</p>
+                </div>
+                <p v-if="item.reason" class="text-xs text-neutral-500 mt-0.5 truncate">{{ item.reason }}</p>
+              </div>
+              <div class="flex gap-1 shrink-0">
+                <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil" @click="selectAbsence(item)" />
+                <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="deleteAbsence(item)" />
+              </div>
+            </div>
+          </div>
+        </UCard>
+
+        <UCard>
+          <template #header>
+            <h2 class="font-medium">{{ absenceForm.id ? "Abwesenheit bearbeiten" : "Abwesenheit eintragen" }}</h2>
+          </template>
+          <form class="space-y-3" @submit.prevent="saveAbsence">
+            <UFormField label="Art">
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="option in absenceTypeOptions"
+                  :key="option.value"
+                  type="button"
+                  class="rounded-md border px-3 py-1.5 text-sm font-medium transition"
+                  :class="
+                    absenceForm.type === option.value
+                      ? 'border-primary-500 bg-primary-500 text-white'
+                      : 'border-neutral-300 bg-white text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200'
+                  "
+                  @click="absenceForm.type = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+            </UFormField>
+            <div class="grid grid-cols-2 gap-2">
+              <UFormField label="Von Datum">
+                <UInput v-model="absenceForm.startsOn" type="date" />
+              </UFormField>
+              <UFormField label="Bis Datum">
+                <UInput v-model="absenceForm.endsOn" type="date" :min="absenceForm.startsOn" />
+              </UFormField>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <input v-model="absenceForm.allDay" type="checkbox" />
+              Ganzer Tag
+            </label>
+            <div v-if="!absenceForm.allDay" class="space-y-1">
+              <div class="grid grid-cols-2 gap-2">
+                <UFormField label="Von">
+                  <UInput v-model="absenceForm.startTime" type="time" />
+                </UFormField>
+                <UFormField label="Bis">
+                  <UInput v-model="absenceForm.endTime" type="time" />
+                </UFormField>
+              </div>
+              <p v-if="absenceForm.startsOn !== absenceForm.endsOn" class="text-xs text-neutral-500">
+                Gilt an jedem Tag im gewählten Zeitraum.
+              </p>
+            </div>
+            <UFormField label="Notiz" hint="optional">
+              <UInput v-model="absenceForm.reason" maxlength="200" placeholder="z. B. Arzttermin" />
+            </UFormField>
+            <p class="text-xs text-neutral-500">
+              In diesem Zeitraum können keine Termine für {{ absenceTeacherName(absenceTeacherId) || "dich" }} eingetragen
+              werden; Vorschläge für freie Termine überspringen ihn.
+            </p>
+            <div class="flex gap-2">
+              <UButton type="submit" color="primary" :loading="absencesLoading" :disabled="!absenceTeacherId">
+                {{ absenceForm.id ? "Speichern" : "Eintragen" }}
+              </UButton>
+              <UButton v-if="absenceForm.id" variant="ghost" color="neutral" @click="resetAbsenceForm">
+                Abbrechen
+              </UButton>
+            </div>
+          </form>
+        </UCard>
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'lesson-types' && canEdit" class="grid gap-4 lg:grid-cols-3">

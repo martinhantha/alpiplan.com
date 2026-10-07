@@ -229,6 +229,42 @@ function appointmentFitsAvailable(
   );
 }
 
+type ExceptionMatch = {
+  type: AvailabilityExceptionType;
+  startsOn: Date;
+  endsOn: Date;
+  startTime: string | null;
+  endTime: string | null;
+};
+
+const blockingExceptionTypes: AvailabilityExceptionType[] = [
+  AvailabilityExceptionType.vacation,
+  AvailabilityExceptionType.sick,
+  AvailabilityExceptionType.block,
+];
+
+function exceptionsForDay(exceptions: ExceptionMatch[], date: string): ExceptionMatch[] {
+  return exceptions.filter(
+    (exception) => date >= dateOnlyString(exception.startsOn) && date <= dateOnlyString(exception.endsOn),
+  );
+}
+
+function findBlockingException(
+  exceptions: ExceptionMatch[],
+  start: { date: string; time: string },
+  end: { date: string; time: string },
+): ExceptionMatch | undefined {
+  return exceptionsForDay(exceptions, start.date).find((exception) => {
+    if (!blockingExceptionTypes.includes(exception.type)) return false;
+    if (!exception.startTime || !exception.endTime) return true;
+    const endsLater = end.date > start.date;
+    return (
+      compareTimes(start.time, exception.endTime) < 0 &&
+      (endsLater || compareTimes(end.time, exception.startTime) > 0)
+    );
+  });
+}
+
 function normalizeTime(value: unknown, field: string): string {
   if (typeof value !== "string" || !/^\d{2}:\d{2}$/.test(value)) {
     throwValidation(`${field} muss im Format HH:mm sein`, { field });
@@ -353,6 +389,8 @@ function toExceptionDto(row: {
   type: AvailabilityExceptionType;
   startsOn: Date;
   endsOn: Date;
+  startTime: string | null;
+  endTime: string | null;
   reason: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -462,26 +500,23 @@ async function validateTeacherAvailability(
     }),
     prisma.availabilityException.findMany({
       where: { tenantId, teacherId, deletedAt: null },
-      select: { type: true, startsOn: true, endsOn: true },
+      select: { type: true, startsOn: true, endsOn: true, startTime: true, endTime: true },
     }),
   ]);
 
   const start = getBusinessParts(startsAt);
   const end = getBusinessParts(endsAt);
-  const exceptionForDay = exceptions.filter(
-    (exception) =>
-      start.date >= dateOnlyString(exception.startsOn) && start.date <= dateOnlyString(exception.endsOn),
-  );
-  const blockingException = exceptionForDay.find((exception) =>
-    [
-      AvailabilityExceptionType.vacation,
-      AvailabilityExceptionType.sick,
-      AvailabilityExceptionType.block,
-    ].includes(exception.type),
-  );
+  const exceptionForDay = exceptionsForDay(exceptions, start.date);
+  const blockingException = findBlockingException(exceptions, start, end);
 
   if (blockingException) {
-    throwConflict("Lehrer ist in diesem Zeitraum nicht verfügbar", {
+    const absenceLabel = { vacation: "Urlaub", sick: "Krank", block: "Frei" }[
+      blockingException.type as "vacation" | "sick" | "block"
+    ];
+    const window = blockingException.startTime && blockingException.endTime
+      ? ` ${blockingException.startTime}–${blockingException.endTime}`
+      : "";
+    throwConflict(`Lehrer ist abwesend (${absenceLabel}${window})`, {
       conflictType: "TEACHER_UNAVAILABLE",
       reason: blockingException.type,
       teacherId,
@@ -1443,18 +1478,8 @@ export async function listAvailabilityExceptions(tenantId: string, teacherIdInpu
   await requireTeacher(tenantId, teacherId);
   const rows = await prisma.availabilityException.findMany({
     where: { tenantId, teacherId, deletedAt: null },
-    orderBy: [{ startsOn: "asc" }, { type: "asc" }],
-    select: {
-      id: true,
-      tenantId: true,
-      teacherId: true,
-      type: true,
-      startsOn: true,
-      endsOn: true,
-      reason: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    orderBy: [{ startsOn: "asc" }, { startTime: "asc" }, { type: "asc" }],
+    select: availabilityExceptionSelect,
   });
   return { data: rows.map(toExceptionDto) };
 }
@@ -1474,8 +1499,42 @@ function normalizeExceptionPayload(rawBody: unknown, partial = false) {
     throwValidation("Enddatum ist erforderlich", { field: "endsOn" });
   }
   const reason = hasOwn(body, "reason") ? optionalTrimmedString(body.reason) : undefined;
-  return { type, startsOn, endsOn, reason };
+  let startTime: string | null | undefined;
+  let endTime: string | null | undefined;
+  if (hasOwn(body, "startTime") || hasOwn(body, "endTime")) {
+    const rawStart = body.startTime;
+    const rawEnd = body.endTime;
+    const startEmpty = rawStart === null || rawStart === undefined || rawStart === "";
+    const endEmpty = rawEnd === null || rawEnd === undefined || rawEnd === "";
+    if (startEmpty && endEmpty) {
+      startTime = null;
+      endTime = null;
+    } else if (startEmpty || endEmpty) {
+      throwValidation("Von und Bis müssen beide gesetzt oder beide leer sein", { field: startEmpty ? "startTime" : "endTime" });
+    } else {
+      startTime = normalizeTime(rawStart, "startTime");
+      endTime = normalizeTime(rawEnd, "endTime");
+      if (compareTimes(startTime, endTime) >= 0) {
+        throwValidation("Endzeit muss nach der Startzeit liegen", { startTime, endTime });
+      }
+    }
+  }
+  return { type, startsOn, endsOn, reason, startTime, endTime };
 }
+
+const availabilityExceptionSelect = {
+  id: true,
+  tenantId: true,
+  teacherId: true,
+  type: true,
+  startsOn: true,
+  endsOn: true,
+  startTime: true,
+  endTime: true,
+  reason: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export async function createAvailabilityException(
   tenantId: string,
@@ -1499,19 +1558,11 @@ export async function createAvailabilityException(
       type: payload.type!,
       startsOn: payload.startsOn!,
       endsOn: payload.endsOn!,
+      startTime: payload.startTime ?? null,
+      endTime: payload.endTime ?? null,
       reason: payload.reason,
     },
-    select: {
-      id: true,
-      tenantId: true,
-      teacherId: true,
-      type: true,
-      startsOn: true,
-      endsOn: true,
-      reason: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: availabilityExceptionSelect,
   });
   return toExceptionDto(row);
 }
@@ -1547,21 +1598,13 @@ export async function patchAvailabilityException(
   if (payload.startsOn !== undefined) data.startsOn = payload.startsOn;
   if (payload.endsOn !== undefined) data.endsOn = payload.endsOn;
   if (payload.reason !== undefined) data.reason = payload.reason;
+  if (payload.startTime !== undefined) data.startTime = payload.startTime;
+  if (payload.endTime !== undefined) data.endTime = payload.endTime;
 
   const row = await prisma.availabilityException.update({
     where: { id: exceptionId },
     data,
-    select: {
-      id: true,
-      tenantId: true,
-      teacherId: true,
-      type: true,
-      startsOn: true,
-      endsOn: true,
-      reason: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: availabilityExceptionSelect,
   });
   return toExceptionDto(row);
 }
@@ -1910,22 +1953,14 @@ const slotCheckAppointmentSelect = {
 
 function teacherBlockedByAvailability(
   rules: AvailabilityMatchRule[],
-  exceptions: { type: AvailabilityExceptionType; startsOn: Date; endsOn: Date }[],
+  exceptions: ExceptionMatch[],
   startsAt: Date,
   endsAt: Date,
 ) {
   const start = getBusinessParts(startsAt);
   const end = getBusinessParts(endsAt);
-  const exceptionForDay = exceptions.filter(
-    (exception) => start.date >= dateOnlyString(exception.startsOn) && start.date <= dateOnlyString(exception.endsOn),
-  );
-  const blocking = exceptionForDay.some(
-    (exception) =>
-      exception.type === AvailabilityExceptionType.vacation ||
-      exception.type === AvailabilityExceptionType.sick ||
-      exception.type === AvailabilityExceptionType.block,
-  );
-  if (blocking) return true;
+  const exceptionForDay = exceptionsForDay(exceptions, start.date);
+  if (findBlockingException(exceptions, start, end)) return true;
   if (exceptionForDay.some((exception) => exception.type === AvailabilityExceptionType.extra_open)) {
     return false;
   }
@@ -1942,7 +1977,7 @@ function slotIsFree(input: {
   nearby: SlotCheckAppointment[];
   resourceCapacity: Map<string, number>;
   rulesByTeacher: Map<string, AvailabilityMatchRule[]>;
-  exceptionsByTeacher: Map<string, { type: AvailabilityExceptionType; startsOn: Date; endsOn: Date }[]>;
+  exceptionsByTeacher: Map<string, ExceptionMatch[]>;
 }) {
   if (input.startsAt.getTime() <= Date.now()) return false;
   if (input.teacherId) {
@@ -2034,7 +2069,7 @@ export async function suggestNextPrioritySlot(
     }),
     prisma.availabilityException.findMany({
       where: { tenantId, deletedAt: null },
-      select: { teacherId: true, type: true, startsOn: true, endsOn: true },
+      select: { teacherId: true, type: true, startsOn: true, endsOn: true, startTime: true, endTime: true },
     }),
     prisma.appointment.findMany({
       where: {
@@ -2091,11 +2126,17 @@ export async function suggestNextPrioritySlot(
   }
   const exceptionsByTeacher = new Map<
     string,
-    { type: AvailabilityExceptionType; startsOn: Date; endsOn: Date }[]
+    ExceptionMatch[]
   >();
   for (const exception of exceptions) {
     const list = exceptionsByTeacher.get(exception.teacherId) ?? [];
-    list.push({ type: exception.type, startsOn: exception.startsOn, endsOn: exception.endsOn });
+    list.push({
+      type: exception.type,
+      startsOn: exception.startsOn,
+      endsOn: exception.endsOn,
+      startTime: exception.startTime,
+      endTime: exception.endTime,
+    });
     exceptionsByTeacher.set(exception.teacherId, list);
   }
   const resourceCapacity = new Map<string, number>(
@@ -2251,7 +2292,7 @@ export async function suggestAppointmentAlternatives(
     }),
     prisma.availabilityException.findMany({
       where: { tenantId, deletedAt: null },
-      select: { teacherId: true, type: true, startsOn: true, endsOn: true },
+      select: { teacherId: true, type: true, startsOn: true, endsOn: true, startTime: true, endTime: true },
     }),
     prisma.appointment.findMany({
       where: {
@@ -2287,11 +2328,17 @@ export async function suggestAppointmentAlternatives(
   }
   const exceptionsByTeacher = new Map<
     string,
-    { type: AvailabilityExceptionType; startsOn: Date; endsOn: Date }[]
+    ExceptionMatch[]
   >();
   for (const exception of exceptions) {
     const list = exceptionsByTeacher.get(exception.teacherId) ?? [];
-    list.push({ type: exception.type, startsOn: exception.startsOn, endsOn: exception.endsOn });
+    list.push({
+      type: exception.type,
+      startsOn: exception.startsOn,
+      endsOn: exception.endsOn,
+      startTime: exception.startTime,
+      endTime: exception.endTime,
+    });
     exceptionsByTeacher.set(exception.teacherId, list);
   }
   const resourceCapacity = new Map<string, number>(

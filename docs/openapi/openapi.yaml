@@ -902,6 +902,14 @@ components:
         endsOn:
           type: string
           format: date
+        startTime:
+          type: string
+          nullable: true
+          description: "HH:mm; null = ganzer Tag"
+        endTime:
+          type: string
+          nullable: true
+          description: "HH:mm; null = ganzer Tag"
         reason:
           type: string
           nullable: true
@@ -919,6 +927,12 @@ components:
         endsOn:
           type: string
           format: date
+        startTime:
+          type: string
+          nullable: true
+        endTime:
+          type: string
+          nullable: true
         reason:
           type: string
 
@@ -934,6 +948,12 @@ components:
         endsOn:
           type: string
           format: date
+        startTime:
+          type: string
+          nullable: true
+        endTime:
+          type: string
+          nullable: true
         reason:
           type: string
           nullable: true

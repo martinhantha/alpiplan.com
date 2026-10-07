@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { formatTeachersCaption } from "../utils/appointment-contact";
 
@@ -50,10 +50,62 @@ const quickOpen = ref(false);
 const quickStartVoice = ref(false);
 const quickInitialContact = ref("");
 const editingAppointment = ref<AppointmentListItem | null>(null);
-const view = ref<"list" | "calendar">("list");
-const calendarMode = ref<"week" | "month">("week");
+type AppointmentsView = "list" | "calendar";
+type CalendarMode = "day" | "timeline" | "week" | "month";
+
+const VIEW_STORAGE_KEY = "alpiplan.appointments.view";
+const CALENDAR_MODE_STORAGE_KEY = "alpiplan.appointments.calendarMode";
+const TIMELINE_STORAGE_KEY = "alpiplan.appointments.timeline";
+const CALENDAR_MODES: CalendarMode[] = ["day", "timeline", "week", "month"];
+
+const view = ref<AppointmentsView>("list");
+const calendarMode = ref<CalendarMode>("week");
+const dayAnchor = ref<Date>(startOfDay(new Date()));
 const weekStart = ref<Date>(getMondayOf(new Date()));
 const monthAnchor = ref<Date>(firstOfMonth(new Date()));
+const timeline = reactive({ auto: true, fromHour: 9, toHour: 17 });
+
+function restoreViewPreference() {
+  if (typeof localStorage === "undefined") return;
+  const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
+  if (storedView === "list" || storedView === "calendar") view.value = storedView;
+  const storedMode = localStorage.getItem(CALENDAR_MODE_STORAGE_KEY) as CalendarMode | null;
+  if (storedMode && CALENDAR_MODES.includes(storedMode)) calendarMode.value = storedMode;
+  try {
+    const storedTimeline = JSON.parse(localStorage.getItem(TIMELINE_STORAGE_KEY) || "null");
+    if (storedTimeline && typeof storedTimeline === "object") {
+      const { auto, fromHour, toHour } = storedTimeline;
+      if (typeof auto === "boolean") timeline.auto = auto;
+      if (Number.isInteger(fromHour) && Number.isInteger(toHour) && fromHour >= 0 && toHour <= 24 && fromHour < toHour) {
+        timeline.fromHour = fromHour;
+        timeline.toHour = toHour;
+      }
+    }
+  } catch {
+    // ignore corrupt preference
+  }
+}
+
+function persistViewPreference() {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(VIEW_STORAGE_KEY, view.value);
+  localStorage.setItem(CALENDAR_MODE_STORAGE_KEY, calendarMode.value);
+}
+
+watch(timeline, () => {
+  if (timeline.fromHour >= timeline.toHour) {
+    if (timeline.toHour >= 24) timeline.fromHour = timeline.toHour - 1;
+    else timeline.toHour = timeline.fromHour + 1;
+  }
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(TIMELINE_STORAGE_KEY, JSON.stringify(timeline));
+});
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 function teachersCaption(appointment: AppointmentListItem) {
   return formatTeachersCaption(appointment, {
@@ -196,6 +248,9 @@ async function loadAppointments() {
 }
 
 const calendarRange = computed(() => {
+  if (isDayMode(calendarMode.value)) {
+    return { from: dayAnchor.value, to: addDays(dayAnchor.value, 1) };
+  }
   if (calendarMode.value === "week") {
     return { from: weekStart.value, to: addDays(weekStart.value, 7) };
   }
@@ -234,6 +289,139 @@ function appointmentsByDay(key: string) {
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 }
 
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+const dayAppointments = computed(() => appointmentsByDay(toDateKey(dayAnchor.value)));
+
+const dayColumns = computed(() => {
+  const columns = new Map<string, { id: string; name: string; appointments: AppointmentListItem[] }>();
+  const unassigned: AppointmentListItem[] = [];
+  for (const appointment of dayAppointments.value) {
+    const teachers = appointment.teachers?.length
+      ? appointment.teachers
+      : appointment.teacher
+        ? [appointment.teacher]
+        : [];
+    if (!teachers.length) {
+      unassigned.push(appointment);
+      continue;
+    }
+    for (const teacher of teachers) {
+      const column = columns.get(teacher.id) ?? { id: teacher.id, name: teacher.displayName, appointments: [] };
+      column.appointments.push(appointment);
+      columns.set(teacher.id, column);
+    }
+  }
+  const sorted = [...columns.values()].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value));
+  if (unassigned.length) {
+    sorted.push({ id: "__unassigned", name: `Ohne ${teacherLabel.value}`, appointments: unassigned });
+  }
+  return sorted;
+});
+
+function openDay(date: Date) {
+  dayAnchor.value = startOfDay(date);
+  calendarMode.value = "day";
+  persistViewPreference();
+  loadAppointments();
+}
+
+function isDayMode(mode: CalendarMode) {
+  return mode === "day" || mode === "timeline";
+}
+
+const TIMELINE_LANE_HEIGHT_PX = 52;
+const TIMELINE_HOUR_WIDTH_PX = 96;
+const now = ref(new Date());
+
+function minutesIntoDay(value: string) {
+  return (new Date(value).getTime() - dayAnchor.value.getTime()) / 60000;
+}
+
+const timelineHours = computed(() => {
+  if (!timeline.auto) return { from: timeline.fromHour, to: timeline.toHour };
+  if (!dayAppointments.value.length) return { from: 9, to: 17 };
+  let min = 24 * 60;
+  let max = 0;
+  for (const appointment of dayAppointments.value) {
+    min = Math.min(min, minutesIntoDay(appointment.startsAt));
+    max = Math.max(max, minutesIntoDay(appointment.endsAt));
+  }
+  const from = Math.max(0, Math.floor(min / 60));
+  const to = Math.min(24, Math.max(from + 1, Math.ceil(max / 60)));
+  return { from, to };
+});
+
+const timelineHourLabels = computed(() =>
+  Array.from({ length: timelineHours.value.to - timelineHours.value.from }, (_, i) => timelineHours.value.from + i),
+);
+
+const timelineWidthPx = computed(() => timelineHourLabels.value.length * TIMELINE_HOUR_WIDTH_PX);
+
+const timelineRows = computed(() => {
+  const rangeStart = timelineHours.value.from * 60;
+  const rangeEnd = timelineHours.value.to * 60;
+  const span = rangeEnd - rangeStart;
+  return dayColumns.value.map((column) => {
+    const laneEnds: number[] = [];
+    const items: { appointment: AppointmentListItem; left: number; width: number; lane: number }[] = [];
+    let hidden = 0;
+    const sorted = [...column.appointments].sort((a, b) => minutesIntoDay(a.startsAt) - minutesIntoDay(b.startsAt));
+    for (const appointment of sorted) {
+      const start = Math.max(rangeStart, minutesIntoDay(appointment.startsAt));
+      const end = Math.min(rangeEnd, minutesIntoDay(appointment.endsAt));
+      if (end <= start) {
+        hidden += 1;
+        continue;
+      }
+      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(end);
+      } else {
+        laneEnds[lane] = end;
+      }
+      items.push({
+        appointment,
+        left: ((start - rangeStart) / span) * 100,
+        width: ((end - start) / span) * 100,
+        lane,
+      });
+    }
+    return { ...column, items, lanes: Math.max(1, laneEnds.length), hidden };
+  });
+});
+
+const timelineHiddenCount = computed(() => timelineRows.value.reduce((sum, row) => sum + row.hidden, 0));
+
+const timelineNowOffset = computed(() => {
+  if (!isToday(dayAnchor.value)) return null;
+  const minutes = (now.value.getTime() - dayAnchor.value.getTime()) / 60000;
+  const rangeStart = timelineHours.value.from * 60;
+  const rangeEnd = timelineHours.value.to * 60;
+  if (minutes < rangeStart || minutes > rangeEnd) return null;
+  return ((minutes - rangeStart) / (rangeEnd - rangeStart)) * 100;
+});
+
+function timelineChipClass(status: AppointmentListItem["status"]) {
+  switch (status) {
+    case "confirmed":
+      return "bg-primary-50 dark:bg-primary-900/30 border-primary-200 dark:border-primary-800 text-primary-900 dark:text-primary-100";
+    case "completed":
+      return "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100";
+    case "draft":
+      return "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100";
+    default:
+      return "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 line-through";
+  }
+}
+
+function formatHour(hour: number) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
 function formatDayHeader(date: Date) {
   return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", day: "2-digit", month: "2-digit" }).format(date);
 }
@@ -243,6 +431,14 @@ function formatTime(value: string) {
 }
 
 const calendarRangeLabel = computed(() => {
+  if (isDayMode(calendarMode.value)) {
+    return new Intl.DateTimeFormat(intlLocale.value, {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(dayAnchor.value);
+  }
   if (calendarMode.value === "week") {
     const start = weekStart.value;
     const end = addDays(start, 6);
@@ -254,7 +450,9 @@ const calendarRangeLabel = computed(() => {
 });
 
 function shiftCalendar(direction: 1 | -1) {
-  if (calendarMode.value === "week") {
+  if (isDayMode(calendarMode.value)) {
+    dayAnchor.value = addDays(dayAnchor.value, direction);
+  } else if (calendarMode.value === "week") {
     weekStart.value = addDays(weekStart.value, direction * 7);
   } else {
     monthAnchor.value = addMonths(monthAnchor.value, direction);
@@ -264,33 +462,53 @@ function shiftCalendar(direction: 1 | -1) {
 
 function goToToday() {
   const today = new Date();
+  dayAnchor.value = startOfDay(today);
   weekStart.value = getMondayOf(today);
   monthAnchor.value = firstOfMonth(today);
   loadAppointments();
 }
 
-function setCalendarMode(next: "week" | "month") {
+function isWithin(date: Date, from: Date, to: Date) {
+  return date.getTime() >= from.getTime() && date.getTime() < to.getTime();
+}
+
+function setCalendarMode(next: CalendarMode) {
   if (calendarMode.value === next) return;
-  calendarMode.value = next;
-  if (next === "week") {
-    weekStart.value = getMondayOf(monthAnchor.value);
-  } else {
-    monthAnchor.value = firstOfMonth(weekStart.value);
+  const previous = calendarMode.value;
+  const today = startOfDay(new Date());
+  if (isDayMode(next) && !isDayMode(previous)) {
+    const { from, to } = calendarRange.value;
+    if (previous === "week") {
+      if (!isWithin(dayAnchor.value, from, to)) {
+        dayAnchor.value = isWithin(today, from, to) ? today : from;
+      }
+    } else {
+      const monthStart = monthAnchor.value;
+      const monthEnd = addMonths(monthStart, 1);
+      if (!isWithin(dayAnchor.value, monthStart, monthEnd)) {
+        dayAnchor.value = isWithin(today, monthStart, monthEnd) ? today : monthStart;
+      }
+    }
+  } else if (next === "week") {
+    weekStart.value = getMondayOf(isDayMode(previous) ? dayAnchor.value : monthAnchor.value);
+  } else if (next === "month") {
+    monthAnchor.value = firstOfMonth(isDayMode(previous) ? dayAnchor.value : weekStart.value);
   }
+  calendarMode.value = next;
+  persistViewPreference();
   loadAppointments();
 }
 
-function setView(next: "list" | "calendar") {
+function setView(next: AppointmentsView) {
   if (view.value === next) return;
   view.value = next;
   if (next === "calendar") {
-    const today = new Date();
-    weekStart.value = getMondayOf(today);
-    monthAnchor.value = firstOfMonth(today);
+    goToToday();
   } else {
     page.value = 1;
+    loadAppointments();
   }
-  loadAppointments();
+  persistViewPreference();
 }
 
 function isToday(date: Date) {
@@ -417,7 +635,17 @@ watch(quickOpen, (open) => {
   }
 });
 
+let nowTimer: ReturnType<typeof setInterval> | undefined;
+
+onBeforeUnmount(() => {
+  if (nowTimer) clearInterval(nowTimer);
+});
+
 onMounted(async () => {
+  nowTimer = setInterval(() => {
+    now.value = new Date();
+  }, 60_000);
+  restoreViewPreference();
   await loadOptions();
   await loadAppointments();
 });
@@ -669,11 +897,35 @@ watch(
 
     <template v-else>
       <div class="flex items-center justify-between gap-3 flex-wrap">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <div class="inline-flex rounded-md border border-neutral-300 dark:border-neutral-700 overflow-hidden">
             <button
               type="button"
               class="px-3 py-1.5 text-sm transition"
+              :class="
+                calendarMode === 'day'
+                  ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
+                  : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+              "
+              @click="setCalendarMode('day')"
+            >
+              Tag
+            </button>
+            <button
+              type="button"
+              class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
+              :class="
+                calendarMode === 'timeline'
+                  ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
+                  : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+              "
+              @click="setCalendarMode('timeline')"
+            >
+              Zeitachse
+            </button>
+            <button
+              type="button"
+              class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
               :class="
                 calendarMode === 'week'
                   ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
@@ -707,9 +959,188 @@ watch(
         </span>
       </div>
 
+      <div
+        v-if="calendarMode === 'timeline'"
+        class="flex items-center gap-x-3 gap-y-2 flex-wrap text-sm text-neutral-600 dark:text-neutral-400"
+      >
+        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+          <input v-model="timeline.auto" type="checkbox" class="rounded border-neutral-300 dark:border-neutral-700" />
+          Nach Terminen ausrichten
+        </label>
+        <div class="inline-flex items-center gap-1.5" :class="timeline.auto ? 'opacity-50' : ''">
+          <span>Von</span>
+          <select
+            v-model.number="timeline.fromHour"
+            :disabled="timeline.auto"
+            class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+          >
+            <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatHour(hour - 1) }}</option>
+          </select>
+          <span>bis</span>
+          <select
+            v-model.number="timeline.toHour"
+            :disabled="timeline.auto"
+            class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+          >
+            <option v-for="hour in 24" :key="hour" :value="hour" :disabled="hour <= timeline.fromHour">
+              {{ formatHour(hour) }}
+            </option>
+          </select>
+        </div>
+        <span v-if="timelineHiddenCount" class="text-xs text-amber-700 dark:text-amber-300">
+          {{ timelineHiddenCount }} Termin(e) außerhalb des Zeitraums
+        </span>
+      </div>
+
       <div v-if="!primaryTenant" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
         Für Termine brauchst du eine Mandanten-Mitgliedschaft.
       </div>
+
+      <template v-else-if="calendarMode === 'timeline'">
+        <div
+          v-if="!dayAppointments.length && !loading"
+          class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
+        >
+          Keine Termine an diesem Tag.
+        </div>
+        <div
+          v-else
+          class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
+        >
+          <div class="flex min-w-max">
+            <div class="sticky left-0 z-20 w-28 sm:w-40 shrink-0 bg-white dark:bg-neutral-950 border-r border-neutral-200 dark:border-neutral-800">
+              <div class="h-8 border-b border-neutral-200 dark:border-neutral-800" />
+              <div
+                v-for="row in timelineRows"
+                :key="row.id"
+                class="flex items-center justify-between gap-1 px-2 border-b border-neutral-200 dark:border-neutral-800 last:border-b-0 text-sm"
+                :style="{ height: `${row.lanes * TIMELINE_LANE_HEIGHT_PX + 8}px` }"
+              >
+                <span class="truncate font-medium text-neutral-700 dark:text-neutral-200">{{ row.name }}</span>
+                <span class="text-xs text-neutral-500 tabular-nums">{{ row.appointments.length }}</span>
+              </div>
+            </div>
+            <div class="relative" :style="{ width: `${timelineWidthPx}px` }">
+              <div class="flex h-8 border-b border-neutral-200 dark:border-neutral-800">
+                <div
+                  v-for="hour in timelineHourLabels"
+                  :key="hour"
+                  class="shrink-0 px-1.5 text-xs leading-8 text-neutral-500 tabular-nums border-l border-neutral-200 dark:border-neutral-800 first:border-l-0"
+                  :style="{ width: `${TIMELINE_HOUR_WIDTH_PX}px` }"
+                >
+                  {{ formatHour(hour) }}
+                </div>
+              </div>
+              <div class="absolute inset-x-0 top-8 bottom-0 flex pointer-events-none">
+                <div
+                  v-for="hour in timelineHourLabels"
+                  :key="hour"
+                  class="shrink-0 border-l border-neutral-100 dark:border-neutral-900 first:border-l-0"
+                  :style="{ width: `${TIMELINE_HOUR_WIDTH_PX}px` }"
+                />
+              </div>
+              <div
+                v-if="timelineNowOffset !== null"
+                class="absolute top-0 bottom-0 z-10 w-px bg-red-500 pointer-events-none"
+                :style="{ left: `${timelineNowOffset}%` }"
+              />
+              <div
+                v-for="row in timelineRows"
+                :key="row.id"
+                class="relative border-b border-neutral-200 dark:border-neutral-800 last:border-b-0"
+                :style="{ height: `${row.lanes * TIMELINE_LANE_HEIGHT_PX + 8}px` }"
+              >
+                <button
+                  v-for="item in row.items"
+                  :key="item.appointment.id"
+                  type="button"
+                  class="absolute rounded-md border px-1.5 py-1 text-left text-xs leading-tight overflow-hidden hover:ring-1 hover:ring-primary-300 dark:hover:ring-primary-700"
+                  :class="timelineChipClass(item.appointment.status)"
+                  :style="{
+                    left: `calc(${item.left}% + 1px)`,
+                    width: `calc(${item.width}% - 2px)`,
+                    top: `${item.lane * TIMELINE_LANE_HEIGHT_PX + 4}px`,
+                    height: `${TIMELINE_LANE_HEIGHT_PX - 4}px`,
+                  }"
+                  :title="`${formatTime(item.appointment.startsAt)}–${formatTime(item.appointment.endsAt)} ${appointmentTitle(item.appointment)}${item.appointment.lessonType ? ` · ${item.appointment.lessonType.name}` : ''}`"
+                  @click="openEditAppointment(item.appointment)"
+                >
+                  <span class="block font-medium tabular-nums truncate">
+                    {{ formatTime(item.appointment.startsAt) }}–{{ formatTime(item.appointment.endsAt) }}
+                  </span>
+                  <span class="block truncate">{{ appointmentTitle(item.appointment) }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="calendarMode === 'day'">
+        <div
+          v-if="!dayAppointments.length && !loading"
+          class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
+        >
+          Keine Termine an diesem Tag.
+        </div>
+        <div v-else class="overflow-x-auto -mx-1 px-1 pb-1">
+          <div
+            class="grid gap-2"
+            :style="{ gridTemplateColumns: `repeat(${Math.max(dayColumns.length, 1)}, minmax(15rem, 1fr))` }"
+          >
+            <div
+              v-for="column in dayColumns"
+              :key="column.id"
+              class="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-2 flex flex-col gap-2"
+            >
+              <div class="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                <span class="truncate">{{ column.name }}</span>
+                <span class="text-xs font-normal text-neutral-500 tabular-nums">{{ column.appointments.length }}</span>
+              </div>
+              <div
+                v-for="appointment in column.appointments"
+                :key="appointment.id"
+                class="rounded-md border border-neutral-200 dark:border-neutral-800 px-2.5 py-2 text-sm bg-neutral-50 dark:bg-neutral-900"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-medium tabular-nums">
+                        {{ formatTime(appointment.startsAt) }}–{{ formatTime(appointment.endsAt) }}
+                      </span>
+                      <UBadge
+                        v-if="appointmentStatusLabel(appointment.status)"
+                        :color="appointmentStatusColor(appointment.status)"
+                        variant="subtle"
+                        size="xs"
+                      >
+                        {{ appointmentStatusLabel(appointment.status) }}
+                      </UBadge>
+                    </div>
+                    <p class="mt-0.5 font-medium truncate">{{ appointmentTitle(appointment) }}</p>
+                    <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs text-neutral-500">
+                      <span v-if="resourcesEnabled && appointment.resource">{{ appointment.resource.name }}</span>
+                      <span v-if="appointment.lessonType">{{ appointment.lessonType.name }}</span>
+                    </div>
+                  </div>
+                  <AppointmentQuickActions
+                    class="shrink-0"
+                    compact
+                    :appointment="appointment"
+                    :loading="savingId === appointment.id"
+                    :show-edit="canAccessWorkspace"
+                    :show-complete="canAccessWorkspace"
+                    :show-delete="canManageTenant"
+                    @edit="openEditAppointment(appointment)"
+                    @complete="markCompleted(appointment)"
+                    @delete="deleteAppointment(appointment)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
 
       <div v-else-if="calendarMode === 'week'" class="grid grid-cols-1 md:grid-cols-7 gap-2">
         <div
@@ -722,9 +1153,14 @@ watch(
               : 'border-neutral-200 dark:border-neutral-800'
           "
         >
-          <div class="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+          <button
+            type="button"
+            class="text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-primary-700 dark:hover:text-primary-200"
+            title="Tagesansicht"
+            @click="openDay(day.date)"
+          >
             {{ formatDayHeader(day.date) }}
-          </div>
+          </button>
           <div class="flex flex-col gap-1.5">
             <div
               v-for="appointment in appointmentsByDay(day.key)"
@@ -827,12 +1263,7 @@ watch(
                 v-if="appointmentsByDay(day.key).length > 3"
                 type="button"
                 class="text-[9px] sm:text-[11px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 text-left truncate"
-                @click="
-                  () => {
-                    weekStart = getMondayOf(day.date);
-                    setCalendarMode('week');
-                  }
-                "
+                @click="openDay(day.date)"
               >
                 +{{ appointmentsByDay(day.key).length - 3 }}
               </button>

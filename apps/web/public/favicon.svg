@@ -1,5 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4ae0"/><stop offset="1" stop-color="#1a1040"/></linearGradient></defs>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4ae0"/><stop offset="1" stop-color="#1a1040"/></linearGradient>
+    <linearGradient id="rock" x1="0" y1="152" x2="0" y2="400" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f3efff"/><stop offset="1" stop-color="#d4cbf8"/></linearGradient>
+    <linearGradient id="shade" x1="0" y1="152" x2="0" y2="400" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#d6ccfb"/><stop offset="1" stop-color="#ad9eec"/></linearGradient>
+  </defs>
   <rect width="512" height="512" rx="128" fill="url(#bg)"/>
-  <path d="M64 400 216 152l80 124 48-64 104 188z" fill="#e3dcfd"/>
-  <path d="M216 152l44 68-18-8-14 16-16-18-18 14-20-4z" fill="#fff"/></svg>
+  <g fill="#fff" fill-opacity="0.85">
+    <circle cx="380" cy="120" r="7"/>
+    <circle cx="420" cy="176" r="5"/>
+    <circle cx="318" cy="100" r="4"/>
+    <circle cx="130" cy="150" r="5"/>
+  </g>
+  <path d="M64 400 216 152l80 124 48-64 104 188z" fill="url(#rock)"/>
+  <path d="M216 152l80 124-34 124h-34z" fill="url(#shade)"/>
+  <path d="M344 212l104 188h-86z" fill="url(#shade)"/>
+  <path d="M216 152l44 68-18-8-14 16-16-18-18 14-20-4z" fill="#fff"/>
+  <path d="M344 212l20 36-12-6-10 12-12-10-13 4z" fill="#fff"/>
+</svg>

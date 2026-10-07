@@ -121,6 +121,21 @@ export async function getActorTeacherProfileId(
   return profile?.id ?? null;
 }
 
+/** ADMIN/Superadmin: any teacher; STAFF: only their own teacher profile. */
+export async function requireTeacherSelfOrAdmin(
+  event: H3Event,
+  tenantIdInput: string | undefined,
+  teacherIdInput: string | undefined,
+): Promise<TenantAccess> {
+  const access = await requireTenantAccess(event, tenantIdInput, ["ADMIN", "STAFF"]);
+  if (access.role !== "STAFF") return access;
+  const ownTeacherId = await getActorTeacherProfileId(access.tenant.id, access.actorUserId);
+  if (!ownTeacherId || ownTeacherId !== teacherIdInput) {
+    forbidden("Nur eigene Abwesenheiten bearbeitbar");
+  }
+  return access;
+}
+
 export async function staffAppointmentScope(access: TenantAccess): Promise<{
   forceTeacherId: string | null;
   empty: boolean;

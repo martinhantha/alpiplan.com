@@ -7,7 +7,7 @@ export default defineAppConfig({
     },
     button: {
       slots: {
-        base: "rounded-full font-semibold transition-[background-color,color,box-shadow,transform] duration-200",
+        base: "rounded-md font-semibold transition-[background-color,color,box-shadow,transform] duration-200",
       },
     },
     card: {

@@ -149,7 +149,7 @@ const calendarDays = computed(() => {
 const selectedDateAppointments = computed(() =>
   appointments.value
     .filter((appointment) => dateKeyFromIso(appointment.startsAt) === selectedDateKey.value)
-    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()),
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()),
 );
 
 async function loadSchedulingOptions() {

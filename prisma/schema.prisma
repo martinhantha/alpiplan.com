@@ -405,6 +405,9 @@ model AvailabilityException {
   type      AvailabilityExceptionType
   startsOn  DateTime                 @db.Date
   endsOn    DateTime                 @db.Date
+  /// "HH:mm" business-local; null on both = whole day; applies to each day in startsOn..endsOn
+  startTime String?
+  endTime   String?
   reason    String?
   createdAt DateTime                 @default(now())
   updatedAt DateTime                 @updatedAt
