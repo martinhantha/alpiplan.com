@@ -45,9 +45,7 @@ const classes = computed(() => sizeClasses[props.size]);
       </defs>
       <rect width="512" height="512" rx="128" :fill="`url(#${gradientId})`" />
       <path d="M64 400 216 152l80 124 48-64 104 188z" fill="#e3dcfd" />
-      <path d="M216 152l44 68-18-8-14 16-16-18-18 14-20-4z" fill="#fff" />
-      <path d="M216 256l52 80H167z" fill="#57b874" />
-    </svg>
+      <path d="M216 152l44 68-18-8-14 16-16-18-18 14-20-4z" fill="#fff" />    </svg>
     <span
       v-if="showWordmark"
       class="font-display min-w-0 truncate pb-[0.06em] leading-none"
