@@ -14,7 +14,9 @@
     "dev:worker": "pnpm --filter @alpiplan/worker dev",
     "dev:mobile": "pnpm --filter @alpiplan/mobile-shell cap:open:android",
     "import:flights": "tsx scripts/import-flights.ts",
-    "import:mongo": "tsx scripts/import_from_mongo.ts"
+    "import:mongo": "tsx scripts/import_from_mongo.ts",
+    "test-skischule:seed": "tsx scripts/seed-test-skischule.ts",
+    "test-skischule:delete": "tsx scripts/delete-test-skischule.ts"
   },
   "dependencies": {
     "@prisma/client": "6.9.0"

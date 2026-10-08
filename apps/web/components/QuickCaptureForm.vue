@@ -117,6 +117,8 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const conflictType = ref("");
+const conflictTeacherId = ref("");
+const freeSlots = ref<{ startsAt: string; endsAt: string }[]>([]);
 const saved = ref<AppointmentDto | null>(null);
 const initialStart = nextFullHour();
 
@@ -505,15 +507,6 @@ const form = reactive({
 });
 let hydratingForm = false;
 
-function toggleTeacher(id: string) {
-  const index = form.teacherIds.indexOf(id);
-  if (index >= 0) {
-    form.teacherIds.splice(index, 1);
-    return;
-  }
-  form.teacherIds.push(id);
-}
-
 const colleagueNames = computed(() => {
   const mine = primaryTenant.value?.teacherProfileId;
   const list = props.appointment?.teachers?.length
@@ -774,6 +767,10 @@ function apiErrorMessage(e: unknown) {
   };
   const details = err.data?.data?.details;
   conflictType.value = typeof details?.conflictType === "string" ? details.conflictType : "";
+  conflictTeacherId.value = typeof details?.teacherId === "string" ? details.teacherId : "";
+  freeSlots.value = Array.isArray(details?.freeSlots)
+    ? (details.freeSlots as { startsAt: string; endsAt: string }[])
+    : [];
   return (
     err.data?.data?.message ||
     err.data?.message ||
@@ -845,6 +842,23 @@ watch(
   },
 );
 
+const conflictTeacherName = computed(
+  () => options.value?.teachers.find((teacher) => teacher.id === conflictTeacherId.value)?.displayName ?? "",
+);
+
+function formatSlotTime(value: string) {
+  return toTimeInput(new Date(value));
+}
+
+function applyFreeSlot(slot: { startsAt: string }) {
+  const startsAt = new Date(slot.startsAt);
+  form.date = toDateInput(startsAt);
+  form.time = toTimeInput(startsAt);
+  error.value = "";
+  conflictType.value = "";
+  freeSlots.value = [];
+}
+
 async function saveAppointment() {
   if (!primaryTenant.value || !canSave.value) return;
 
@@ -853,6 +867,7 @@ async function saveAppointment() {
   saving.value = true;
   error.value = "";
   conflictType.value = "";
+  freeSlots.value = [];
   saved.value = null;
 
   try {
@@ -974,7 +989,32 @@ onMounted(() => {
       icon="i-lucide-circle-alert"
       :title="isEditing ? 'Termin konnte nicht aktualisiert werden' : 'Termin konnte nicht gespeichert werden'"
       :description="conflictType ? `${error} (${conflictType})` : error"
-    />
+    >
+      <template v-if="conflictType === 'TIME_OVERLAP'" #actions>
+        <div class="w-full space-y-1.5">
+          <p v-if="freeSlots.length" class="text-xs text-neutral-700 dark:text-neutral-300">
+            {{ conflictTeacherName || teacherLabel }} ist an diesem Tag noch frei – Zeit übernehmen:
+          </p>
+          <p v-else class="text-xs text-neutral-700 dark:text-neutral-300">
+            {{ conflictTeacherName || teacherLabel }} hat an diesem Tag keine passende freie Zeit mehr.
+          </p>
+          <div v-if="freeSlots.length" class="flex flex-wrap gap-1.5">
+            <UButton
+              v-for="slot in freeSlots"
+              :key="slot.startsAt"
+              size="xs"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-clock"
+              class="tabular-nums"
+              @click="applyFreeSlot(slot)"
+            >
+              {{ formatSlotTime(slot.startsAt) }}–{{ formatSlotTime(slot.endsAt) }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UAlert>
 
     <UFormField required>
       <template #label>
@@ -1132,22 +1172,16 @@ onMounted(() => {
             </FieldInfoPopover>
           </span>
         </template>
-        <div v-if="canManageTenant" class="flex flex-wrap gap-1.5">
-          <UButton
-            v-for="teacher in options?.teachers || []"
-            :key="teacher.id"
-            type="button"
-            size="xs"
-            :variant="form.teacherIds.includes(teacher.id) ? 'soft' : 'ghost'"
-            :color="form.teacherIds.includes(teacher.id) ? 'primary' : 'neutral'"
-            @click="toggleTeacher(teacher.id)"
-          >
-            {{ teacher.displayName }}
-          </UButton>
-          <p v-if="!(options?.teachers || []).length" class="text-sm text-neutral-500">
-            Keine {{ teacherLabel }} hinterlegt.
-          </p>
-        </div>
+        <template v-if="canManageTenant">
+          <TeacherPicker
+            v-if="(options?.teachers || []).length"
+            v-model="form.teacherIds"
+            :options="options?.teachers || []"
+            :label="teacherLabel"
+            :highlight-id="primaryTenant?.teacherProfileId"
+          />
+          <p v-else class="text-sm text-neutral-500">Keine {{ teacherLabel }} hinterlegt.</p>
+        </template>
         <p v-else class="text-sm text-neutral-600 dark:text-neutral-400">
           Mit: {{ colleagueNames }}
         </p>

@@ -171,6 +171,8 @@ model TeacherProfile {
   tenantId     String    @db.Uuid
   membershipId String    @unique @db.Uuid
   displayName  String
+  /// "#rrggbb" calendar color; null = derived from id on the client
+  color        String?
   qualifications Json?   // e.g. levels, tags
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

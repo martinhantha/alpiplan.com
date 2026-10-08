@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
+import { avatarColor, avatarInitials } from "../utils/avatar";
 import type { SuperadminOverview, TenantRole } from "../types/superadmin";
 
 interface LessonType {
@@ -14,6 +15,7 @@ interface LessonType {
 interface TeacherOption {
   id: string;
   displayName: string;
+  color?: string | null;
 }
 
 interface AvailabilityRule {
@@ -670,6 +672,36 @@ async function loadAbsenceTeachers() {
   }
 }
 
+const colorSavingId = ref("");
+
+const colorTeachers = computed(() => {
+  const own = primaryTenant.value?.teacherProfileId;
+  return [...absenceTeachers.value].sort((a, b) => {
+    if (a.id === own) return -1;
+    if (b.id === own) return 1;
+    return a.displayName.localeCompare(b.displayName);
+  });
+});
+
+async function saveTeacherColor(teacher: TeacherOption, color: string | null) {
+  if (!primaryTenant.value?.tenantId) return;
+  const previous = teacher.color ?? null;
+  teacher.color = color;
+  colorSavingId.value = teacher.id;
+  try {
+    await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/teachers/${teacher.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      body: { color },
+    });
+  } catch (e: unknown) {
+    teacher.color = previous;
+    setError(apiMessage(e, "Farbe konnte nicht gespeichert werden"));
+  } finally {
+    colorSavingId.value = "";
+  }
+}
+
 async function loadAbsences() {
   if (!primaryTenant.value?.tenantId || !absenceTeacherId.value) {
     absences.value = [];
@@ -923,6 +955,14 @@ watch(canManageAbsences, (ok) => {
   if (!ok && activeTab.value === "absences") activeTab.value = "account";
 });
 
+watch(
+  () => [primaryTenant.value?.tenantId, canManageAbsences.value] as const,
+  ([tenantId, ok]) => {
+    if (tenantId && ok) void loadAbsenceTeachers();
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   if (canEdit.value) {
     loadLessonTypes();
@@ -980,6 +1020,39 @@ onMounted(() => {
               {{ $t(`languages.${loc.code}`) }}
             </option>
           </select>
+        </div>
+      </UCard>
+      <UCard v-if="canEdit && colorTeachers.length" class="lg:col-span-2">
+        <template #header><h2 class="font-medium">Farbe im Kalender</h2></template>
+        <div class="space-y-3 text-sm">
+          <p class="text-xs text-neutral-500">
+            Termine werden in dieser Farbe markiert. Standardmäßig wird automatisch eine zugewiesen – zum Ändern
+            auf die Farbe tippen.
+          </p>
+          <div
+            v-for="teacher in colorTeachers"
+            :key="teacher.id"
+            class="flex items-center justify-between gap-3 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0 dark:border-neutral-800"
+          >
+            <div class="flex min-w-0 items-center gap-2.5">
+              <span
+                class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm"
+                :style="{ backgroundColor: avatarColor(teacher.id, teacher.color) }"
+              >
+                {{ avatarInitials(teacher.displayName) }}
+              </span>
+              <span class="truncate font-medium">
+                {{ teacher.displayName }}
+                <span v-if="teacher.id === primaryTenant?.teacherProfileId" class="font-normal text-neutral-500">(ich)</span>
+              </span>
+            </div>
+            <TeacherColorPicker
+              :teacher-id="teacher.id"
+              :color="teacher.color"
+              :disabled="colorSavingId === teacher.id"
+              @change="saveTeacherColor(teacher, $event)"
+            />
+          </div>
         </div>
       </UCard>
       <UCard class="lg:col-span-2">

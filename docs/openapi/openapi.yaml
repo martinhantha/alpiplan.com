@@ -262,6 +262,43 @@ paths:
         "204":
           description: No content
 
+  /tenants/{tenantId}/teachers/{teacherId}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - name: teacherId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Availability]
+      operationId: updateTeacherProfile
+      description: Set the calendar color (ADMIN only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [color]
+              properties:
+                color:
+                  type: string
+                  nullable: true
+                  pattern: "^#[0-9a-fA-F]{6}$"
+                  description: null resets to the automatically assigned color
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  displayName: { type: string }
+                  color: { type: string, nullable: true }
+
   /tenants/{tenantId}/teachers/{teacherId}/availability/exceptions:
     parameters:
       - $ref: "#/components/parameters/TenantId"

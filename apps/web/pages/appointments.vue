@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { formatTeachersCaption } from "../utils/appointment-contact";
+import { avatarColor, avatarInitials } from "../utils/avatar";
+import type { TimelineMove } from "../components/AppointmentTimeline.vue";
 
 interface AppointmentListItem {
   id: string;
@@ -13,8 +15,8 @@ interface AppointmentListItem {
   appointmentPhoneRaw: string | null;
   appointmentPhoneE164: string | null;
   unstructuredNote: string | null;
-  teacher: { id: string; displayName: string } | null;
-  teachers?: { id: string; displayName: string }[] | null;
+  teacher: { id: string; displayName: string; color?: string | null } | null;
+  teachers?: { id: string; displayName: string; color?: string | null }[] | null;
   resource: { id: string; name: string } | null;
   lessonType: { id: string; name: string } | null;
   customer: {
@@ -32,7 +34,7 @@ interface Pagination {
 }
 
 interface SchedulingOptions {
-  teachers: { id: string; displayName: string }[];
+  teachers: { id: string; displayName: string; color?: string | null }[];
 }
 
 const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } = useAuth();
@@ -51,12 +53,12 @@ const quickStartVoice = ref(false);
 const quickInitialContact = ref("");
 const editingAppointment = ref<AppointmentListItem | null>(null);
 type AppointmentsView = "list" | "calendar";
-type CalendarMode = "day" | "timeline" | "week" | "month";
+type CalendarMode = "day" | "timeline" | "week" | "team" | "month";
 
 const VIEW_STORAGE_KEY = "alpiplan.appointments.view";
 const CALENDAR_MODE_STORAGE_KEY = "alpiplan.appointments.calendarMode";
 const TIMELINE_STORAGE_KEY = "alpiplan.appointments.timeline";
-const CALENDAR_MODES: CalendarMode[] = ["day", "timeline", "week", "month"];
+const CALENDAR_MODES: CalendarMode[] = ["day", "timeline", "week", "team", "month"];
 
 const view = ref<AppointmentsView>("list");
 const calendarMode = ref<CalendarMode>("week");
@@ -105,6 +107,12 @@ function startOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function appointmentColor(appointment: AppointmentListItem): string | null {
+  if (!canManageTenant.value) return null;
+  const teacher = appointment.teachers?.[0] ?? appointment.teacher;
+  return teacher ? avatarColor(teacher.id, teacher.color) : null;
 }
 
 function teachersCaption(appointment: AppointmentListItem) {
@@ -251,7 +259,7 @@ const calendarRange = computed(() => {
   if (isDayMode(calendarMode.value)) {
     return { from: dayAnchor.value, to: addDays(dayAnchor.value, 1) };
   }
-  if (calendarMode.value === "week") {
+  if (isWeekMode(calendarMode.value)) {
     return { from: weekStart.value, to: addDays(weekStart.value, 7) };
   }
   const gridStart = getMondayOf(monthAnchor.value);
@@ -296,7 +304,10 @@ function toDateKey(date: Date) {
 const dayAppointments = computed(() => appointmentsByDay(toDateKey(dayAnchor.value)));
 
 const dayColumns = computed(() => {
-  const columns = new Map<string, { id: string; name: string; appointments: AppointmentListItem[] }>();
+  const columns = new Map<
+    string,
+    { id: string; name: string; color: string | null; appointments: AppointmentListItem[] }
+  >();
   const unassigned: AppointmentListItem[] = [];
   for (const appointment of dayAppointments.value) {
     const teachers = appointment.teachers?.length
@@ -309,21 +320,79 @@ const dayColumns = computed(() => {
       continue;
     }
     for (const teacher of teachers) {
-      const column = columns.get(teacher.id) ?? { id: teacher.id, name: teacher.displayName, appointments: [] };
+      const column = columns.get(teacher.id) ?? {
+        id: teacher.id,
+        name: teacher.displayName,
+        color: teacher.color ?? null,
+        appointments: [],
+      };
       column.appointments.push(appointment);
       columns.set(teacher.id, column);
     }
   }
   const sorted = [...columns.values()].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value));
   if (unassigned.length) {
-    sorted.push({ id: "__unassigned", name: `Ohne ${teacherLabel.value}`, appointments: unassigned });
+    sorted.push({ id: "__unassigned", name: `Ohne ${teacherLabel.value}`, color: null, appointments: unassigned });
   }
   return sorted;
 });
 
-function openDay(date: Date) {
+const WEEK_DAY_VISIBLE = 8;
+const TEAM_CELL_VISIBLE = 3;
+
+const teamRows = computed(() => {
+  const rows = new Map<
+    string,
+    { id: string; name: string; color: string | null; byDay: Map<string, AppointmentListItem[]> }
+  >();
+  for (const teacher of options.value?.teachers ?? []) {
+    rows.set(teacher.id, { id: teacher.id, name: teacher.displayName, color: teacher.color ?? null, byDay: new Map() });
+  }
+  const unassigned = { id: UNASSIGNED_ROW_ID, name: `Ohne ${teacherLabel.value}`, color: null, byDay: new Map() };
+  const sortedAppointments = [...appointments.value].sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+  );
+  for (const appointment of sortedAppointments) {
+    const key = dateKey(appointment.startsAt);
+    const teachers = appointment.teachers?.length
+      ? appointment.teachers
+      : appointment.teacher
+        ? [appointment.teacher]
+        : [];
+    const targets = teachers.length
+      ? teachers.map((teacher) => {
+          const row = rows.get(teacher.id) ?? {
+            id: teacher.id,
+            name: teacher.displayName,
+            color: teacher.color ?? null,
+            byDay: new Map(),
+          };
+          rows.set(teacher.id, row);
+          return row;
+        })
+      : [unassigned];
+    for (const row of targets) {
+      const list = row.byDay.get(key) ?? [];
+      list.push(appointment);
+      row.byDay.set(key, list);
+    }
+  }
+  const sorted = [...rows.values()].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value));
+  if (unassigned.byDay.size) sorted.push(unassigned);
+  return sorted;
+});
+
+function bookedHoursLabel(list: AppointmentListItem[]) {
+  const minutes = list
+    .filter((appointment) => appointment.status !== "cancelled")
+    .reduce((sum, a) => sum + (new Date(a.endsAt).getTime() - new Date(a.startsAt).getTime()) / 60000, 0);
+  const hours = Math.round((minutes / 60) * 10) / 10;
+  return `${String(hours).replace(".", ",")} h`;
+}
+
+function openDay(date: Date, mode: "day" | "timeline" = "day") {
   dayAnchor.value = startOfDay(date);
-  calendarMode.value = "day";
+  calendarMode.value = mode;
   persistViewPreference();
   loadAppointments();
 }
@@ -332,9 +401,9 @@ function isDayMode(mode: CalendarMode) {
   return mode === "day" || mode === "timeline";
 }
 
-const TIMELINE_LANE_HEIGHT_PX = 52;
-const TIMELINE_HOUR_WIDTH_PX = 96;
-const now = ref(new Date());
+function isWeekMode(mode: CalendarMode) {
+  return mode === "week" || mode === "team";
+}
 
 function minutesIntoDay(value: string) {
   return (new Date(value).getTime() - dayAnchor.value.getTime()) / 60000;
@@ -354,67 +423,119 @@ const timelineHours = computed(() => {
   return { from, to };
 });
 
-const timelineHourLabels = computed(() =>
-  Array.from({ length: timelineHours.value.to - timelineHours.value.from }, (_, i) => timelineHours.value.from + i),
-);
-
-const timelineWidthPx = computed(() => timelineHourLabels.value.length * TIMELINE_HOUR_WIDTH_PX);
-
-const timelineRows = computed(() => {
+const timelineHiddenCount = computed(() => {
   const rangeStart = timelineHours.value.from * 60;
   const rangeEnd = timelineHours.value.to * 60;
-  const span = rangeEnd - rangeStart;
-  return dayColumns.value.map((column) => {
-    const laneEnds: number[] = [];
-    const items: { appointment: AppointmentListItem; left: number; width: number; lane: number }[] = [];
-    let hidden = 0;
-    const sorted = [...column.appointments].sort((a, b) => minutesIntoDay(a.startsAt) - minutesIntoDay(b.startsAt));
-    for (const appointment of sorted) {
-      const start = Math.max(rangeStart, minutesIntoDay(appointment.startsAt));
-      const end = Math.min(rangeEnd, minutesIntoDay(appointment.endsAt));
-      if (end <= start) {
-        hidden += 1;
-        continue;
-      }
-      let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
-      if (lane === -1) {
-        lane = laneEnds.length;
-        laneEnds.push(end);
-      } else {
-        laneEnds[lane] = end;
-      }
-      items.push({
-        appointment,
-        left: ((start - rangeStart) / span) * 100,
-        width: ((end - start) / span) * 100,
-        lane,
-      });
-    }
-    return { ...column, items, lanes: Math.max(1, laneEnds.length), hidden };
-  });
+  return dayAppointments.value.filter(
+    (appointment) =>
+      minutesIntoDay(appointment.endsAt) <= rangeStart || minutesIntoDay(appointment.startsAt) >= rangeEnd,
+  ).length;
 });
 
-const timelineHiddenCount = computed(() => timelineRows.value.reduce((sum, row) => sum + row.hidden, 0));
+const UNASSIGNED_ROW_ID = "__unassigned";
 
-const timelineNowOffset = computed(() => {
-  if (!isToday(dayAnchor.value)) return null;
-  const minutes = (now.value.getTime() - dayAnchor.value.getTime()) / 60000;
-  const rangeStart = timelineHours.value.from * 60;
-  const rangeEnd = timelineHours.value.to * 60;
-  if (minutes < rangeStart || minutes > rangeEnd) return null;
-  return ((minutes - rangeStart) / (rangeEnd - rangeStart)) * 100;
-});
+interface AppointmentSnapshot {
+  startsAt: string;
+  endsAt: string;
+  teacherIds: string[] | null;
+}
 
-function timelineChipClass(status: AppointmentListItem["status"]) {
-  switch (status) {
-    case "confirmed":
-      return "bg-primary-50 dark:bg-primary-900/30 border-primary-200 dark:border-primary-800 text-primary-900 dark:text-primary-100";
-    case "completed":
-      return "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100";
-    case "draft":
-      return "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100";
-    default:
-      return "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 line-through";
+const lastMove = ref<{ appointmentId: string; message: string; previous: AppointmentSnapshot } | null>(null);
+let lastMoveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function assignedTeacherIds(appointment: AppointmentListItem): string[] {
+  if (appointment.teachers?.length) return appointment.teachers.map((teacher) => teacher.id);
+  return appointment.teacher ? [appointment.teacher.id] : [];
+}
+
+function nextTeacherIds(current: string[], fromRowId: string, toRowId: string): string[] {
+  if (fromRowId === UNASSIGNED_ROW_ID) return toRowId === UNASSIGNED_ROW_ID ? [] : [toRowId];
+  if (toRowId === UNASSIGNED_ROW_ID) return current.filter((id) => id !== fromRowId);
+  if (current.includes(toRowId)) return current.filter((id) => id !== fromRowId);
+  return current.map((id) => (id === fromRowId ? toRowId : id));
+}
+
+async function patchAppointmentSchedule(appointment: AppointmentListItem, body: Record<string, unknown>) {
+  if (!primaryTenant.value?.tenantId) throw new Error("Kein Mandant");
+  return $fetch<AppointmentListItem>(
+    `/api/v1/tenants/${primaryTenant.value.tenantId}/appointments/${appointment.id}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      body,
+      headers: { "If-Match": String(appointment.version) },
+    },
+  );
+}
+
+function replaceAppointment(updated: AppointmentListItem) {
+  appointments.value = appointments.value.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+}
+
+function showLastMove(appointmentId: string, message: string, previous: AppointmentSnapshot) {
+  lastMove.value = { appointmentId, message, previous };
+  if (lastMoveTimer) clearTimeout(lastMoveTimer);
+  lastMoveTimer = setTimeout(() => (lastMove.value = null), 10_000);
+}
+
+async function onTimelineMove(move: TimelineMove<AppointmentListItem>) {
+  const { appointment } = move;
+  const teacherChanged = move.fromRowId !== move.toRowId;
+  const previousTeacherIds = assignedTeacherIds(appointment);
+  const body: Record<string, unknown> = {
+    startsAt: move.startsAt.toISOString(),
+    endsAt: move.endsAt.toISOString(),
+  };
+  if (teacherChanged) body.teacherIds = nextTeacherIds(previousTeacherIds, move.fromRowId, move.toRowId);
+
+  const previous: AppointmentSnapshot = {
+    startsAt: appointment.startsAt,
+    endsAt: appointment.endsAt,
+    teacherIds: teacherChanged ? previousTeacherIds : null,
+  };
+  replaceAppointment({ ...appointment, startsAt: body.startsAt as string, endsAt: body.endsAt as string });
+  savingId.value = appointment.id;
+  error.value = "";
+  try {
+    const updated = await patchAppointmentSchedule(appointment, body);
+    replaceAppointment(updated);
+    const target = teacherChanged
+      ? ` zu ${dayColumns.value.find((column) => column.id === move.toRowId)?.name ?? teacherLabel.value}`
+      : "";
+    showLastMove(
+      appointment.id,
+      `„${appointmentTitle(appointment)}“ ${formatTime(updated.startsAt)}–${formatTime(updated.endsAt)}${target}`,
+      previous,
+    );
+  } catch (e: unknown) {
+    const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
+    error.value =
+      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht verschoben werden";
+    await loadAppointments();
+  } finally {
+    savingId.value = "";
+  }
+}
+
+async function undoLastMove() {
+  const move = lastMove.value;
+  if (!move) return;
+  const appointment = appointments.value.find((item) => item.id === move.appointmentId);
+  lastMove.value = null;
+  if (!appointment) return;
+  const body: Record<string, unknown> = { startsAt: move.previous.startsAt, endsAt: move.previous.endsAt };
+  if (move.previous.teacherIds) body.teacherIds = move.previous.teacherIds;
+  savingId.value = appointment.id;
+  error.value = "";
+  try {
+    replaceAppointment(await patchAppointmentSchedule(appointment, body));
+  } catch (e: unknown) {
+    const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
+    error.value =
+      err.data?.data?.message || err.data?.message || err.statusMessage || "Rückgängig machen fehlgeschlagen";
+    await loadAppointments();
+  } finally {
+    savingId.value = "";
   }
 }
 
@@ -426,7 +547,7 @@ function formatDayHeader(date: Date) {
   return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", day: "2-digit", month: "2-digit" }).format(date);
 }
 
-function formatTime(value: string) {
+function formatTime(value: string | Date) {
   return new Intl.DateTimeFormat(intlLocale.value, { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
@@ -439,7 +560,7 @@ const calendarRangeLabel = computed(() => {
       year: "numeric",
     }).format(dayAnchor.value);
   }
-  if (calendarMode.value === "week") {
+  if (isWeekMode(calendarMode.value)) {
     const start = weekStart.value;
     const end = addDays(start, 6);
     const fmt = new Intl.DateTimeFormat(intlLocale.value, { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -452,7 +573,7 @@ const calendarRangeLabel = computed(() => {
 function shiftCalendar(direction: 1 | -1) {
   if (isDayMode(calendarMode.value)) {
     dayAnchor.value = addDays(dayAnchor.value, direction);
-  } else if (calendarMode.value === "week") {
+  } else if (isWeekMode(calendarMode.value)) {
     weekStart.value = addDays(weekStart.value, direction * 7);
   } else {
     monthAnchor.value = addMonths(monthAnchor.value, direction);
@@ -478,7 +599,7 @@ function setCalendarMode(next: CalendarMode) {
   const today = startOfDay(new Date());
   if (isDayMode(next) && !isDayMode(previous)) {
     const { from, to } = calendarRange.value;
-    if (previous === "week") {
+    if (isWeekMode(previous)) {
       if (!isWithin(dayAnchor.value, from, to)) {
         dayAnchor.value = isWithin(today, from, to) ? today : from;
       }
@@ -489,8 +610,10 @@ function setCalendarMode(next: CalendarMode) {
         dayAnchor.value = isWithin(today, monthStart, monthEnd) ? today : monthStart;
       }
     }
-  } else if (next === "week") {
-    weekStart.value = getMondayOf(isDayMode(previous) ? dayAnchor.value : monthAnchor.value);
+  } else if (isWeekMode(next)) {
+    if (!isWeekMode(previous)) {
+      weekStart.value = getMondayOf(isDayMode(previous) ? dayAnchor.value : monthAnchor.value);
+    }
   } else if (next === "month") {
     monthAnchor.value = firstOfMonth(isDayMode(previous) ? dayAnchor.value : weekStart.value);
   }
@@ -635,16 +758,11 @@ watch(quickOpen, (open) => {
   }
 });
 
-let nowTimer: ReturnType<typeof setInterval> | undefined;
-
 onBeforeUnmount(() => {
-  if (nowTimer) clearInterval(nowTimer);
+  if (lastMoveTimer) clearTimeout(lastMoveTimer);
 });
 
 onMounted(async () => {
-  nowTimer = setInterval(() => {
-    now.value = new Date();
-  }, 60_000);
   restoreViewPreference();
   await loadOptions();
   await loadAppointments();
@@ -845,7 +963,14 @@ watch(
                 </UBadge>
               </div>
               <div class="mt-1.5 flex flex-wrap gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                <span v-if="teachersCaption(appointment)">{{ teachersCaption(appointment) }}</span>
+                <span v-if="teachersCaption(appointment)" class="inline-flex items-center gap-1.5">
+                  <span
+                    v-if="appointmentColor(appointment)"
+                    class="size-2 shrink-0 rounded-full"
+                    :style="{ backgroundColor: appointmentColor(appointment)! }"
+                  />
+                  {{ teachersCaption(appointment) }}
+                </span>
                 <span v-if="resourcesEnabled && appointment.resource">Ressource: {{ appointment.resource.name }}</span>
                 <span v-if="appointment.lessonType">Art: {{ appointment.lessonType.name }}</span>
               </div>
@@ -927,13 +1052,27 @@ watch(
               type="button"
               class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
               :class="
-                calendarMode === 'week'
+                calendarMode === 'week' || (calendarMode === 'team' && !canManageTenant)
                   ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
                   : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               "
               @click="setCalendarMode('week')"
             >
               Woche
+            </button>
+            <button
+              v-if="canManageTenant"
+              type="button"
+              class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
+              :class="
+                calendarMode === 'team'
+                  ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
+                  : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+              "
+              title="Woche nach Personen"
+              @click="setCalendarMode('team')"
+            >
+              Team
             </button>
             <button
               type="button"
@@ -1003,77 +1142,45 @@ watch(
         >
           Keine Termine an diesem Tag.
         </div>
-        <div
-          v-else
-          class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
-        >
-          <div class="flex min-w-max">
-            <div class="sticky left-0 z-20 w-28 sm:w-40 shrink-0 bg-white dark:bg-neutral-950 border-r border-neutral-200 dark:border-neutral-800">
-              <div class="h-8 border-b border-neutral-200 dark:border-neutral-800" />
-              <div
-                v-for="row in timelineRows"
-                :key="row.id"
-                class="flex items-center justify-between gap-1 px-2 border-b border-neutral-200 dark:border-neutral-800 last:border-b-0 text-sm"
-                :style="{ height: `${row.lanes * TIMELINE_LANE_HEIGHT_PX + 8}px` }"
-              >
-                <span class="truncate font-medium text-neutral-700 dark:text-neutral-200">{{ row.name }}</span>
-                <span class="text-xs text-neutral-500 tabular-nums">{{ row.appointments.length }}</span>
+        <template v-else>
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            leave-active-class="transition duration-150 ease-in"
+            leave-to-class="opacity-0"
+          >
+            <div
+              v-if="lastMove"
+              class="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-900 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-100"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <UIcon name="i-lucide-check-circle-2" class="size-4 shrink-0" />
+                <span class="truncate">Verschoben: {{ lastMove.message }}</span>
+              </span>
+              <div class="flex shrink-0 items-center gap-1">
+                <UButton size="xs" variant="soft" color="primary" icon="i-lucide-undo-2" @click="undoLastMove">
+                  Rückgängig
+                </UButton>
+                <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="lastMove = null" />
               </div>
             </div>
-            <div class="relative" :style="{ width: `${timelineWidthPx}px` }">
-              <div class="flex h-8 border-b border-neutral-200 dark:border-neutral-800">
-                <div
-                  v-for="hour in timelineHourLabels"
-                  :key="hour"
-                  class="shrink-0 px-1.5 text-xs leading-8 text-neutral-500 tabular-nums border-l border-neutral-200 dark:border-neutral-800 first:border-l-0"
-                  :style="{ width: `${TIMELINE_HOUR_WIDTH_PX}px` }"
-                >
-                  {{ formatHour(hour) }}
-                </div>
-              </div>
-              <div class="absolute inset-x-0 top-8 bottom-0 flex pointer-events-none">
-                <div
-                  v-for="hour in timelineHourLabels"
-                  :key="hour"
-                  class="shrink-0 border-l border-neutral-100 dark:border-neutral-900 first:border-l-0"
-                  :style="{ width: `${TIMELINE_HOUR_WIDTH_PX}px` }"
-                />
-              </div>
-              <div
-                v-if="timelineNowOffset !== null"
-                class="absolute top-0 bottom-0 z-10 w-px bg-red-500 pointer-events-none"
-                :style="{ left: `${timelineNowOffset}%` }"
-              />
-              <div
-                v-for="row in timelineRows"
-                :key="row.id"
-                class="relative border-b border-neutral-200 dark:border-neutral-800 last:border-b-0"
-                :style="{ height: `${row.lanes * TIMELINE_LANE_HEIGHT_PX + 8}px` }"
-              >
-                <button
-                  v-for="item in row.items"
-                  :key="item.appointment.id"
-                  type="button"
-                  class="absolute rounded-md border px-1.5 py-1 text-left text-xs leading-tight overflow-hidden hover:ring-1 hover:ring-primary-300 dark:hover:ring-primary-700"
-                  :class="timelineChipClass(item.appointment.status)"
-                  :style="{
-                    left: `calc(${item.left}% + 1px)`,
-                    width: `calc(${item.width}% - 2px)`,
-                    top: `${item.lane * TIMELINE_LANE_HEIGHT_PX + 4}px`,
-                    height: `${TIMELINE_LANE_HEIGHT_PX - 4}px`,
-                  }"
-                  :title="`${formatTime(item.appointment.startsAt)}–${formatTime(item.appointment.endsAt)} ${appointmentTitle(item.appointment)}${item.appointment.lessonType ? ` · ${item.appointment.lessonType.name}` : ''}`"
-                  @click="openEditAppointment(item.appointment)"
-                >
-                  <span class="block font-medium tabular-nums truncate">
-                    {{ formatTime(item.appointment.startsAt) }}–{{ formatTime(item.appointment.endsAt) }}
-                  </span>
-                  <span class="block truncate">{{ appointmentTitle(item.appointment) }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+          </Transition>
+          <AppointmentTimeline
+            :rows="dayColumns"
+            :day="dayAnchor"
+            :from-hour="timelineHours.from"
+            :to-hour="timelineHours.to"
+            :can-move="canAccessWorkspace"
+            :can-change-row="canManageTenant"
+            :person-colors="canManageTenant"
+            :saving-id="savingId"
+            :show-resource="resourcesEnabled"
+            :title-of="appointmentTitle"
+            :format-time="formatTime"
+            @open="openEditAppointment"
+            @move="onTimelineMove"
+          />
+        </template>
       </template>
 
       <template v-else-if="calendarMode === 'day'">
@@ -1094,13 +1201,22 @@ watch(
               class="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-2 flex flex-col gap-2"
             >
               <div class="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                <span class="truncate">{{ column.name }}</span>
+                <span class="flex min-w-0 items-center gap-2">
+                  <span
+                    v-if="canManageTenant"
+                    class="size-2.5 shrink-0 rounded-full"
+                    :class="column.id === UNASSIGNED_ROW_ID ? 'border border-dashed border-neutral-400' : ''"
+                    :style="column.id === UNASSIGNED_ROW_ID ? {} : { backgroundColor: avatarColor(column.id, column.color) }"
+                  />
+                  <span class="truncate">{{ column.name }}</span>
+                </span>
                 <span class="text-xs font-normal text-neutral-500 tabular-nums">{{ column.appointments.length }}</span>
               </div>
               <div
                 v-for="appointment in column.appointments"
                 :key="appointment.id"
-                class="rounded-md border border-neutral-200 dark:border-neutral-800 px-2.5 py-2 text-sm bg-neutral-50 dark:bg-neutral-900"
+                class="rounded-md border border-l-[3px] border-neutral-200 dark:border-neutral-800 px-2.5 py-2 text-sm bg-neutral-50 dark:bg-neutral-900"
+                :style="!canManageTenant || column.id === UNASSIGNED_ROW_ID ? {} : { borderLeftColor: avatarColor(column.id, column.color) }"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
@@ -1142,11 +1258,85 @@ watch(
         </div>
       </template>
 
-      <div v-else-if="calendarMode === 'week'" class="grid grid-cols-1 md:grid-cols-7 gap-2">
+      <div v-else-if="calendarMode === 'team' && canManageTenant" class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <table class="w-full min-w-[56rem] table-fixed border-collapse text-xs">
+          <thead>
+            <tr class="bg-neutral-50 dark:bg-neutral-900/60">
+              <th class="sticky left-0 z-10 w-40 border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900">
+                Team
+              </th>
+              <th
+                v-for="day in weekDays"
+                :key="day.key"
+                class="border-b border-l border-neutral-200 px-2 py-1.5 text-left font-medium dark:border-neutral-800"
+                :class="isToday(day.date) ? 'bg-primary-50 text-primary-800 dark:bg-primary-500/10 dark:text-primary-200' : 'text-neutral-600 dark:text-neutral-400'"
+              >
+                <button type="button" class="hover:text-primary-700 dark:hover:text-primary-200" title="Zeitachse für diesen Tag" @click="openDay(day.date, 'timeline')">
+                  {{ formatDayHeader(day.date) }}
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!teamRows.length">
+              <td colspan="8" class="px-3 py-4 text-sm text-neutral-500">Keine {{ teacherLabel }} hinterlegt.</td>
+            </tr>
+            <tr v-for="row in teamRows" :key="row.id" class="align-top">
+              <th class="sticky left-0 z-10 border-b border-neutral-100 bg-white px-3 py-2 text-left font-normal dark:border-neutral-900 dark:bg-neutral-950">
+                <div class="flex items-center gap-2">
+                  <span
+                    v-if="row.id !== UNASSIGNED_ROW_ID"
+                    class="flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                    :style="{ backgroundColor: avatarColor(row.id, row.color) }"
+                  >
+                    {{ avatarInitials(row.name) }}
+                  </span>
+                  <span v-else class="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-neutral-300 text-neutral-400 dark:border-neutral-700">
+                    <UIcon name="i-lucide-user-x" class="size-3" />
+                  </span>
+                  <span class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</span>
+                </div>
+              </th>
+              <td
+                v-for="day in weekDays"
+                :key="day.key"
+                class="border-b border-l border-neutral-100 p-1 dark:border-neutral-900"
+                :class="isToday(day.date) ? 'bg-primary-50/40 dark:bg-primary-500/5' : ''"
+              >
+                <div v-if="row.byDay.get(day.key)?.length" class="flex flex-col gap-1">
+                  <CalendarChip
+                    v-for="appointment in row.byDay.get(day.key)!.slice(0, TEAM_CELL_VISIBLE)"
+                    :key="appointment.id"
+                    :time="formatTime(appointment.startsAt)"
+                    :title="appointmentTitle(appointment)"
+                    :status="appointment.status"
+                    :color="row.id === UNASSIGNED_ROW_ID ? null : avatarColor(row.id, row.color)"
+                    @click="openEditAppointment(appointment)"
+                  />
+                  <button
+                    type="button"
+                    class="flex items-center justify-between rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 hover:text-primary-700 dark:hover:bg-neutral-800 dark:hover:text-primary-200"
+                    title="Zeitachse für diesen Tag"
+                    @click="openDay(day.date, 'timeline')"
+                  >
+                    <span v-if="row.byDay.get(day.key)!.length > TEAM_CELL_VISIBLE">
+                      +{{ row.byDay.get(day.key)!.length - TEAM_CELL_VISIBLE }} weitere
+                    </span>
+                    <span v-else />
+                    <span class="tabular-nums">{{ bookedHoursLabel(row.byDay.get(day.key)!) }}</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else-if="calendarMode === 'week' || calendarMode === 'team'" class="grid grid-cols-1 gap-2 md:grid-cols-7">
         <div
           v-for="day in weekDays"
           :key="day.key"
-          class="rounded-lg border bg-white dark:bg-neutral-950 min-h-[140px] p-2 flex flex-col gap-2"
+          class="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-white p-1.5 md:min-h-[140px] dark:bg-neutral-950"
           :class="
             isToday(day.date)
               ? 'border-primary-300 dark:border-primary-700 ring-1 ring-primary-200 dark:ring-primary-900/40'
@@ -1155,57 +1345,34 @@ watch(
         >
           <button
             type="button"
-            class="text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-primary-700 dark:hover:text-primary-200"
+            class="flex items-center justify-between px-0.5 text-left text-xs font-medium text-neutral-600 hover:text-primary-700 dark:text-neutral-400 dark:hover:text-primary-200"
             title="Tagesansicht"
-            @click="openDay(day.date)"
+            @click="openDay(day.date, canManageTenant ? 'timeline' : 'day')"
           >
-            {{ formatDayHeader(day.date) }}
+            <span>{{ formatDayHeader(day.date) }}</span>
+            <span v-if="appointmentsByDay(day.key).length" class="font-normal tabular-nums text-neutral-400">
+              {{ appointmentsByDay(day.key).length }}
+            </span>
           </button>
-          <div class="flex flex-col gap-1.5">
-            <div
-              v-for="appointment in appointmentsByDay(day.key)"
-              :key="appointment.id"
-              class="rounded-md border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 text-xs leading-tight bg-neutral-50 dark:bg-neutral-900"
-            >
-              <div class="flex items-start justify-between gap-1">
-                <div class="min-w-0">
-                  <div class="flex items-center justify-between gap-1">
-                    <span class="font-medium tabular-nums">{{ formatTime(appointment.startsAt) }}</span>
-                    <UBadge
-                      v-if="appointmentStatusLabel(appointment.status)"
-                      :color="appointmentStatusColor(appointment.status)"
-                      variant="subtle"
-                      size="xs"
-                    >
-                      {{ appointmentStatusLabel(appointment.status) }}
-                    </UBadge>
-                  </div>
-                  <p class="mt-0.5 truncate font-medium">{{ appointmentTitle(appointment) }}</p>
-                  <p v-if="teachersCaption(appointment)" class="truncate text-neutral-500">
-                    {{ teachersCaption(appointment) }}
-                  </p>
-                </div>
-                <AppointmentQuickActions
-                  class="shrink-0"
-                  compact
-                  :appointment="appointment"
-                  :loading="savingId === appointment.id"
-                  :show-edit="canAccessWorkspace"
-                  :show-complete="canAccessWorkspace"
-                  :show-delete="canManageTenant"
-                  @edit="openEditAppointment(appointment)"
-                  @complete="markCompleted(appointment)"
-                  @delete="deleteAppointment(appointment)"
-                />
-              </div>
-            </div>
-            <p
-              v-if="!appointmentsByDay(day.key).length"
-              class="text-xs text-neutral-400 italic"
-            >
-              Keine Termine
-            </p>
-          </div>
+          <CalendarChip
+            v-for="appointment in appointmentsByDay(day.key).slice(0, WEEK_DAY_VISIBLE)"
+            :key="appointment.id"
+            :time="formatTime(appointment.startsAt)"
+            :title="appointmentTitle(appointment)"
+            :status="appointment.status"
+            :color="appointmentColor(appointment)"
+            :person-name="canManageTenant ? (appointment.teachers?.[0] ?? appointment.teacher)?.displayName : null"
+            @click="openEditAppointment(appointment)"
+          />
+          <button
+            v-if="appointmentsByDay(day.key).length > WEEK_DAY_VISIBLE"
+            type="button"
+            class="rounded px-1.5 py-1 text-left text-[11px] font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10"
+            @click="openDay(day.date, canManageTenant ? 'timeline' : 'day')"
+          >
+            +{{ appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }} weitere
+          </button>
+          <p v-if="!appointmentsByDay(day.key).length" class="px-0.5 text-xs italic text-neutral-400">Keine Termine</p>
         </div>
       </div>
 
@@ -1256,6 +1423,11 @@ watch(
                 :title="`${formatTime(appointment.startsAt)} ${appointmentTitle(appointment)}`"
                 @click="openEditAppointment(appointment)"
               >
+                <span
+                  v-if="appointmentColor(appointment)"
+                  class="mr-0.5 inline-block size-1.5 rounded-full align-middle sm:mr-1 sm:size-2"
+                  :style="{ backgroundColor: appointmentColor(appointment)! }"
+                />
                 <span class="font-medium tabular-nums">{{ formatTime(appointment.startsAt) }}</span>
                 <span class="ml-0.5 hidden sm:inline">{{ appointmentTitle(appointment) }}</span>
               </button>

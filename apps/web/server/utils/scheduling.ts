@@ -42,11 +42,11 @@ const appointmentSelect = {
   createdByUserId: true,
   updatedAt: true,
   lessonType: { select: { id: true, name: true, defaultDurationMin: true } },
-  teacher: { select: { id: true, displayName: true } },
+  teacher: { select: { id: true, displayName: true, color: true } },
   teachers: {
     select: {
       teacherId: true,
-      teacher: { select: { id: true, displayName: true } },
+      teacher: { select: { id: true, displayName: true, color: true } },
     },
     orderBy: { createdAt: "asc" },
   },
@@ -581,6 +581,7 @@ async function validateSchedulingConstraints(
       take: 3,
     });
     if (conflicts.length) {
+      const freeSlots = await findFreeSlotsOnDay(tenantId, input).catch(() => []);
       throwConflict("Lehrer ist im Zeitraum bereits gebucht", {
         conflictType: "TIME_OVERLAP",
         teacherId,
@@ -589,6 +590,7 @@ async function validateSchedulingConstraints(
           startsAt: row.startsAt.toISOString(),
           endsAt: row.endsAt.toISOString(),
         })),
+        freeSlots,
       });
     }
   }
@@ -1631,13 +1633,34 @@ export async function softDeleteAvailabilityException(
   });
 }
 
+export async function updateTeacherProfile(tenantId: string, teacherIdInput: string | undefined, rawBody: unknown) {
+  const teacherId = normalizeRequiredUuid(teacherIdInput, "teacherId");
+  await requireTeacher(tenantId, teacherId);
+  const body = (rawBody ?? {}) as Record<string, unknown>;
+  if (!hasOwn(body, "color")) {
+    throwValidation("color ist erforderlich", { field: "color" });
+  }
+  let color: string | null = null;
+  if (body.color !== null && body.color !== "") {
+    if (typeof body.color !== "string" || !/^#[0-9a-f]{6}$/i.test(body.color)) {
+      throwValidation("Farbe muss im Format #rrggbb sein", { field: "color" });
+    }
+    color = body.color.toLowerCase();
+  }
+  return prisma.teacherProfile.update({
+    where: { id: teacherId },
+    data: { color },
+    select: { id: true, displayName: true, color: true },
+  });
+}
+
 export async function getSchedulingOptions(tenantId: string, query: { q?: string }) {
   const q = query.q?.trim();
   await ensureTeacherProfilesForTenant(tenantId);
   const [teachers, resources, lessonTypes, customers, tenant] = await Promise.all([
     prisma.teacherProfile.findMany({
       where: { tenantId, deletedAt: null, membership: { deletedAt: null } },
-      select: { id: true, displayName: true, qualifications: true },
+      select: { id: true, displayName: true, color: true, qualifications: true },
       orderBy: { displayName: "asc" },
     }),
     prisma.resource.findMany({
@@ -2010,6 +2033,119 @@ function slotIsFree(input: {
     if (overlapCount >= capacity) return false;
   }
   return true;
+}
+
+const FREE_SLOT_DEFAULT_WINDOW = { startTime: "08:00", endTime: "18:00" };
+
+export type FreeSlot = { startsAt: string; endsAt: string; time: string };
+
+/**
+ * Free start times on the same business day with the same duration, closest to the requested
+ * start first. A slot must be free for every teacher (and the resource, if set).
+ */
+async function findFreeSlotsOnDay(
+  tenantId: string,
+  input: {
+    startsAt: Date;
+    endsAt: Date;
+    teacherIds: string[];
+    resourceId: string | null;
+    excludeAppointmentId?: string;
+    limit?: number;
+  },
+): Promise<FreeSlot[]> {
+  const limit = input.limit ?? 4;
+  const durationMin = Math.max(15, Math.round((input.endsAt.getTime() - input.startsAt.getTime()) / 60_000));
+  const requested = getBusinessParts(input.startsAt);
+  const dayStart = fromBusinessDateTime(requested.date, "00:00");
+  const dayEnd = fromBusinessDateTime(addDaysToDateString(requested.date, 1), "00:00");
+
+  const [rules, exceptions, rows, resource] = await Promise.all([
+    prisma.availabilityRule.findMany({
+      where: { tenantId, deletedAt: null, teacherId: { in: input.teacherIds } },
+      select: { teacherId: true, weekday: true, weekdays: true, startTime: true, endTime: true, kind: true, allDay: true },
+    }),
+    prisma.availabilityException.findMany({
+      where: { tenantId, deletedAt: null, teacherId: { in: input.teacherIds } },
+      select: { teacherId: true, type: true, startsOn: true, endsOn: true, startTime: true, endTime: true },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        tenantId,
+        deletedAt: null,
+        status: { in: activeAppointmentStatuses },
+        startsAt: { lt: dayEnd },
+        endsAt: { gt: dayStart },
+      },
+      select: slotCheckAppointmentSelect,
+    }),
+    input.resourceId
+      ? prisma.resource.findFirst({ where: { id: input.resourceId, tenantId }, select: { capacity: true } })
+      : null,
+  ]);
+
+  const rulesByTeacher = new Map<string, AvailabilityMatchRule[]>();
+  for (const rule of rules) {
+    const list = rulesByTeacher.get(rule.teacherId) ?? [];
+    list.push({ ...rule, weekdays: rule.weekdays.length ? rule.weekdays : [rule.weekday] });
+    rulesByTeacher.set(rule.teacherId, list);
+  }
+  const exceptionsByTeacher = new Map<string, ExceptionMatch[]>();
+  for (const { teacherId, ...exception } of exceptions) {
+    const list = exceptionsByTeacher.get(teacherId) ?? [];
+    list.push(exception);
+    exceptionsByTeacher.set(teacherId, list);
+  }
+  const checkBase = {
+    excludeAppointmentId: input.excludeAppointmentId ?? "",
+    nearby: rows.map(toSlotCheckAppointment),
+    resourceCapacity: new Map(input.resourceId ? [[input.resourceId, resource?.capacity ?? 1]] : []),
+    rulesByTeacher,
+    exceptionsByTeacher,
+  };
+
+  // Without timed availability rules the whole day would count as free, so scan working hours only.
+  const timedRules = (rulesByTeacher.get(input.teacherIds[0] ?? "") ?? []).filter(
+    (rule) =>
+      rule.kind !== AvailabilityRuleKind.unavailable && !rule.allDay && ruleCoversWeekday(rule, requested.weekday),
+  );
+  const windowStart = timedRules.length
+    ? Math.min(...timedRules.map((rule) => parseMinutes(rule.startTime)))
+    : parseMinutes(FREE_SLOT_DEFAULT_WINDOW.startTime);
+  const windowEnd = timedRules.length
+    ? Math.max(...timedRules.map((rule) => parseMinutes(rule.endTime)))
+    : parseMinutes(FREE_SLOT_DEFAULT_WINDOW.endTime);
+  const requestedMin = parseMinutes(requested.time);
+
+  const candidates: number[] = [];
+  for (let minute = windowStart; minute + durationMin <= windowEnd; minute += 15) {
+    const startsAt = fromBusinessDateTime(requested.date, formatMinutes(minute));
+    const endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
+    const free = input.teacherIds.every((teacherId, index) =>
+      slotIsFree({ ...checkBase, startsAt, endsAt, teacherId, resourceId: index === 0 ? input.resourceId : null }),
+    );
+    if (free) candidates.push(minute);
+  }
+
+  candidates.sort((a, b) => Math.abs(a - requestedMin) - Math.abs(b - requestedMin) || a - b);
+  const spacing = Math.min(durationMin, 60);
+  const picked: number[] = [];
+  for (const minute of candidates) {
+    if (picked.length >= limit) break;
+    if (picked.some((other) => Math.abs(other - minute) < spacing)) continue;
+    picked.push(minute);
+  }
+
+  return picked
+    .sort((a, b) => a - b)
+    .map((minute) => {
+      const startsAt = fromBusinessDateTime(requested.date, formatMinutes(minute));
+      return {
+        startsAt: startsAt.toISOString(),
+        endsAt: new Date(startsAt.getTime() + durationMin * 60_000).toISOString(),
+        time: formatMinutes(minute),
+      };
+    });
 }
 
 export type SuggestedPrioritySlot = {
