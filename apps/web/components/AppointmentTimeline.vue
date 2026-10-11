@@ -306,32 +306,45 @@ function chipTitle(appointment: T) {
       <div class="flex min-w-full w-max">
         <!-- Names column -->
         <div
-          class="sticky left-0 z-30 w-36 shrink-0 border-r border-neutral-200 bg-white sm:w-48 dark:border-neutral-800 dark:bg-neutral-950"
+          class="sticky left-0 z-30 w-14 shrink-0 border-r border-neutral-200 bg-white sm:w-48 dark:border-neutral-800 dark:bg-neutral-950"
         >
           <div class="flex h-10 items-end border-b border-neutral-200 px-3 pb-2 dark:border-neutral-800">
-            <span class="text-[11px] font-medium uppercase tracking-wider text-neutral-400">Team</span>
+            <span class="hidden text-[11px] font-medium uppercase tracking-wider text-neutral-400 sm:inline">Team</span>
           </div>
           <div
             v-for="row in layout"
             :key="row.id"
-            class="flex items-center gap-2.5 border-b border-neutral-100 px-3 transition-colors last:border-b-0 dark:border-neutral-900"
+            class="flex items-center justify-center gap-2.5 border-b border-neutral-100 px-2 transition-colors sm:px-3 last:border-b-0 sm:justify-start dark:border-neutral-900"
             :class="ghostTargetRow === row.id ? 'bg-primary-50/70 dark:bg-primary-500/10' : ''"
             :style="{ height: `${row.height}px` }"
           >
-            <span
-              v-if="row.id !== '__unassigned'"
-              class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm"
-              :style="{ backgroundColor: rowColor(row) }"
+            <UPopover
+              mode="click"
+              :content="{ side: 'right', align: 'center' }"
+              :ui="{ content: 'max-w-sm p-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400' }"
             >
-              {{ initials(row.name) }}
-            </span>
-            <span
-              v-else
-              class="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-neutral-300 text-neutral-400 dark:border-neutral-700"
-            >
-              <UIcon name="i-lucide-user-x" class="size-4" />
-            </span>
-            <div class="min-w-0">
+              <button
+                type="button"
+                class="flex size-8 shrink-0 items-center justify-center rounded-full sm:pointer-events-none"
+                :class="
+                  row.id !== '__unassigned'
+                    ? 'text-[11px] font-semibold text-white shadow-sm'
+                    : 'border border-dashed border-neutral-300 text-neutral-400 dark:border-neutral-700'
+                "
+                :style="row.id !== '__unassigned' ? { backgroundColor: rowColor(row) } : undefined"
+                :aria-label="row.name"
+              >
+                <template v-if="row.id !== '__unassigned'">{{ initials(row.name) }}</template>
+                <UIcon v-else name="i-lucide-user-x" class="size-4" />
+              </button>
+              <template #content>
+                <p class="font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</p>
+                <p class="text-xs text-neutral-500 tabular-nums">
+                  {{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}
+                </p>
+              </template>
+            </UPopover>
+            <div class="hidden min-w-0 sm:block">
               <p class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</p>
               <p class="text-[11px] text-neutral-500 tabular-nums">
                 {{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}
