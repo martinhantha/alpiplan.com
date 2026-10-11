@@ -159,6 +159,12 @@ async function sendFcmMessage(
     if (response.ok) return "ok";
     const text = await response.text();
     if (response.status === 404 || /UNREGISTERED|NOT_FOUND/i.test(text)) return "gone";
+    if (/SENDER_ID_MISMATCH/.test(text)) {
+      console.warn(
+        `[push] FCM SENDER_ID_MISMATCH: server uses Firebase project "${projectId}", but the device token belongs to another project. FIREBASE_SERVICE_ACCOUNT must come from the same project as google-services.json / GoogleService-Info.plist.`,
+      );
+      return "error";
+    }
     console.warn("[push] FCM send failed", response.status, text.slice(0, 300));
     return "error";
   } catch {

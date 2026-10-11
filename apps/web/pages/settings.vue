@@ -8,6 +8,7 @@ import type { SuperadminOverview, TenantRole } from "../types/superadmin";
 import {
   disableWebPush,
   enableWebPush,
+  webPushErrorDetail,
   webPushState,
   type WebPushState,
 } from "../utils/web-push-registration";
@@ -299,7 +300,7 @@ async function toggleWebPush(enabled: boolean) {
       setInfo("Push auf diesem Gerät deaktiviert.");
     }
   } catch (e: unknown) {
-    setError(apiMessage(e, "Push konnte nicht eingerichtet werden"));
+    setError(apiMessage(e, `Push konnte nicht eingerichtet werden (${webPushErrorDetail(e)})`));
     await refreshWebPushState();
   } finally {
     webPushSaving.value = false;

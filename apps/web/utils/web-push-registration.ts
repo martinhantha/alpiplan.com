@@ -78,38 +78,56 @@ async function saveSubscription(subscription: PushSubscription) {
   });
 }
 
+/** Resolved by `webPushState()`, so `enableWebPush()` can subscribe without awaiting first. */
+let prepared: { registration: ServiceWorkerRegistration; publicKey: string } | null = null;
+
 export async function webPushState(): Promise<WebPushState> {
   if (!import.meta.client || Capacitor.isNativePlatform()) return "unsupported";
   if (isIosDevice() && !isStandalone()) return "needs-install";
   if (!browserSupportsWebPush()) return "unsupported";
-  if (!(await serverPublicKey())) return "not-configured";
+  const [publicKey, registration] = await Promise.all([serverPublicKey(), serviceWorkerRegistration()]);
+  if (!publicKey) return "not-configured";
+  if (!registration) return "unsupported";
+  prepared = { registration, publicKey };
   if (Notification.permission === "denied") return "denied";
   if (Notification.permission !== "granted") return "default";
-  const registration = await serviceWorkerRegistration();
-  const subscription = await registration?.pushManager.getSubscription();
-  return subscription ? "subscribed" : "default";
+  const subscription = await registration.pushManager.getSubscription();
+  return subscription && sameKey(subscription.options.applicationServerKey, urlBase64ToUint8Array(publicKey))
+    ? "subscribed"
+    : "default";
 }
 
 /**
- * Asks for permission and subscribes. Must be called from a tap/click —
- * Safari on iOS ignores permission requests without a user gesture.
+ * Subscribes (and thereby asks for permission). Must be called directly from a tap/click:
+ * Safari on iOS only shows the prompt if `pushManager.subscribe()` runs before any other await.
  */
 export async function enableWebPush(): Promise<WebPushState> {
   if (!browserSupportsWebPush()) return webPushState();
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return permission === "denied" ? "denied" : "default";
-  const [registration, publicKey] = await Promise.all([serviceWorkerRegistration(), serverPublicKey()]);
-  if (!registration) return "unsupported";
-  if (!publicKey) return "not-configured";
+  if (!prepared && (await webPushState()) !== "default") return webPushState();
+  if (!prepared) return "unsupported";
+  const { registration, publicKey } = prepared;
   const applicationServerKey = urlBase64ToUint8Array(publicKey);
-  let subscription = await registration.pushManager.getSubscription();
-  if (subscription && !sameKey(subscription.options.applicationServerKey, applicationServerKey)) {
-    await subscription.unsubscribe();
-    subscription = null;
+  let subscription: PushSubscription;
+  try {
+    subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+  } catch (error) {
+    if (Notification.permission === "denied") return "denied";
+    const existing = await registration.pushManager.getSubscription();
+    // An old subscription made with a different server key blocks a new one.
+    if (!existing || sameKey(existing.options.applicationServerKey, applicationServerKey)) throw error;
+    await existing.unsubscribe();
+    subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
   }
-  subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
   await saveSubscription(subscription);
   return "subscribed";
+}
+
+/** Short technical reason for the UI, e.g. "NotAllowedError: …". */
+export function webPushErrorDetail(error: unknown): string {
+  if (error instanceof Error || error instanceof DOMException) {
+    return `${error.name}: ${error.message}`.slice(0, 160);
+  }
+  return String(error).slice(0, 160);
 }
 
 /** Re-sends an existing subscription after login, without prompting. */
