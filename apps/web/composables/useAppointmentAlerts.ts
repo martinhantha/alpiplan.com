@@ -7,6 +7,7 @@ import {
 } from "~/types/live-events";
 import { liveEventNotificationCopy } from "~/utils/appointment-live-audience";
 import { registerNativePushToken } from "~/utils/push-registration";
+import { enableWebPush, syncWebPushSubscription } from "~/utils/web-push-registration";
 
 let askedPushPermission = false;
 
@@ -91,7 +92,11 @@ export function useAppointmentAlerts() {
 
   async function enableNotifications() {
     try {
-      await device.value.requestPushPermission();
+      if (Capacitor.isNativePlatform()) {
+        await device.value.requestPushPermission();
+      } else {
+        await enableWebPush();
+      }
     } catch {
       // Keep the in-app popup even if the system prompt is dismissed.
     }
@@ -134,6 +139,7 @@ export function useAppointmentAlerts() {
     window.setTimeout(() => {
       void maybeRequestPush();
       void registerNativePushToken();
+      void syncWebPushSubscription();
     }, 2500);
   }
 

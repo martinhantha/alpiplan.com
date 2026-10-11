@@ -1,6 +1,6 @@
 import { AppointmentStatus, Prisma } from "@prisma/client";
 import { prisma } from "~/server/utils/prisma";
-import { sendPushToUsers, isFirebasePushConfigured } from "~/server/utils/push";
+import { sendPushToUsers, isPushConfigured } from "~/server/utils/push";
 import { assignedTeachersFromAppointment } from "~/utils/appointment-live-audience";
 import { resolveAppointmentDisplayName } from "~/utils/appointment-contact";
 import {
@@ -290,7 +290,7 @@ export async function runScheduledPushTick(now = new Date()): Promise<void> {
   globalForSched.alpiplanScheduledPushRunning = true;
   try {
     await autoCompleteOverdueAppointments(now);
-    if (isFirebasePushConfigured()) {
+    if (isPushConfigured()) {
       await sendDueReminders(now);
       await sendDueBriefings(now);
     }

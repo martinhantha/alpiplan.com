@@ -162,6 +162,35 @@ Erwartung: mindestens eine Zeile mit **`platform = ios`**.
 
 ---
 
+## Alternative ohne Apple-Account — Web-App auf dem Home-Bildschirm
+
+Ab **iOS 16.4** bekommt Alpiplan auch als Web-App Push, wenn sie geschlossen ist (Standard-Web-Push, kein Firebase, kein Developer Program).
+
+**Server (einmalig):**
+
+```bash
+cd apps/web && npx web-push generate-vapid-keys
+```
+
+In Coolify (web-Service) setzen und neu deployen:
+
+- `WEB_PUSH_VAPID_PUBLIC_KEY`
+- `WEB_PUSH_VAPID_PRIVATE_KEY`
+- `WEB_PUSH_SUBJECT=mailto:…` (Kontaktadresse, Apple verlangt sie)
+
+Keys danach **nicht mehr wechseln** — sonst müssen alle Geräte Push neu einschalten.
+
+**iPhone:**
+
+1. `https://app.alpiplan.com` in **Safari** öffnen → **Teilen** → **Zum Home-Bildschirm**
+2. Alpiplan **über das neue Symbol** öffnen und einloggen
+3. **Einstellungen → Benachrichtigungen → Push auf diesem Gerät** einschalten → Mitteilungen erlauben
+4. DB: Zeile mit `platform = web` in `DevicePushToken`
+
+In einem normalen Safari-Tab auf dem iPhone gibt es keinen Push (Apple-Vorgabe). Am Mac/PC funktioniert es in Safari, Chrome, Edge und Firefox direkt im Tab.
+
+---
+
 ## Fehlerbehebung (Kurz)
 
 | Symptom | Wahrscheinliche Ursache |

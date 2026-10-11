@@ -1,5 +1,6 @@
 import type { AuthSession } from "~/types/auth";
 import { unregisterNativePushToken } from "~/utils/push-registration";
+import { disableWebPush } from "~/utils/web-push-registration";
 
 export function useAuth() {
   const session = useState<AuthSession | null>("auth:session", () => null);
@@ -50,6 +51,7 @@ export function useAuth() {
 
   async function logout() {
     await unregisterNativePushToken();
+    await disableWebPush({ unsubscribe: false });
     await $fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     session.value = null;
     await navigateTo("/login");

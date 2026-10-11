@@ -4,6 +4,7 @@ import { importPKCS8, SignJWT } from "jose";
 import type { AppointmentLiveEvent } from "~/types/live-events";
 import { prisma } from "~/server/utils/prisma";
 import { getMonorepoRoot } from "~/server/utils/monorepo-root";
+import { isWebPushConfigured, sendWebPushMessage } from "~/server/utils/web-push";
 import { liveEventNotificationCopy, pushRecipientUserIds } from "~/utils/appointment-live-audience";
 
 type CachedAccess = { token: string; expiresAt: number };
@@ -165,6 +166,11 @@ async function sendFcmMessage(
   }
 }
 
+/** True when at least one channel (FCM for the apps, Web Push for browsers) can deliver. */
+export function isPushConfigured(): boolean {
+  return isFirebasePushConfigured() || isWebPushConfigured();
+}
+
 export async function sendPushToUsers(input: {
   userIds: string[];
   title: string;
@@ -172,37 +178,53 @@ export async function sendPushToUsers(input: {
   data: Record<string, string>;
 }): Promise<{ sent: number }> {
   const config = firebaseConfig();
-  if (!config) return { sent: 0 };
+  const webPushEnabled = isWebPushConfigured();
+  if (!config && !webPushEnabled) return { sent: 0 };
   const userIds = [...new Set(input.userIds.filter(Boolean))];
   if (!userIds.length) return { sent: 0 };
   const rows = await prisma.devicePushToken.findMany({
     where: { userId: { in: userIds } },
-    select: { id: true, token: true },
+    select: { id: true, token: true, platform: true },
   });
   if (!rows.length) {
     console.warn("[push] no registered device tokens for", userIds);
     return { sent: 0 };
   }
-  const accessToken = await firebaseAccessToken();
-  if (!accessToken) {
+  const webRows = webPushEnabled ? rows.filter((row) => row.platform === "web") : [];
+  const fcmRows = config ? rows.filter((row) => row.platform !== "web") : [];
+  const accessToken = fcmRows.length ? await firebaseAccessToken() : null;
+  if (fcmRows.length && !accessToken) {
     console.warn("[push] could not get Firebase access token");
-    return { sent: 0 };
   }
+  // Same id as the in-app notification tag, so a visible notification is replaced instead of duplicated.
+  const tag = input.data.appointmentId ? `${input.data.type}:${input.data.appointmentId}` : input.data.type;
   const stale: string[] = [];
-  const results = await Promise.all(
-    rows.map(async (row) => {
-      const result = await sendFcmMessage(
-        accessToken,
-        config.projectId,
-        row.token,
-        input.title,
-        input.body,
-        input.data,
-      );
+  const results = await Promise.all([
+    ...(accessToken && config
+      ? fcmRows.map(async (row) => {
+          const result = await sendFcmMessage(
+            accessToken,
+            config.projectId,
+            row.token,
+            input.title,
+            input.body,
+            input.data,
+          );
+          if (result === "gone") stale.push(row.id);
+          return result;
+        })
+      : []),
+    ...webRows.map(async (row) => {
+      const result = await sendWebPushMessage(row.token, {
+        title: input.title,
+        body: input.body,
+        tag,
+        data: input.data,
+      });
       if (result === "gone") stale.push(row.id);
       return result;
     }),
-  );
+  ]);
   if (stale.length) {
     await prisma.devicePushToken.deleteMany({ where: { id: { in: stale } } });
   }

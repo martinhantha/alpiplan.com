@@ -5,6 +5,12 @@ import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
 import { avatarColor, avatarInitials } from "../utils/avatar";
 import type { SuperadminOverview, TenantRole } from "../types/superadmin";
+import {
+  disableWebPush,
+  enableWebPush,
+  webPushState,
+  type WebPushState,
+} from "../utils/web-push-registration";
 
 interface LessonType {
   id: string;
@@ -262,7 +268,7 @@ async function saveNextDayBriefing(enabled: boolean) {
     });
     setInfo(
       enabled
-        ? "Vortags-Info aktiv – um 8 Uhr, wenn morgen Termine anstehen."
+        ? "Vortags-Info aktiv – um 20 Uhr, wenn morgen Termine anstehen."
         : "Vortags-Info deaktiviert.",
     );
   } catch (e: unknown) {
@@ -272,6 +278,34 @@ async function saveNextDayBriefing(enabled: boolean) {
     briefingSaving.value = false;
   }
 }
+
+const webPush = ref<WebPushState | null>(null);
+const webPushSaving = ref(false);
+
+async function refreshWebPushState() {
+  webPush.value = await webPushState();
+}
+
+async function toggleWebPush(enabled: boolean) {
+  webPushSaving.value = true;
+  try {
+    if (enabled) {
+      webPush.value = await enableWebPush();
+      if (webPush.value === "subscribed") setInfo("Push auf diesem Gerät aktiv – auch wenn Alpiplan geschlossen ist.");
+      else if (webPush.value === "denied") setError("Mitteilungen sind blockiert. Bitte in den Browser- bzw. iOS-Einstellungen erlauben.");
+    } else {
+      await disableWebPush();
+      await refreshWebPushState();
+      setInfo("Push auf diesem Gerät deaktiviert.");
+    }
+  } catch (e: unknown) {
+    setError(apiMessage(e, "Push konnte nicht eingerichtet werden"));
+    await refreshWebPushState();
+  } finally {
+    webPushSaving.value = false;
+  }
+}
+
 async function toggleCallHints(enabled: boolean) {
   callHintsSaving.value = true;
   try {
@@ -970,6 +1004,7 @@ onMounted(() => {
   }
   callHintsEnabled.value = isCallHintsOptIn();
   void refreshStatus();
+  void refreshWebPushState();
 });
 </script>
 
@@ -1079,6 +1114,40 @@ onMounted(() => {
               :checked="nextDayBriefingEnabledLocal"
               :disabled="briefingSaving"
               @change="saveNextDayBriefing(!nextDayBriefingEnabledLocal)"
+            />
+            <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
+          </label>
+        </div>
+        <div
+          v-if="webPush && webPush !== 'unsupported'"
+          class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+        >
+          <div>
+            <p class="font-medium">Push auf diesem Gerät</p>
+            <p v-if="webPush === 'needs-install'" class="text-xs text-neutral-500 mt-1">
+              Auf iPhone/iPad: in Safari <strong>Teilen</strong> → <strong>Zum Home-Bildschirm</strong> antippen,
+              Alpiplan dann über das neue Symbol öffnen und hier Push einschalten.
+            </p>
+            <p v-else-if="webPush === 'not-configured'" class="text-xs text-neutral-500 mt-1">
+              Web-Push ist auf dem Server noch nicht eingerichtet.
+            </p>
+            <p v-else-if="webPush === 'denied'" class="text-xs text-neutral-500 mt-1">
+              Mitteilungen sind blockiert. Bitte in den Browser- bzw. iOS-Einstellungen für Alpiplan erlauben.
+            </p>
+            <p v-else class="text-xs text-neutral-500 mt-1">
+              Neue und verschobene Termine, Erinnerungen und die Vortags-Info — auch wenn Alpiplan geschlossen ist.
+            </p>
+          </div>
+          <label
+            v-if="webPush === 'default' || webPush === 'subscribed'"
+            class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              class="sr-only peer"
+              :checked="webPush === 'subscribed'"
+              :disabled="webPushSaving"
+              @change="toggleWebPush(webPush !== 'subscribed')"
             />
             <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
           </label>

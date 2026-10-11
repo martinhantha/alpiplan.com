@@ -35,6 +35,9 @@ export default defineNuxtConfig({
       external: ["@prisma/client", ".prisma/client"],
     },
     routeRules: {
+      "/sw.js": {
+        headers: { "cache-control": "no-cache", "service-worker-allowed": "/" },
+      },
       "/api/v1/tenants/**/events": {
         headers: {
           "cache-control": "no-cache, no-transform",
@@ -69,6 +72,10 @@ export default defineNuxtConfig({
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
         { name: "theme-color", content: "#f7f6f3", media: "(prefers-color-scheme: light)" },
         { name: "theme-color", content: "#100e18", media: "(prefers-color-scheme: dark)" },
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-title", content: "Alpiplan" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       ],
       link: [
         {
@@ -82,6 +89,7 @@ export default defineNuxtConfig({
         { rel: "icon", type: "image/png", href: "/favicon.png" },
         { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
         { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+        { rel: "manifest", href: "/manifest.webmanifest" },
       ],
     },
   },
