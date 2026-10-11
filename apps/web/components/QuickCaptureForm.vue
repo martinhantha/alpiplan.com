@@ -14,6 +14,7 @@ import {
 } from "../utils/appointment-contact";
 import { commitUtterance, withLiveInterim } from "../utils/speech-transcript";
 import { isNativeAndroidSpeech, startNativeSpeech } from "../utils/native-speech";
+import type { AppointmentStatus } from "../utils/appointment-status";
 
 type WebSpeechRecognitionEventResult = {
   isFinal: boolean;
@@ -71,6 +72,7 @@ interface SchedulingOptions {
 interface AppointmentDto {
   id: string;
   version?: number;
+  status?: AppointmentStatus;
   startsAt: string;
   endsAt: string;
   appointmentContactText: string | null;
@@ -99,6 +101,9 @@ const emit = defineEmits<{
 
 const { primaryTenant, canManageTenant } = useAuth();
 const { device } = useDeviceCapabilities();
+const { t } = useI18n();
+
+const statusOptions: AppointmentStatus[] = ["draft", "confirmed", "completed", "cancelled"];
 
 const teacherLabel = computed(
   () => options.value?.teacherLabel || primaryTenant.value?.teacherLabel || "Lehrer",
@@ -504,6 +509,7 @@ const form = reactive({
   customerId: props.appointment?.customer?.id ?? "",
   phone: props.appointment ? resolveAppointmentPhone(props.appointment) ?? "" : "",
   note: props.appointment?.unstructuredNote ?? "",
+  status: (props.appointment?.status ?? "confirmed") as AppointmentStatus,
 });
 let hydratingForm = false;
 
@@ -724,6 +730,7 @@ function fillFromAppointment(appointment: AppointmentDto) {
   form.customerId = appointment.customer?.id ?? "";
   form.phone = resolveAppointmentPhone(appointment) ?? "";
   form.note = appointment.unstructuredNote ?? "";
+  form.status = appointment.status ?? "confirmed";
   passengerName.value = appointment.customer?.displayName ?? appointment.appointmentContactText ?? "";
   hydratingForm = false;
 }
@@ -914,6 +921,9 @@ async function saveAppointment() {
     if (canManageTenant.value || !isEditing.value) {
       payload.teacherIds = form.teacherIds;
       payload.teacherId = form.teacherIds[0] ?? null;
+    }
+    if (isEditing.value && form.status !== props.appointment?.status) {
+      payload.status = form.status;
     }
 
     const result = isEditing.value
@@ -1142,6 +1152,14 @@ onMounted(() => {
         <UInput v-model="form.time" type="time" size="md" class="w-full" :ui="captureInputUi" />
       </UFormField>
     </div>
+
+    <UFormField v-if="isEditing" label="Status">
+      <select v-model="form.status" :class="captureSelectClass">
+        <option v-for="status in statusOptions" :key="status" :value="status">
+          {{ t(`appointment.status.${status}`) }}
+        </option>
+      </select>
+    </UFormField>
 
     <div v-if="!useTypeDuration" class="space-y-1.5">
       <span class="text-sm text-neutral-600 dark:text-neutral-400">Dauer</span>

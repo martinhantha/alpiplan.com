@@ -35,6 +35,7 @@ interface Pagination {
 
 interface SchedulingOptions {
   teachers: { id: string; displayName: string; color?: string | null }[];
+  lessonTypes: { id: string; name: string }[];
 }
 
 const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } = useAuth();
@@ -148,33 +149,99 @@ function addMonths(date: Date, months: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
+const DEFAULT_STATUS_FILTER = "draft,confirmed";
+
 const filters = reactive({
   q: "",
   teacherId: "",
-  status: "draft,confirmed",
+  lessonTypeId: "",
+  status: DEFAULT_STATUS_FILTER,
   from: "",
   to: "",
 });
 const page = ref(1);
 const pageSize = ref(25);
 
+const filterAutoApply = useFilterAutoApply(
+  () => [filters.q, filters.teacherId, filters.lessonTypeId, filters.status, filters.from, filters.to],
+  applyFilters,
+  () => canLoad.value,
+);
+
 const statusOptions = [
-  { value: "draft,confirmed", label: "Offen" },
+  { value: DEFAULT_STATUS_FILTER, label: "Offen" },
   { value: "draft", label: "Entwurf" },
   { value: "completed", label: "Erledigt" },
   { value: "cancelled", label: "Storniert" },
   { value: "", label: "Alle" },
 ];
 
+/** Einheitliche Höhe für Suche, Select und Datum im Filter. */
+const filterControlUi = { base: "min-h-10 py-2.5" };
+const filterSelectUi = { base: "min-h-10 w-full" };
+
+// USelect (Reka UI) does not accept "" as an item value, so "Alle" uses a sentinel.
+const ALL_FILTER_VALUE = "__all";
+
+const teacherFilterItems = computed(() => [
+  { label: `Alle ${teacherLabel.value}`, value: ALL_FILTER_VALUE },
+  ...(options.value?.teachers ?? []).map((teacher) => ({
+    label: teacher.displayName,
+    value: teacher.id,
+  })),
+]);
+
+const statusFilterItems = computed(() =>
+  statusOptions.map((option) => ({ label: option.label, value: option.value || ALL_FILTER_VALUE })),
+);
+
+const lessonTypeFilterItems = computed(() => [
+  { label: "Alle Termintypen", value: ALL_FILTER_VALUE },
+  ...(options.value?.lessonTypes ?? []).map((lessonType) => ({
+    label: lessonType.name,
+    value: lessonType.id,
+  })),
+]);
+
+const lessonTypeFilterModel = computed({
+  get: () => filters.lessonTypeId || ALL_FILTER_VALUE,
+  set: (value: string) => {
+    filters.lessonTypeId = value === ALL_FILTER_VALUE ? "" : value;
+  },
+});
+
+const teacherFilterModel = computed({
+  get: () => filters.teacherId || ALL_FILTER_VALUE,
+  set: (value: string) => {
+    filters.teacherId = value === ALL_FILTER_VALUE ? "" : value;
+  },
+});
+
+const statusFilterModel = computed({
+  get: () => filters.status || ALL_FILTER_VALUE,
+  set: (value: string) => {
+    filters.status = value === ALL_FILTER_VALUE ? "" : value;
+  },
+});
+
 const canLoad = computed(() => Boolean(primaryTenant.value?.tenantId));
+
+const filterHint = computed(() =>
+  view.value === "calendar"
+    ? "Im Kalender gilt der gewählte Tag, die Woche oder der Monat — hier nur Suche und Zuordnung."
+    : "Termintyp, Status und Zeitraum gelten für die Liste.",
+);
 
 const activeFilterCount = computed(() => {
   let n = 0;
   if (filters.q) n += 1;
   if (filters.teacherId) n += 1;
-  if (filters.status !== "draft,confirmed") n += 1;
-  if (filters.from) n += 1;
-  if (filters.to) n += 1;
+  if (view.value === "list") {
+    if (filters.lessonTypeId) n += 1;
+    if (filters.status !== DEFAULT_STATUS_FILTER) n += 1;
+    if (filters.from) n += 1;
+    if (filters.to) n += 1;
+  }
   return n;
 });
 
@@ -214,6 +281,7 @@ async function loadAppointments() {
     appointments.value = [];
     return;
   }
+  filterAutoApply.markApplied();
   loading.value = true;
   error.value = "";
   try {
@@ -236,7 +304,8 @@ async function loadAppointments() {
         query: {
           q: filters.q || undefined,
           teacherId: filters.teacherId || undefined,
-          status: filters.status || undefined,
+          lessonTypeId: isCalendar ? undefined : filters.lessonTypeId || undefined,
+          status: isCalendar ? undefined : filters.status || undefined,
           from: fromIso,
           to: toIso,
           page: isCalendar ? 1 : page.value,
@@ -626,6 +695,8 @@ function setView(next: AppointmentsView) {
   if (view.value === next) return;
   view.value = next;
   if (next === "calendar") {
+    filters.from = "";
+    filters.to = "";
     goToToday();
   } else {
     page.value = 1;
@@ -691,9 +762,12 @@ function applyFilters() {
 function resetFilters() {
   filters.q = "";
   filters.teacherId = "";
-  filters.status = "draft,confirmed";
-  filters.from = "";
-  filters.to = "";
+  if (view.value === "list") {
+    filters.lessonTypeId = "";
+    filters.status = DEFAULT_STATUS_FILTER;
+    filters.from = "";
+    filters.to = "";
+  }
   page.value = 1;
   loadAppointments();
 }
@@ -766,6 +840,7 @@ onMounted(async () => {
   restoreViewPreference();
   await loadOptions();
   await loadAppointments();
+  filterAutoApply.start();
 });
 
 useAppointmentListSync(loadAppointments);
@@ -875,46 +950,121 @@ watch(
       :title="error"
     />
 
-    <UCard v-if="filterOpen">
+    <UCard
+      v-if="filterOpen"
+      :ui="{
+        header: 'px-4 py-3 sm:px-5 border-b border-neutral-200/80 dark:border-neutral-800',
+        body: 'px-4 py-4 sm:px-5',
+        footer: 'px-4 py-3 sm:px-5 border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/40',
+      }"
+    >
       <template #header>
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="font-medium">Filter</h2>
-          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 space-y-1">
+            <h2 class="font-medium text-neutral-900 dark:text-neutral-100">Filter</h2>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-snug">
+              {{ filterHint }}
+            </p>
+          </div>
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-x"
+            class="shrink-0"
+            @click="filterOpen = false"
+          />
         </div>
       </template>
 
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <UInput v-model="filters.q" placeholder="Suche Kunde oder Kontakttext" />
-        <select
-          v-if="canManageTenant"
-          v-model="filters.teacherId"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          <option value="">Alle {{ teacherLabel }}</option>
-          <option v-for="teacher in options?.teachers || []" :key="teacher.id" :value="teacher.id">
-            {{ teacher.displayName }}
-          </option>
-        </select>
-        <select
-          v-model="filters.status"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          <option v-for="status in statusOptions" :key="status.label" :value="status.value">
-            {{ status.label }}
-          </option>
-        </select>
-        <UInput v-model="filters.from" type="date" />
-        <UInput v-model="filters.to" type="date" />
+      <div
+        class="grid gap-x-4 gap-y-4"
+        :class="
+          view === 'calendar'
+            ? 'sm:grid-cols-2 max-w-2xl'
+            : 'sm:grid-cols-2 lg:grid-cols-3'
+        "
+      >
+        <UFormField label="Suche" class="min-w-0 sm:col-span-2 lg:col-span-1">
+          <UInput
+            v-model="filters.q"
+            size="md"
+            class="w-full"
+            placeholder="Kunde oder Kontakttext"
+            icon="i-lucide-search"
+            :ui="filterControlUi"
+          />
+        </UFormField>
+        <UFormField v-if="canManageTenant" :label="teacherLabel" class="min-w-0">
+          <USelect
+            v-model="teacherFilterModel"
+            size="md"
+            :items="teacherFilterItems"
+            class="w-full"
+            :ui="filterSelectUi"
+          />
+        </UFormField>
+        <template v-if="view === 'list'">
+          <UFormField label="Termintyp" class="min-w-0">
+            <USelect
+              v-model="lessonTypeFilterModel"
+              size="md"
+              :items="lessonTypeFilterItems"
+              class="w-full"
+              :ui="filterSelectUi"
+            />
+          </UFormField>
+          <UFormField label="Status" class="min-w-0">
+            <USelect
+              v-model="statusFilterModel"
+              size="md"
+              :items="statusFilterItems"
+              class="w-full"
+              :ui="filterSelectUi"
+            />
+          </UFormField>
+          <UFormField label="Von" class="min-w-0">
+            <UInput
+              v-model="filters.from"
+              type="date"
+              size="md"
+              class="w-full"
+              :ui="filterControlUi"
+            />
+          </UFormField>
+          <UFormField label="Bis" class="min-w-0">
+            <UInput
+              v-model="filters.to"
+              type="date"
+              size="md"
+              class="w-full"
+              :ui="filterControlUi"
+            />
+          </UFormField>
+        </template>
       </div>
 
       <template #footer>
-        <div class="flex gap-2">
-          <UButton :disabled="!canLoad" :loading="loading" icon="i-lucide-search" @click="applyFilters">
-            Anwenden
-          </UButton>
-          <UButton variant="ghost" color="neutral" @click="resetFilters">
-            Zurücksetzen
-          </UButton>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+            <UIcon name="i-lucide-timer" class="size-3.5 shrink-0 opacity-80" />
+            Änderungen werden automatisch übernommen
+          </p>
+          <div class="flex items-center gap-2">
+            <UButton size="sm" variant="ghost" color="neutral" @click="resetFilters">
+              Zurücksetzen
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="primary"
+              :disabled="!canLoad"
+              :loading="loading"
+              @click="applyFilters"
+            >
+              Jetzt laden
+            </UButton>
+          </div>
         </div>
       </template>
     </UCard>

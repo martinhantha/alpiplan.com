@@ -8,7 +8,8 @@
     "cap:add:android": "cap add android && node scripts/apply-android-identity.mjs && node scripts/apply-android-branding.mjs",
     "cap:add:ios": "cap add ios && node scripts/patch-ios-info-plist.mjs && node scripts/patch-ios-push.mjs && node scripts/apply-ios-branding.mjs",
     "cap:open:android": "cap open android",
-    "cap:open:ios": "cap open ios"
+    "cap:open:ios": "cap open ios",
+    "check:ios-push": "node scripts/check-ios-push-setup.mjs"
   },
   "dependencies": {
     "@alpiplan/capacitor-call-hints": "workspace:*",

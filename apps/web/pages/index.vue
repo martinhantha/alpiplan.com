@@ -126,7 +126,10 @@ function appointmentTitle(appointment: AppointmentListItem) {
   return appointment.customer?.displayName || appointment.appointmentContactText || t("home.noContact");
 }
 
-const upcomingCount = computed(() => appointments.value.length);
+const upcomingCount = computed(() => {
+  const stripKeys = new Set(calendarDays.value.map((day) => day.key));
+  return appointments.value.filter((appointment) => stripKeys.has(dateKeyFromIso(appointment.startsAt))).length;
+});
 const todayCount = computed(() => {
   const today = toDateKey(new Date());
   return appointments.value.filter((appointment) => dateKeyFromIso(appointment.startsAt) === today).length;
@@ -134,7 +137,7 @@ const todayCount = computed(() => {
 const calendarDays = computed(() => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Array.from({ length: 14 }).map((_, index) => {
+  return Array.from({ length: CALENDAR_STRIP_DAYS }).map((_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() + index);
     const key = toDateKey(date);
@@ -164,6 +167,30 @@ async function loadSchedulingOptions() {
   );
 }
 
+const CALENDAR_STRIP_DAYS = 14;
+let loadedRange: { from: number; to: number } | null = null;
+
+function dateFromKey(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Today's strip plus the day picked in the date input, if that lies outside the strip. */
+function appointmentsRange() {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + CALENDAR_STRIP_DAYS);
+  if (selectedDateKey.value) {
+    const selected = dateFromKey(selectedDateKey.value);
+    const selectedEnd = new Date(selected);
+    selectedEnd.setDate(selectedEnd.getDate() + 1);
+    if (selected < from) from.setTime(selected.getTime());
+    if (selectedEnd > to) to.setTime(selectedEnd.getTime());
+  }
+  return { from, to };
+}
+
 async function loadAppointments() {
   if (!primaryTenant.value) {
     appointments.value = [];
@@ -171,10 +198,8 @@ async function loadAppointments() {
   }
   appointmentsLoading.value = true;
   appointmentsError.value = "";
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(from);
-  to.setDate(to.getDate() + 7);
+  const { from, to } = appointmentsRange();
+  loadedRange = { from: from.getTime(), to: to.getTime() };
   try {
     const response = await $fetch<{ data: AppointmentListItem[] }>(
       `/api/v1/tenants/${primaryTenant.value.tenantId}/appointments`,
@@ -184,7 +209,7 @@ async function loadAppointments() {
           from: from.toISOString(),
           to: to.toISOString(),
           pageSize: 500,
-          sort: "desc",
+          sort: "asc",
           teacherId: filterTeacherId.value || undefined,
         },
       },
@@ -336,6 +361,12 @@ watch(
 
 watch(filterTeacherId, () => {
   loadAppointments();
+});
+
+watch(selectedDateKey, (key) => {
+  if (!key || !loadedRange) return;
+  const day = dateFromKey(key).getTime();
+  if (day < loadedRange.from || day >= loadedRange.to) loadAppointments();
 });
 
 function openAssistant() {

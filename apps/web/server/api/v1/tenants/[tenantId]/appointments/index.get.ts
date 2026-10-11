@@ -1,6 +1,6 @@
 import { getQuery, getRouterParam } from "h3";
 import { requireTenantAccess, staffAppointmentScope } from "~/server/utils/authz";
-import { listAppointments } from "~/server/utils/scheduling";
+import { listAppointments, MAX_APPOINTMENT_PAGE_SIZE } from "~/server/utils/scheduling";
 
 function queryString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -11,7 +11,7 @@ function emptyList(query: ReturnType<typeof getQuery>) {
   const pageSizeRaw = Number(queryString(query.pageSize) ?? 25);
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
   const pageSize =
-    Number.isFinite(pageSizeRaw) && pageSizeRaw >= 1 && pageSizeRaw <= 100
+    Number.isFinite(pageSizeRaw) && pageSizeRaw >= 1 && pageSizeRaw <= MAX_APPOINTMENT_PAGE_SIZE
       ? Math.floor(pageSizeRaw)
       : 25;
   return {
@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
     from: queryString(query.from),
     to: queryString(query.to),
     teacherId: scope.forceTeacherId ?? queryString(query.teacherId),
+    lessonTypeId: queryString(query.lessonTypeId),
     status: queryString(query.status),
     q: queryString(query.q),
     page: queryString(query.page),

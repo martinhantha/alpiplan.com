@@ -39,15 +39,18 @@ Nach dem ersten `cap add android` in `android/app/src/main/AndroidManifest.xml` 
 
 ## iOS-Push
 
-Der Server schickt iOS-Push wie Android über FCM (`FIREBASE_SERVICE_ACCOUNT`); APNs läuft über Firebase.
+Schritt-für-Schritt (Apple, Firebase, Coolify, Xcode, Test): **[docs/IOS_PUSH_SETUP.md](../../docs/IOS_PUSH_SETUP.md)**
 
-1. Apple Developer (kostenpflichtiger Account): unter *Keys* einen APNs-Key (`.p8`) erstellen.
-2. Firebase → Projekteinstellungen → Cloud Messaging → *Apple-App-Konfiguration*: `.p8`, Key-ID und Team-ID hochladen.
-3. Firebase → iOS-App mit Bundle-ID `at.alpiplan.app` hinzufügen, `GoogleService-Info.plist` nach `apps/mobile-shell/` (oder Repo-Root) legen — ist gitignored.
-4. `pnpm cap:sync` — `scripts/patch-ios-push.mjs` kopiert die Plist, fügt `FirebaseMessaging`, Push-Entitlement und den generierten `AppDelegate.swift` hinzu und führt `pod install` aus.
-5. In Xcode beim Target *App* unter *Signing & Capabilities* das Team wählen.
+Kurz-Check auf dem Mac:
 
-Ohne `GoogleService-Info.plist` setzt das Script nur das Deployment-Target (iOS 15) und lässt das Push-Entitlement weg, damit auch ein kostenloses Personal Team signieren kann. Im Vordergrund zeigt iOS nur die lokale Benachrichtigung der Web-App, keine doppelte Remote-Push.
+```bash
+cd apps/mobile-shell
+pnpm check:ios-push
+pnpm cap:sync
+pnpm cap:open:ios
+```
+
+Ohne `GoogleService-Info.plist` setzt `patch-ios-push.mjs` nur iOS 15 und **kein** Push-Entitlement (Personal Team kann signieren). Mit Plist: FCM + Entitlement; bezahltes Apple-Team + APNs-Key in Firebase nötig für echte Push-Zustellung.
 
 ## Produktion
 

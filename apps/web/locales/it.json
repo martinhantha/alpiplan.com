@@ -70,6 +70,7 @@
   "appointment": {
     "status": {
       "draft": "Bozza",
+      "confirmed": "Confermato",
       "completed": "Completato",
       "cancelled": "Annullato"
     }

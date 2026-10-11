@@ -28,6 +28,7 @@ const { intlLocale } = useAppLocale();
 
 interface SchedulingOptions {
   teachers: { id: string; displayName: string }[];
+  lessonTypes: { id: string; name: string }[];
 }
 
 const appointments = ref<AppointmentListItem[]>([]);
@@ -83,6 +84,7 @@ const initialRange = currentMonthRange();
 const filters = reactive({
   q: "",
   teacherId: "",
+  lessonTypeId: "",
   status: "completed,cancelled",
   from: initialRange.from,
   to: initialRange.to,
@@ -90,11 +92,54 @@ const filters = reactive({
 const page = ref(1);
 const pageSize = ref(25);
 
+const filterAutoApply = useFilterAutoApply(
+  () => [filters.q, filters.teacherId, filters.lessonTypeId, filters.status, filters.from, filters.to],
+  applyFilters,
+  () => canLoad.value,
+);
+
 const statusOptions = [
   { value: "completed,cancelled", label: "Archiv (alle)" },
   { value: "completed", label: "Nur erledigt" },
   { value: "cancelled", label: "Nur storniert" },
 ];
+
+/** Einheitliche Höhe für Suche, Select und Datum im Filter. */
+const filterControlUi = { base: "min-h-10 py-2.5" };
+const filterSelectUi = { base: "min-h-10 w-full" };
+
+// USelect (Reka UI) does not accept "" as an item value, so "Alle" uses a sentinel.
+const ALL_FILTER_VALUE = "__all";
+
+const teacherFilterItems = computed(() => [
+  { label: `Alle ${teacherLabel.value}`, value: ALL_FILTER_VALUE },
+  ...(options.value?.teachers ?? []).map((teacher) => ({
+    label: teacher.displayName,
+    value: teacher.id,
+  })),
+]);
+
+const lessonTypeFilterItems = computed(() => [
+  { label: "Alle Termintypen", value: ALL_FILTER_VALUE },
+  ...(options.value?.lessonTypes ?? []).map((lessonType) => ({
+    label: lessonType.name,
+    value: lessonType.id,
+  })),
+]);
+
+const teacherFilterModel = computed({
+  get: () => filters.teacherId || ALL_FILTER_VALUE,
+  set: (value: string) => {
+    filters.teacherId = value === ALL_FILTER_VALUE ? "" : value;
+  },
+});
+
+const lessonTypeFilterModel = computed({
+  get: () => filters.lessonTypeId || ALL_FILTER_VALUE,
+  set: (value: string) => {
+    filters.lessonTypeId = value === ALL_FILTER_VALUE ? "" : value;
+  },
+});
 
 const canLoad = computed(() => Boolean(primaryTenant.value?.tenantId));
 
@@ -102,6 +147,7 @@ const activeFilterCount = computed(() => {
   let n = 0;
   if (filters.q) n += 1;
   if (filters.teacherId) n += 1;
+  if (filters.lessonTypeId) n += 1;
   if (filters.status !== "completed,cancelled") n += 1;
   if (filters.from) n += 1;
   if (filters.to) n += 1;
@@ -144,6 +190,7 @@ async function loadArchive() {
     appointments.value = [];
     return;
   }
+  filterAutoApply.markApplied();
   loading.value = true;
   error.value = "";
   try {
@@ -154,6 +201,7 @@ async function loadArchive() {
         query: {
           q: filters.q || undefined,
           teacherId: filters.teacherId || undefined,
+          lessonTypeId: filters.lessonTypeId || undefined,
           status: filters.status,
           from: filters.from ? toIsoDateStart(filters.from) : undefined,
           to: filters.to ? toIsoDateEndExclusive(filters.to) : undefined,
@@ -217,6 +265,7 @@ function resetFilters() {
   const range = currentMonthRange();
   filters.q = "";
   filters.teacherId = "";
+  filters.lessonTypeId = "";
   filters.status = "completed,cancelled";
   filters.from = range.from;
   filters.to = range.to;
@@ -279,6 +328,7 @@ watch(pageSize, () => {
 onMounted(async () => {
   await loadOptions();
   await loadArchive();
+  filterAutoApply.start();
 });
 
 useAppointmentListSync(loadArchive);
@@ -375,37 +425,72 @@ watch(
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
         </div>
       </template>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <UInput v-model="filters.q" placeholder="Suche Kunde oder Kontakttext" />
-        <select
-          v-if="canManageTenant"
-          v-model="filters.teacherId"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          <option value="">Alle {{ teacherLabel }}</option>
-          <option v-for="teacher in options?.teachers || []" :key="teacher.id" :value="teacher.id">
-            {{ teacher.displayName }}
-          </option>
-        </select>
-        <select
-          v-model="filters.status"
-          class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          <option v-for="status in statusOptions" :key="status.label" :value="status.value">
-            {{ status.label }}
-          </option>
-        </select>
-        <UInput v-model="filters.from" type="date" aria-label="Von" />
-        <UInput v-model="filters.to" type="date" aria-label="Bis" />
+      <div class="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        <UFormField label="Suche" class="min-w-0 sm:col-span-2 lg:col-span-1">
+          <UInput
+            v-model="filters.q"
+            size="md"
+            class="w-full"
+            placeholder="Kunde oder Kontakttext"
+            icon="i-lucide-search"
+            :ui="filterControlUi"
+          />
+        </UFormField>
+        <UFormField v-if="canManageTenant" :label="teacherLabel" class="min-w-0">
+          <USelect
+            v-model="teacherFilterModel"
+            size="md"
+            :items="teacherFilterItems"
+            class="w-full"
+            :ui="filterSelectUi"
+          />
+        </UFormField>
+        <UFormField label="Termintyp" class="min-w-0">
+          <USelect
+            v-model="lessonTypeFilterModel"
+            size="md"
+            :items="lessonTypeFilterItems"
+            class="w-full"
+            :ui="filterSelectUi"
+          />
+        </UFormField>
+        <UFormField label="Status" class="min-w-0">
+          <USelect
+            v-model="filters.status"
+            size="md"
+            :items="statusOptions"
+            class="w-full"
+            :ui="filterSelectUi"
+          />
+        </UFormField>
+        <UFormField label="Von" class="min-w-0">
+          <UInput v-model="filters.from" type="date" size="md" class="w-full" :ui="filterControlUi" />
+        </UFormField>
+        <UFormField label="Bis" class="min-w-0">
+          <UInput v-model="filters.to" type="date" size="md" class="w-full" :ui="filterControlUi" />
+        </UFormField>
       </div>
       <template #footer>
-        <div class="flex gap-2">
-          <UButton :disabled="!canLoad" :loading="loading" icon="i-lucide-search" @click="applyFilters">
-            Anwenden
-          </UButton>
-          <UButton variant="ghost" color="neutral" @click="resetFilters">
-            Zurücksetzen
-          </UButton>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+            <UIcon name="i-lucide-timer" class="size-3.5 shrink-0 opacity-80" />
+            Änderungen werden automatisch übernommen
+          </p>
+          <div class="flex items-center gap-2">
+            <UButton size="sm" variant="ghost" color="neutral" @click="resetFilters">
+              Zurücksetzen
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="primary"
+              :disabled="!canLoad"
+              :loading="loading"
+              @click="applyFilters"
+            >
+              Jetzt laden
+            </UButton>
+          </div>
         </div>
       </template>
     </UCard>

@@ -633,12 +633,16 @@ async function validateAppointmentReferences(
   }
 }
 
+/** Calendar views (home, Termine-Kalender) load a whole range in one request. */
+export const MAX_APPOINTMENT_PAGE_SIZE = 500;
+
 export async function listAppointments(
   tenantId: string,
   query: {
     from?: string;
     to?: string;
     teacherId?: string;
+    lessonTypeId?: string;
     status?: string;
     q?: string;
     page?: string | number;
@@ -654,6 +658,7 @@ export async function listAppointments(
     startsAtFilter.lt = parseRequiredDate(query.to, "to");
   }
   const teacherId = query.teacherId ? assertUuid(query.teacherId, "teacherId") : undefined;
+  const lessonTypeId = query.lessonTypeId ? assertUuid(query.lessonTypeId, "lessonTypeId") : undefined;
   const statusFilter = query.status
     ? query.status
         .split(",")
@@ -668,7 +673,7 @@ export async function listAppointments(
   const pageSizeRaw = Number(query.pageSize ?? 25);
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
   const pageSize =
-    Number.isFinite(pageSizeRaw) && pageSizeRaw >= 1 && pageSizeRaw <= 100
+    Number.isFinite(pageSizeRaw) && pageSizeRaw >= 1 && pageSizeRaw <= MAX_APPOINTMENT_PAGE_SIZE
       ? Math.floor(pageSizeRaw)
       : 25;
   const sort = query.sort === "asc" ? "asc" : "desc";
@@ -678,6 +683,7 @@ export async function listAppointments(
     deletedAt: null,
     ...(Object.keys(startsAtFilter).length ? { startsAt: startsAtFilter } : {}),
     ...(statusFilter?.length ? { status: { in: statusFilter } } : {}),
+    ...(lessonTypeId ? { lessonTypeId } : {}),
     ...(teacherId || q
       ? {
           AND: [
