@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Build from repository root: docker build -f apps/web/Dockerfile .
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
@@ -9,12 +10,14 @@ COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages ./packages
 COPY prisma ./prisma
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=alpiplan-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 
 FROM deps AS build
+ARG NODE_BUILD_MEMORY=2048
 COPY . .
 RUN pnpm exec prisma generate
-RUN pnpm --filter @alpiplan/web build
+RUN NODE_OPTIONS="--max-old-space-size=${NODE_BUILD_MEMORY}" pnpm --filter @alpiplan/web build
 
 FROM base AS runner
 WORKDIR /app
