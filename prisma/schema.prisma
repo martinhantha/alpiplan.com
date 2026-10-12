@@ -335,6 +335,10 @@ model Appointment {
   deletedByUserId       String?           @db.Uuid
   /// set when the 15-minute FCM reminder was sent; cleared if startsAt changes
   reminderPushSentAt    DateTime?
+  /// optional follow-up push for drafts; cleared once the appointment leaves draft status
+  draftReminderAt       DateTime?
+  draftReminderText     String?
+  draftReminderSentAt   DateTime?
 
   tenant     Tenant          @relation(fields: [tenantId], references: [id])
   createdBy  User?           @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -348,6 +352,7 @@ model Appointment {
   @@index([tenantId, teacherId, startsAt])
   @@index([createdByUserId])
   @@index([reminderPushSentAt, startsAt])
+  @@index([draftReminderSentAt, draftReminderAt])
 }
 
 model NextDayBriefingPush {

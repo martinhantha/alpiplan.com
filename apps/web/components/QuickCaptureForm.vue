@@ -79,6 +79,8 @@ interface AppointmentDto {
   appointmentPhoneRaw?: string | null;
   appointmentPhoneE164?: string | null;
   unstructuredNote?: string | null;
+  draftReminderAt?: string | null;
+  draftReminderText?: string | null;
   teacher: TeacherOption | null;
   teachers?: TeacherOption[] | null;
   resource: ResourceOption | null;
@@ -510,6 +512,15 @@ const form = reactive({
   phone: props.appointment ? resolveAppointmentPhone(props.appointment) ?? "" : "",
   note: props.appointment?.unstructuredNote ?? "",
   status: (props.appointment?.status ?? "confirmed") as AppointmentStatus,
+  reminderText: props.appointment?.draftReminderText ?? "",
+  reminderDate: props.appointment?.draftReminderAt ? toDateInput(new Date(props.appointment.draftReminderAt)) : "",
+  reminderTime: props.appointment?.draftReminderAt ? toTimeInput(new Date(props.appointment.draftReminderAt)) : "",
+});
+const isDraft = computed({
+  get: () => form.status === "draft",
+  set: (value: boolean) => {
+    form.status = value ? "draft" : "confirmed";
+  },
 });
 let hydratingForm = false;
 
@@ -731,6 +742,10 @@ function fillFromAppointment(appointment: AppointmentDto) {
   form.phone = resolveAppointmentPhone(appointment) ?? "";
   form.note = appointment.unstructuredNote ?? "";
   form.status = appointment.status ?? "confirmed";
+  const reminderAt = appointment.draftReminderAt ? new Date(appointment.draftReminderAt) : null;
+  form.reminderText = appointment.draftReminderText ?? "";
+  form.reminderDate = reminderAt ? toDateInput(reminderAt) : "";
+  form.reminderTime = reminderAt ? toTimeInput(reminderAt) : "";
   passengerName.value = appointment.customer?.displayName ?? appointment.appointmentContactText ?? "";
   hydratingForm = false;
 }
@@ -925,6 +940,12 @@ async function saveAppointment() {
     if (isEditing.value && form.status !== props.appointment?.status) {
       payload.status = form.status;
     }
+    const reminderAt =
+      form.status === "draft" && form.reminderDate
+        ? localDateTime(form.reminderDate, form.reminderTime || "09:00")
+        : null;
+    payload.draftReminderAt = reminderAt ? reminderAt.toISOString() : null;
+    payload.draftReminderText = reminderAt ? form.reminderText.trim() || null : null;
 
     const result = isEditing.value
       ? await $fetch<AppointmentDto>(
@@ -941,7 +962,7 @@ async function saveAppointment() {
           credentials: "include",
           body: {
             ...payload,
-            status: "confirmed",
+            status: form.status,
             lessonTypeId: payload.lessonTypeId || undefined,
             teacherId: payload.teacherId || undefined,
             teacherIds: payload.teacherIds,
@@ -1228,9 +1249,35 @@ onMounted(() => {
           >
             {{ effectiveDuration }} Min
           </span>
+          <UCheckbox v-if="!isEditing" v-model="isDraft" label="Entwurf" class="shrink-0" />
         </div>
       </UFormField>
     </div>
+
+    <UFormField v-if="form.status === 'draft'">
+      <template #label>
+        <span class="inline-flex items-center gap-1">
+          Erinnerung (optional)
+          <FieldInfoPopover aria-label="Hinweis zur Entwurfs-Erinnerung">
+            Zum gewählten Zeitpunkt kommt eine Benachrichtigung. Ohne Datum wird keine Erinnerung gesendet. Sobald der
+            Termin bestätigt ist, entfällt die Erinnerung.
+          </FieldInfoPopover>
+        </span>
+      </template>
+      <div class="space-y-2">
+        <UInput
+          v-model="form.reminderText"
+          size="md"
+          class="w-full"
+          :ui="captureInputUi"
+          placeholder="z. B. Wetter prüfen und bestätigen"
+        />
+        <div class="grid grid-cols-2 gap-3">
+          <UInput v-model="form.reminderDate" type="date" size="md" class="w-full" :ui="captureInputUi" />
+          <UInput v-model="form.reminderTime" type="time" size="md" class="w-full" :ui="captureInputUi" />
+        </div>
+      </div>
+    </UFormField>
 
     <UFormField label="Passagier / Kunde" class="w-full">
       <div class="relative">

@@ -164,6 +164,65 @@ async function sendDueReminders(now: Date): Promise<void> {
   }
 }
 
+async function unclaimDraftReminder(appointmentId: string): Promise<void> {
+  await prisma.appointment.updateMany({
+    where: { id: appointmentId },
+    data: { draftReminderSentAt: null },
+  });
+}
+
+async function sendDueDraftReminders(now: Date): Promise<void> {
+  const due = await prisma.appointment.findMany({
+    where: {
+      deletedAt: null,
+      status: AppointmentStatus.draft,
+      draftReminderSentAt: null,
+      draftReminderAt: { lte: now },
+    },
+    select: {
+      ...reminderAppointmentSelect,
+      createdByUserId: true,
+      draftReminderText: true,
+    },
+    orderBy: { draftReminderAt: "asc" },
+    take: 50,
+  });
+
+  for (const appointment of due) {
+    const claimed = await prisma.appointment.updateMany({
+      where: { id: appointment.id, draftReminderSentAt: null, deletedAt: null, status: AppointmentStatus.draft },
+      data: { draftReminderSentAt: now },
+    });
+    if (!claimed.count) continue;
+
+    try {
+      const userIds = [
+        ...new Set([...(appointment.createdByUserId ? [appointment.createdByUserId] : []), ...(await teacherUserIds(appointment))]),
+      ];
+      if (!userIds.length) continue;
+      const title = resolveAppointmentDisplayName(appointment);
+      const result = await sendPushToUsers({
+        userIds,
+        title: "Entwurf: Erinnerung",
+        body: [appointment.draftReminderText, `${title} · ${formatWhen(appointment.startsAt)}`]
+          .filter(Boolean)
+          .join(" · "),
+        data: {
+          type: "appointment.draft_reminder",
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+        },
+      });
+      if (!result.sent) {
+        console.warn("[push] draft reminder not delivered", appointment.id, userIds);
+      }
+    } catch (error) {
+      await unclaimDraftReminder(appointment.id);
+      console.warn("[push] draft reminder failed", appointment.id, error);
+    }
+  }
+}
+
 async function sendDueBriefings(now: Date): Promise<void> {
   if (!isBriefingDue(now)) return;
 
@@ -292,6 +351,7 @@ export async function runScheduledPushTick(now = new Date()): Promise<void> {
     await autoCompleteOverdueAppointments(now);
     if (isPushConfigured()) {
       await sendDueReminders(now);
+      await sendDueDraftReminders(now);
       await sendDueBriefings(now);
     }
   } catch (error) {

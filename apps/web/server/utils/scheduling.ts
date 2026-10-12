@@ -36,6 +36,8 @@ const appointmentSelect = {
   appointmentPhoneRaw: true,
   appointmentPhoneE164: true,
   unstructuredNote: true,
+  draftReminderAt: true,
+  draftReminderText: true,
   parseSnapshot: true,
   version: true,
   createdAt: true,
@@ -284,9 +286,32 @@ function toAppointmentDto(row: Prisma.AppointmentGetPayload<{ select: typeof app
     teacher: row.teacher ?? teachers[0] ?? null,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
+    draftReminderAt: row.draftReminderAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function resolveDraftReminder(
+  status: AppointmentStatus,
+  body: Record<string, unknown>,
+  existing?: { draftReminderAt: Date | null; draftReminderText: string | null },
+): { draftReminderAt: Date | null; draftReminderText: string | null } {
+  if (status !== AppointmentStatus.draft) {
+    return { draftReminderAt: null, draftReminderText: null };
+  }
+  const at = hasOwn(body, "draftReminderAt")
+    ? body.draftReminderAt === null || body.draftReminderAt === ""
+      ? null
+      : parseRequiredDate(body.draftReminderAt, "draftReminderAt")
+    : (existing?.draftReminderAt ?? null);
+  if (!at) {
+    return { draftReminderAt: null, draftReminderText: null };
+  }
+  const text = hasOwn(body, "draftReminderText")
+    ? optionalTrimmedString(body.draftReminderText)
+    : (existing?.draftReminderText ?? null);
+  return { draftReminderAt: at, draftReminderText: text };
 }
 
 function assignedTeacherIdsFromRow(row: {
@@ -760,6 +785,7 @@ export async function createAppointment(
     ? (normalizeOptionalUuid(body.resourceId, "resourceId") ?? null)
     : null;
   const customerId = normalizeOptionalUuid(body.customerId, "customerId") ?? null;
+  const draftReminder = resolveDraftReminder(status, body);
 
   await validateAppointmentReferences(tenantId, { lessonTypeId, teacherIds, resourceId, customerId });
   await validateSchedulingConstraints(tenantId, { startsAt, endsAt, status, teacherIds, resourceId });
@@ -780,6 +806,7 @@ export async function createAppointment(
         appointmentPhoneRaw: optionalTrimmedString(body.appointmentPhoneRaw),
         appointmentPhoneE164: optionalTrimmedString(body.appointmentPhoneE164),
         unstructuredNote: optionalTrimmedString(body.unstructuredNote),
+        ...draftReminder,
       },
       select: { id: true },
     });
@@ -879,6 +906,12 @@ export async function patchAppointment(
   }
   if (hasOwn(body, "unstructuredNote")) {
     data.unstructuredNote = optionalTrimmedString(body.unstructuredNote);
+  }
+  const draftReminder = resolveDraftReminder(status, body, existing);
+  data.draftReminderAt = draftReminder.draftReminderAt;
+  data.draftReminderText = draftReminder.draftReminderText;
+  if (draftReminder.draftReminderAt?.getTime() !== existing.draftReminderAt?.getTime()) {
+    data.draftReminderSentAt = null;
   }
 
   await prisma.$transaction(async (tx) => {
