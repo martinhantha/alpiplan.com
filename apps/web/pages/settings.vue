@@ -293,7 +293,7 @@ async function toggleWebPush(enabled: boolean) {
     if (enabled) {
       webPush.value = await enableWebPush();
       if (webPush.value === "subscribed") setInfo("Push auf diesem Gerät aktiv – auch wenn Alpiplan geschlossen ist.");
-      else if (webPush.value === "denied") setError("Mitteilungen sind blockiert. Bitte in den Browser- bzw. iOS-Einstellungen erlauben.");
+      else if (webPush.value === "denied") setError("Mitteilungen sind für Alpiplan blockiert – siehe Hinweis unter „Push auf diesem Gerät“.");
     } else {
       await disableWebPush();
       await refreshWebPushState();
@@ -1133,7 +1133,9 @@ onMounted(() => {
               Web-Push ist auf dem Server noch nicht eingerichtet.
             </p>
             <p v-else-if="webPush === 'denied'" class="text-xs text-neutral-500 mt-1">
-              Mitteilungen sind blockiert. Bitte in den Browser- bzw. iOS-Einstellungen für Alpiplan erlauben.
+              Mitteilungen sind blockiert. Auf iPhone/iPad: <strong>Einstellungen → Mitteilungen → Alpiplan</strong>
+              → „Mitteilungen erlauben“. Fehlt Alpiplan dort, das Symbol vom Home-Bildschirm löschen, über Safari neu
+              hinzufügen und Push erneut einschalten. Am Computer: Website-Einstellungen des Browsers.
             </p>
             <p v-else class="text-xs text-neutral-500 mt-1">
               Neue und verschobene Termine, Erinnerungen und die Vortags-Info — auch wenn Alpiplan geschlossen ist.

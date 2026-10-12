@@ -90,7 +90,12 @@ export async function webPushState(): Promise<WebPushState> {
   if (!registration) return "unsupported";
   prepared = { registration, publicKey };
   if (Notification.permission === "denied") return "denied";
-  if (Notification.permission !== "granted") return "default";
+  // iOS keeps Notification.permission at "default" after a denial; the push permission state is reliable.
+  const pushPermission = await registration.pushManager
+    .permissionState({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) })
+    .catch(() => null);
+  if (pushPermission === "denied") return "denied";
+  if (Notification.permission !== "granted" && pushPermission !== "granted") return "default";
   const subscription = await registration.pushManager.getSubscription();
   return subscription && sameKey(subscription.options.applicationServerKey, urlBase64ToUint8Array(publicKey))
     ? "subscribed"
@@ -111,7 +116,7 @@ export async function enableWebPush(): Promise<WebPushState> {
   try {
     subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
   } catch (error) {
-    if (Notification.permission === "denied") return "denied";
+    if (Notification.permission === "denied" || isPermissionDenial(error)) return "denied";
     const existing = await registration.pushManager.getSubscription();
     // An old subscription made with a different server key blocks a new one.
     if (!existing || sameKey(existing.options.applicationServerKey, applicationServerKey)) throw error;
@@ -120,6 +125,13 @@ export async function enableWebPush(): Promise<WebPushState> {
   }
   await saveSubscription(subscription);
   return "subscribed";
+}
+
+/** WebKit rejects with NotAllowedError both for a denial and for a missing tap; only the first is "denied". */
+function isPermissionDenial(error: unknown) {
+  const name = (error as { name?: string })?.name;
+  const message = String((error as { message?: string })?.message ?? "");
+  return name === "NotAllowedError" && !/gesture/i.test(message);
 }
 
 /** Short technical reason for the UI, e.g. "NotAllowedError: …". */

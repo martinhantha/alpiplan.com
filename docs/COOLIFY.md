@@ -32,6 +32,20 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
 - Port im Container: **3000** (an Proxy weiterreichen)
 - Healthcheck: `GET /api/health`
 
+### Lokal bauen statt am Server (`pnpm deploy:local`)
+
+Für den Fall, dass der Server-Build zu schwer ist: [`scripts/deploy-local.mjs`](../scripts/deploy-local.mjs) baut das Web-Image lokal für die Server-Architektur, lädt es über den Docker-Context (SSH) auf den Server und startet den bestehenden Coolify-Container damit neu. In Coolify muss nichts umgestellt werden.
+
+```bash
+pnpm deploy:local --dry-run   # nur lokal bauen + Server prüfen
+pnpm deploy:local             # bauen, hochladen, neu starten, /api/health prüfen
+pnpm deploy:local --migrate   # zusätzlich prisma migrate deploy
+```
+
+- Voraussetzungen: Docker Desktop läuft, SSH-Docker-Context zum Server (`docker context ls`), sauberer und gepushter Git-Stand.
+- Das Script passt die von Coolify generierte `/data/coolify/applications/<uuid>/docker-compose.yaml` an (Backup: `*.before-local`). Coolify zeigt danach weiterhin den letzten eigenen Deploy an; der nächste normale Coolify-Deploy baut wieder am Server.
+- Bei fehlgeschlagenem Health-Check wird angeboten, auf die vorherige Version zurückzusetzen. Alte Images bis auf die aktuelle und die vorherige Version werden entfernt.
+
 ## Capacitor (Mobile Shell)
 
 - Web-Build läuft als SSR-Container oder statisch; Capacitor-Build ergänzt native Shells.
