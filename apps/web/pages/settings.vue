@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
@@ -1006,6 +1006,15 @@ onMounted(() => {
   callHintsEnabled.value = isCallHintsOptIn();
   void refreshStatus();
   void refreshWebPushState();
+  document.addEventListener("visibilitychange", onVisibilityChange);
+});
+
+function onVisibilityChange() {
+  if (document.visibilityState === "visible" && !webPushSaving.value) void refreshWebPushState();
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", onVisibilityChange);
 });
 </script>
 
@@ -1142,7 +1151,7 @@ onMounted(() => {
             </p>
           </div>
           <label
-            v-if="webPush === 'default' || webPush === 'subscribed'"
+            v-if="webPush === 'default' || webPush === 'subscribed' || webPush === 'denied'"
             class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer"
           >
             <input
