@@ -160,8 +160,15 @@ async function sendFcmMessage(
     const text = await response.text();
     if (response.status === 404 || /UNREGISTERED|NOT_FOUND/i.test(text)) return "gone";
     if (/SENDER_ID_MISMATCH/.test(text)) {
+      // Token was issued for another Firebase project (old app build); it can never work here.
       console.warn(
-        `[push] FCM SENDER_ID_MISMATCH: server uses Firebase project "${projectId}", but the device token belongs to another project. FIREBASE_SERVICE_ACCOUNT must come from the same project as google-services.json / GoogleService-Info.plist.`,
+        `[push] FCM SENDER_ID_MISMATCH: removing token issued for another project than "${projectId}". If this repeats for new tokens, the app's google-services.json / GoogleService-Info.plist and FIREBASE_SERVICE_ACCOUNT are from different projects.`,
+      );
+      return "gone";
+    }
+    if (/THIRD_PARTY_AUTH_ERROR/.test(text)) {
+      console.warn(
+        "[push] FCM THIRD_PARTY_AUTH_ERROR: Firebase rejected the APNs credentials. Check the APNs key (.p8), Key ID and Team ID under Firebase → Project settings → Cloud Messaging → Apple app configuration.",
       );
       return "error";
     }
