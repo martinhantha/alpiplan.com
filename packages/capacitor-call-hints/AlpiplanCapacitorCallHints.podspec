@@ -7,9 +7,9 @@ Pod::Spec.new do |s|
   s.version = package['version']
   s.summary = package['description']
   s.license = 'UNLICENSED'
-  s.homepage = 'https://github.com/martinhantha/avelom'
+  s.homepage = 'https://alpiplan.com'
   s.author = 'Alpiplan'
-  s.source = { :git => 'https://github.com/martinhantha/avelom.git', :tag => s.version.to_s }
+  s.source = { :git => 'https://github.com/martinhantha/alpiplan.com.git', :tag => s.version.to_s }
   s.source_files = 'ios/Sources/CallHintsPlugin/**/*.{swift,h,m,c,cc,mm,cpp}'
   s.ios.deployment_target = '15.0'
   s.dependency 'Capacitor'

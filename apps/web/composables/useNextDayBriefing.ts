@@ -3,8 +3,8 @@ import { APPOINTMENT_LIVE_EVENT } from "~/types/live-events";
 import { resolveAppointmentDisplayName, isAssignedTeacher } from "~/utils/appointment-contact";
 import {
   addCalendarDays,
-  BRIEFING_HOUR,
   BUSINESS_TIME_ZONE,
+  DEFAULT_BRIEFING_MINUTES,
   dateKey,
   tzParts,
   zonedLocalDate,
@@ -140,7 +140,8 @@ export function useNextDayBriefing() {
 
     const now = new Date();
     const today = tzParts(now);
-    const briefingAt = zonedLocalDate(today, BRIEFING_HOUR, 0);
+    const minutes = user.value.nextDayBriefingMinutes ?? DEFAULT_BRIEFING_MINUTES;
+    const briefingAt = zonedLocalDate(today, Math.floor(minutes / 60), minutes % 60);
     if (now < briefingAt) {
       if (fireTimer) clearTimeout(fireTimer);
       fireTimer = setTimeout(() => {
@@ -189,6 +190,7 @@ export function useNextDayBriefing() {
     [
       () => user.value?.id,
       () => user.value?.nextDayBriefingEnabled,
+      () => user.value?.nextDayBriefingMinutes,
       () => primaryTenant.value?.tenantId,
     ],
     () => {

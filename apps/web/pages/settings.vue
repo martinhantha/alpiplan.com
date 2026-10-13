@@ -4,6 +4,7 @@ import { $fetch } from "ofetch";
 import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
 import { avatarColor, avatarInitials } from "../utils/avatar";
+import { DEFAULT_BRIEFING_MINUTES, formatBriefingTime, parseBriefingTime } from "../utils/rome-time";
 import type { SuperadminOverview, TenantRole } from "../types/superadmin";
 import {
   disableWebPush,
@@ -68,6 +69,7 @@ const {
 const callHintsEnabled = ref(false);
 const callHintsSaving = ref(false);
 const nextDayBriefingEnabledLocal = ref(true);
+const nextDayBriefingTimeLocal = ref(formatBriefingTime(DEFAULT_BRIEFING_MINUTES));
 const briefingSaving = ref(false);
 const { whatsappApp, setWhatsAppApp } = useWhatsAppPreference();
 
@@ -75,6 +77,13 @@ watch(
   () => user.value?.nextDayBriefingEnabled,
   (value) => {
     nextDayBriefingEnabledLocal.value = value !== false;
+  },
+  { immediate: true },
+);
+watch(
+  () => user.value?.nextDayBriefingMinutes,
+  (value) => {
+    nextDayBriefingTimeLocal.value = formatBriefingTime(value ?? DEFAULT_BRIEFING_MINUTES);
   },
   { immediate: true },
 );
@@ -269,12 +278,36 @@ async function saveNextDayBriefing(enabled: boolean) {
     });
     setInfo(
       enabled
-        ? "Vortags-Info aktiv – um 20 Uhr, wenn morgen Termine anstehen."
+        ? `Vortags-Info aktiv – um ${nextDayBriefingTimeLocal.value} Uhr, wenn morgen Termine anstehen.`
         : "Vortags-Info deaktiviert.",
     );
   } catch (e: unknown) {
     nextDayBriefingEnabledLocal.value = user.value?.nextDayBriefingEnabled !== false;
     setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+  } finally {
+    briefingSaving.value = false;
+  }
+}
+
+async function saveNextDayBriefingTime() {
+  const savedMinutes = user.value?.nextDayBriefingMinutes ?? DEFAULT_BRIEFING_MINUTES;
+  const minutes = parseBriefingTime(nextDayBriefingTimeLocal.value);
+  if (minutes === null) {
+    nextDayBriefingTimeLocal.value = formatBriefingTime(savedMinutes);
+    return;
+  }
+  if (minutes === savedMinutes) return;
+  briefingSaving.value = true;
+  try {
+    session.value = await $fetch("/api/auth/me", {
+      method: "PATCH",
+      credentials: "include",
+      body: { nextDayBriefingMinutes: minutes },
+    });
+    setInfo(`Vortags-Info kommt ab jetzt um ${formatBriefingTime(minutes)} Uhr.`);
+  } catch (e: unknown) {
+    nextDayBriefingTimeLocal.value = formatBriefingTime(savedMinutes);
+    setError(apiMessage(e, "Uhrzeit konnte nicht gespeichert werden"));
   } finally {
     briefingSaving.value = false;
   }
@@ -1113,9 +1146,17 @@ onBeforeUnmount(() => {
           <div>
             <p class="font-medium">Termine am nächsten Tag</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Um 20 Uhr eine Übersicht für den nächsten Tag, wenn du eigene Termine hast — wie viele und wann.
-              Standardmäßig aktiv.
+              Am Vorabend eine Übersicht für den nächsten Tag, wenn du eigene Termine hast — wie viele und wann.
+              Standardmäßig aktiv, um 20:00 Uhr.
             </p>
+            <UFormField v-if="nextDayBriefingEnabledLocal" label="Uhrzeit" class="mt-3 w-32">
+              <UInput
+                v-model="nextDayBriefingTimeLocal"
+                type="time"
+                :disabled="briefingSaving"
+                @change="saveNextDayBriefingTime"
+              />
+            </UFormField>
           </div>
           <label class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer">
             <input

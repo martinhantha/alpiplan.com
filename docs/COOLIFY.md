@@ -21,7 +21,7 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
    - `DATABASE_URL` für die **Web-/Nitro-App** (zeigt auf den Postgres-Service)
    - `REDIS_URL`
    - JWT / OIDC Secrets für Auth
-   - Push (FCM): `FIREBASE_SERVICE_ACCOUNT` = kompletter Inhalt der Dienstkonto-JSON (eine Zeile / Multiline-Secret). Nicht die `google-services.json`. Danach `prisma migrate deploy` (u. a. `DevicePushToken`, `reminderPushSentAt`, `NextDayBriefingPush`). Die 15-Minuten-Erinnerung und das 20:00-Briefing (Abend vorher) sendet der **web**-Prozess, kein extra Worker.
+   - Push (FCM): `FIREBASE_SERVICE_ACCOUNT` = kompletter Inhalt der Dienstkonto-JSON (eine Zeile / Multiline-Secret). Nicht die `google-services.json`. Danach `prisma migrate deploy` (u. a. `DevicePushToken`, `reminderPushSentAt`, `NextDayBriefingPush`). Die 15-Minuten-Erinnerung und das Vortags-Briefing (Standard 20:00, pro Benutzer einstellbar) sendet der **web**-Prozess, kein extra Worker.
 4. **Persistent Volumes** für Postgres-Daten und optional `pg_backups` mounten.
 5. **Reverse Proxy / TLS**: Coolify vergibt automatisch Zertifikate; öffentliche Domain für die **Web-/API-App** ist **`app.alpiplan.com`** (`web`, Port 3000 im Compose-Beispiel).
 6. **Worker & Backup**: In Coolify als zusätzliche Services deployen oder dieselben Compose-Profile nutzen, sofern unterstützt.

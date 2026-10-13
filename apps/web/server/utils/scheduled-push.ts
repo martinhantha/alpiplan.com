@@ -231,45 +231,46 @@ async function sendDueBriefings(now: Date): Promise<void> {
   const from = zonedLocalDate(tomorrow, 0, 0);
   const to = zonedLocalDate(addCalendarDays(tomorrow, 1), 0, 0);
 
-  const [teachers, appointments] = await Promise.all([
-    prisma.teacherProfile.findMany({
-      where: {
+  const teachers = await prisma.teacherProfile.findMany({
+    where: {
+      deletedAt: null,
+      membership: {
         deletedAt: null,
-        membership: {
+        user: {
           deletedAt: null,
-          user: {
-            deletedAt: null,
-            disabledAt: null,
-            nextDayBriefingEnabled: true,
-            nextDayBriefingMinutes: { lte: nowMinutes },
-          },
+          disabledAt: null,
+          nextDayBriefingEnabled: true,
+          nextDayBriefingMinutes: { lte: nowMinutes },
         },
       },
-      select: {
-        id: true,
-        tenantId: true,
-        membership: { select: { userId: true } },
-      },
-    }),
-    prisma.appointment.findMany({
-      where: {
-        deletedAt: null,
-        status: { in: [AppointmentStatus.draft, AppointmentStatus.confirmed] },
-        startsAt: { gte: from, lt: to },
-      },
-      select: {
-        id: true,
-        tenantId: true,
-        startsAt: true,
-        teacherId: true,
-        appointmentContactText: true,
-        customer: { select: { displayName: true } },
-        lessonType: { select: { name: true } },
-        teacher: { select: { id: true } },
-        teachers: { select: { teacherId: true, teacher: { select: { id: true } } } },
-      },
-    }),
-  ]);
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      membership: { select: { userId: true } },
+    },
+  });
+  if (!teachers.length) return;
+
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      deletedAt: null,
+      tenantId: { in: [...new Set(teachers.map((teacher) => teacher.tenantId))] },
+      status: { in: [AppointmentStatus.draft, AppointmentStatus.confirmed] },
+      startsAt: { gte: from, lt: to },
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      startsAt: true,
+      teacherId: true,
+      appointmentContactText: true,
+      customer: { select: { displayName: true } },
+      lessonType: { select: { name: true } },
+      teacher: { select: { id: true } },
+      teachers: { select: { teacherId: true, teacher: { select: { id: true } } } },
+    },
+  });
 
   const itemsByTeacher = new Map<string, Array<{ startsAt: Date; title: string }>>();
   for (const appointment of appointments) {
