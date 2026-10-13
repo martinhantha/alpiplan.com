@@ -7,7 +7,7 @@ import {
   addCalendarDays,
   BUSINESS_TIME_ZONE,
   dateKey,
-  isBriefingDue,
+  minutesOfDay,
   REMINDER_LEAD_MS,
   tzParts,
   zonedLocalDate,
@@ -224,8 +224,7 @@ async function sendDueDraftReminders(now: Date): Promise<void> {
 }
 
 async function sendDueBriefings(now: Date): Promise<void> {
-  if (!isBriefingDue(now)) return;
-
+  const nowMinutes = minutesOfDay(now);
   const today = tzParts(now);
   const tomorrow = addCalendarDays(today, 1);
   const forDateKey = dateKey(tomorrow);
@@ -242,6 +241,7 @@ async function sendDueBriefings(now: Date): Promise<void> {
             deletedAt: null,
             disabledAt: null,
             nextDayBriefingEnabled: true,
+            nextDayBriefingMinutes: { lte: nowMinutes },
           },
         },
       },

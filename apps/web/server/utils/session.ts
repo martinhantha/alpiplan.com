@@ -36,6 +36,7 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
       name: user.name,
       isSuperadmin: user.isSuperadmin,
       nextDayBriefingEnabled: user.nextDayBriefingEnabled,
+      nextDayBriefingMinutes: user.nextDayBriefingMinutes,
     },
     memberships: user.memberships.map((m) => ({
       tenantId: m.tenantId,

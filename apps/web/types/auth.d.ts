@@ -4,6 +4,8 @@ export interface AuthUser {
   name: string | null;
   isSuperadmin: boolean;
   nextDayBriefingEnabled: boolean;
+  /** Europe/Rome local time, minutes after midnight */
+  nextDayBriefingMinutes: number;
 }
 
 export interface AuthMembership {

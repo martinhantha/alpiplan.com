@@ -122,8 +122,10 @@ model User {
   disabledAt DateTime?
   deletedAt DateTime?
   deletedByUserId String? @db.Uuid
-  /// when true, send next-day appointment briefing at 20:00; default on
+  /// when true, send next-day appointment briefing the evening before; default on
   nextDayBriefingEnabled Boolean @default(true)
+  /// local time (Europe/Rome) of the briefing, minutes after midnight; default 20:00
+  nextDayBriefingMinutes Int @default(1200)
 
   memberships          Membership[]
   assistantPreferences UserAssistantPreference[]

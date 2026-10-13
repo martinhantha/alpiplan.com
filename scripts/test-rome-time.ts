@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
   addCalendarDays,
   dateKey,
+  formatBriefingTime,
   isBriefingDue,
+  parseBriefingTime,
   isReminderDue,
   tzParts,
   zonedLocalDate,
@@ -18,6 +20,12 @@ const evening = zonedLocalDate({ year: 2026, month: 8, day: 29 }, 19, 59);
 const twenty = zonedLocalDate({ year: 2026, month: 8, day: 29 }, 20, 0);
 assert.equal(isBriefingDue(evening), false);
 assert.equal(isBriefingDue(twenty), true);
+const seventeenThirty = zonedLocalDate({ year: 2026, month: 8, day: 29 }, 17, 30);
+assert.equal(isBriefingDue(zonedLocalDate({ year: 2026, month: 8, day: 29 }, 17, 29), 17 * 60 + 30), false);
+assert.equal(isBriefingDue(seventeenThirty, 17 * 60 + 30), true);
+assert.equal(formatBriefingTime(17 * 60 + 5), "17:05");
+assert.equal(parseBriefingTime("07:45"), 7 * 60 + 45);
+assert.equal(parseBriefingTime("24:00"), null);
 
 const today = tzParts(twenty);
 assert.equal(dateKey(today), "2026-08-29");

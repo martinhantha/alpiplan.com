@@ -10,14 +10,31 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: "Nicht angemeldet" });
   }
 
-  const body = ((await readBody(event)) ?? {}) as { nextDayBriefingEnabled?: unknown };
-  if (typeof body.nextDayBriefingEnabled !== "boolean") {
+  const body = ((await readBody(event)) ?? {}) as {
+    nextDayBriefingEnabled?: unknown;
+    nextDayBriefingMinutes?: unknown;
+  };
+  const data: { nextDayBriefingEnabled?: boolean; nextDayBriefingMinutes?: number } = {};
+  if (body.nextDayBriefingEnabled !== undefined) {
+    if (typeof body.nextDayBriefingEnabled !== "boolean") {
+      throwValidation("Ungültiger Wert für die Vortags-Info");
+    }
+    data.nextDayBriefingEnabled = body.nextDayBriefingEnabled;
+  }
+  if (body.nextDayBriefingMinutes !== undefined) {
+    const minutes = body.nextDayBriefingMinutes;
+    if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
+      throwValidation("Ungültige Uhrzeit für die Vortags-Info");
+    }
+    data.nextDayBriefingMinutes = minutes;
+  }
+  if (!Object.keys(data).length) {
     throwValidation("Keine Änderungen übermittelt");
   }
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { nextDayBriefingEnabled: body.nextDayBriefingEnabled },
+    data,
   });
 
   const user = await loadUserWithMemberships(session.user.id);
