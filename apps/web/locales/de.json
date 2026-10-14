@@ -25,8 +25,8 @@
   },
   "login": {
     "title": "Anmelden",
-    "subtitle": "Mitorganisation und Nutzerkontext für die Prototyp-Seiten.",
-    "cardHint": "E-Mail und Passwort wie in der API / Datenbank hinterlegt.",
+    "subtitle": "Termine planen, erfassen und im Team abstimmen.",
+    "cardHint": "Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.",
     "email": "E-Mail",
     "password": "Passwort",
     "emailPlaceholder": "name{'@'}beispiel.de",
@@ -36,7 +36,7 @@
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",
     "title": "Übersicht",
-    "subtitle": "Schneller Überblick über Termine, Tagesplan und wichtige Kernflows.",
+    "subtitle": "Termine, Tagesplan und Team auf einen Blick.",
     "signedInAs": "Angemeldet als",
     "tenant": "Mandant",
     "statsUpcoming": "Termine (14 Tage)",

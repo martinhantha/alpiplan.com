@@ -25,8 +25,8 @@
   },
   "login": {
     "title": "Accedi",
-    "subtitle": "Contesto multi-tenant per le pagine prototipo.",
-    "cardHint": "Usa e-mail e password come registrate nell’API / database.",
+    "subtitle": "Pianifica, registra e coordina gli appuntamenti in team.",
+    "cardHint": "Accedi con il tuo indirizzo e-mail e la tua password.",
     "email": "E-mail",
     "password": "Password",
     "emailPlaceholder": "nome{'@'}esempio.it",
@@ -36,7 +36,7 @@
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",
     "title": "Panoramica",
-    "subtitle": "Vista rapida di appuntamenti, programma giornaliero e flussi principali.",
+    "subtitle": "Appuntamenti, programma giornaliero e team a colpo d'occhio.",
     "signedInAs": "Accesso come",
     "tenant": "Tenant",
     "statsUpcoming": "Appuntamenti (14 giorni)",

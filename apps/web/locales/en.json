@@ -25,8 +25,8 @@
   },
   "login": {
     "title": "Sign in",
-    "subtitle": "Multi-tenant context for the prototype screens.",
-    "cardHint": "Use the email and password stored in the API / database.",
+    "subtitle": "Plan, capture and coordinate appointments as a team.",
+    "cardHint": "Sign in with your email address and password.",
     "email": "Email",
     "password": "Password",
     "emailPlaceholder": "name{'@'}example.com",
@@ -36,7 +36,7 @@
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",
     "title": "Overview",
-    "subtitle": "Quick view of appointments, daily schedule, and core flows.",
+    "subtitle": "Appointments, daily schedule and team at a glance.",
     "signedInAs": "Signed in as",
     "tenant": "Tenant",
     "statsUpcoming": "Appointments (14 days)",

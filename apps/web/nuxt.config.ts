@@ -68,7 +68,7 @@ export default defineNuxtConfig({
     head: {
       title: "Alpiplan",
       meta: [
-        { name: "description", content: "Alpiplan — Prototyp Schnellerfassung & Planung" },
+        { name: "description", content: "Alpiplan — Termine planen, erfassen und im Team abstimmen" },
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
         { name: "theme-color", content: "#f7f6f3", media: "(prefers-color-scheme: light)" },
         { name: "theme-color", content: "#100e18", media: "(prefers-color-scheme: dark)" },
