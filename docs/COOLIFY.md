@@ -21,7 +21,8 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
    - `DATABASE_URL` für die **Web-/Nitro-App** (zeigt auf den Postgres-Service)
    - `REDIS_URL`
    - JWT / OIDC Secrets für Auth
-   - Push (FCM): `FIREBASE_SERVICE_ACCOUNT` = kompletter Inhalt der Dienstkonto-JSON (eine Zeile / Multiline-Secret). Nicht die `google-services.json`. Danach `prisma migrate deploy` (u. a. `DevicePushToken`, `reminderPushSentAt`, `NextDayBriefingPush`). Die 15-Minuten-Erinnerung und das Vortags-Briefing (Standard 20:00, pro Benutzer einstellbar) sendet der **web**-Prozess, kein extra Worker.
+   - Push (FCM): `FIREBASE_SERVICE_ACCOUNT` = kompletter Inhalt der Dienstkonto-JSON (eine Zeile / Multiline-Secret). Nicht die `google-services.json`.
+   - **`DATABASE_URL` muss gesetzt sein**: Beim Start des **web**-Containers führt [`apps/web/docker-entrypoint.sh`](../apps/web/docker-entrypoint.sh) automatisch `prisma migrate deploy` aus (Stand in Postgres-Tabelle `_prisma_migrations`). Abschalten: `RUN_DB_MIGRATIONS=0`. Die 15-Minuten-Erinnerung und das Vortags-Briefing (Standard 20:00, pro Benutzer einstellbar) sendet der **web**-Prozess, kein extra Worker.
 4. **Persistent Volumes** für Postgres-Daten und optional `pg_backups` mounten.
 5. **Reverse Proxy / TLS**: Coolify vergibt automatisch Zertifikate; öffentliche Domain für die **Web-/API-App** ist **`app.alpiplan.com`** (`web`, Port 3000 im Compose-Beispiel).
 6. **Worker & Backup**: In Coolify als zusätzliche Services deployen oder dieselben Compose-Profile nutzen, sofern unterstützt.
@@ -31,6 +32,7 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
 - Build: Repository-Root, Dockerfile `apps/web/Dockerfile` (siehe [docker-compose.yml](../docker-compose.yml))
 - Port im Container: **3000** (an Proxy weiterreichen)
 - Healthcheck: `GET /api/health`
+- DB-Migrationen: automatisch beim Container-Start (siehe Entrypoint oben); lokal manuell: `pnpm db:deploy`
 
 ### Lokal bauen statt am Server (`pnpm deploy:local`)
 
@@ -39,7 +41,7 @@ Für den Fall, dass der Server-Build zu schwer ist: [`scripts/deploy-local.mjs`]
 ```bash
 pnpm deploy:local --dry-run   # nur lokal bauen + Server prüfen
 pnpm deploy:local             # bauen, hochladen, neu starten, /api/health prüfen
-pnpm deploy:local --migrate   # zusätzlich prisma migrate deploy
+pnpm deploy:local --migrate   # optional: Migrationen vor dem Neustart (zusätzlich zum Entrypoint)
 ```
 
 - Voraussetzungen: Docker Desktop läuft, SSH-Docker-Context zum Server (`docker context ls`), sauberer und gepushter Git-Stand.

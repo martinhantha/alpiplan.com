@@ -30,7 +30,10 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/web/.output ./apps/web/.output
 COPY --from=build /app/apps/web/package.json ./apps/web/package.json
 COPY --from=build /app/prisma ./prisma
+COPY apps/web/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 WORKDIR /app/apps/web
 EXPOSE 3000
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", ".output/server/index.mjs"]
