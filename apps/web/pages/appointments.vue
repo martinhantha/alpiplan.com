@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { $fetch } from "ofetch";
+import { CalendarDate, type DateValue } from "@internationalized/date";
+import type { DropdownMenuItem } from "@nuxt/ui";
 import { formatTeachersCaption } from "../utils/appointment-contact";
 import { avatarColor, avatarInitials } from "../utils/avatar";
-import type { TimelineMove } from "../components/AppointmentTimeline.vue";
+import type { TimelineCreate, TimelineMove } from "../components/AppointmentTimeline.vue";
 
 interface AppointmentListItem {
   id: string;
@@ -18,7 +20,7 @@ interface AppointmentListItem {
   teacher: { id: string; displayName: string; color?: string | null } | null;
   teachers?: { id: string; displayName: string; color?: string | null }[] | null;
   resource: { id: string; name: string } | null;
-  lessonType: { id: string; name: string } | null;
+  lessonType: { id: string; name: string; color?: string | null } | null;
   customer: {
     id: string;
     displayName: string;
@@ -52,13 +54,17 @@ const filterOpen = ref(false);
 const quickOpen = ref(false);
 const quickStartVoice = ref(false);
 const quickInitialContact = ref("");
+const quickInitialStartsAt = ref("");
+const quickInitialTeacherId = ref("");
 const editingAppointment = ref<AppointmentListItem | null>(null);
 type AppointmentsView = "list" | "calendar";
 type CalendarMode = "day" | "timeline" | "week" | "team" | "month";
 
 const VIEW_STORAGE_KEY = "alpiplan.appointments.view";
 const CALENDAR_MODE_STORAGE_KEY = "alpiplan.appointments.calendarMode";
-const TIMELINE_STORAGE_KEY = "alpiplan.appointments.timeline";
+const TIMELINE_STORAGE_KEY = "alpiplan.appointments.timeline.v2";
+/** Before v2 "align to appointments" defaulted to on; only its hour range is carried over. */
+const LEGACY_TIMELINE_STORAGE_KEY = "alpiplan.appointments.timeline";
 const CALENDAR_MODES: CalendarMode[] = ["day", "timeline", "week", "team", "month"];
 
 const view = ref<AppointmentsView>("list");
@@ -66,7 +72,7 @@ const calendarMode = ref<CalendarMode>("week");
 const dayAnchor = ref<Date>(startOfDay(new Date()));
 const weekStart = ref<Date>(getMondayOf(new Date()));
 const monthAnchor = ref<Date>(firstOfMonth(new Date()));
-const timeline = reactive({ auto: true, fromHour: 9, toHour: 17 });
+const timeline = reactive({ auto: false, fromHour: 9, toHour: 17 });
 
 function restoreViewPreference() {
   if (typeof localStorage === "undefined") return;
@@ -75,10 +81,11 @@ function restoreViewPreference() {
   const storedMode = localStorage.getItem(CALENDAR_MODE_STORAGE_KEY) as CalendarMode | null;
   if (storedMode && CALENDAR_MODES.includes(storedMode)) calendarMode.value = storedMode;
   try {
-    const storedTimeline = JSON.parse(localStorage.getItem(TIMELINE_STORAGE_KEY) || "null");
+    const current = localStorage.getItem(TIMELINE_STORAGE_KEY);
+    const storedTimeline = JSON.parse(current || localStorage.getItem(LEGACY_TIMELINE_STORAGE_KEY) || "null");
     if (storedTimeline && typeof storedTimeline === "object") {
       const { auto, fromHour, toHour } = storedTimeline;
-      if (typeof auto === "boolean") timeline.auto = auto;
+      if (current && typeof auto === "boolean") timeline.auto = auto;
       if (Number.isInteger(fromHour) && Number.isInteger(toHour) && fromHour >= 0 && toHour <= 24 && fromHour < toHour) {
         timeline.fromHour = fromHour;
         timeline.toHour = toHour;
@@ -406,6 +413,31 @@ const dayColumns = computed(() => {
   return sorted;
 });
 
+/** Like `dayColumns`, but every person gets a row, even without appointments that day. */
+const timelineRows = computed(() => {
+  const withAppointments = new Map(dayColumns.value.map((column) => [column.id, column]));
+  const ownTeacherId = canManageTenant.value ? null : (primaryTenant.value?.teacherProfileId ?? "");
+  const rows = (options.value?.teachers ?? [])
+    .filter((teacher) => ownTeacherId === null || teacher.id === ownTeacherId)
+    .filter((teacher) => !filters.teacherId || teacher.id === filters.teacherId)
+    .map(
+      (teacher) =>
+        withAppointments.get(teacher.id) ?? {
+          id: teacher.id,
+          name: teacher.displayName,
+          color: teacher.color ?? null,
+          appointments: [] as AppointmentListItem[],
+        },
+    );
+  const known = new Set(rows.map((row) => row.id));
+  const extra = dayColumns.value.filter((column) => !known.has(column.id) && column.id !== UNASSIGNED_ROW_ID);
+  const unassigned = withAppointments.get(UNASSIGNED_ROW_ID);
+  return [
+    ...[...rows, ...extra].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value)),
+    ...(unassigned ? [unassigned] : []),
+  ];
+});
+
 const WEEK_DAY_VISIBLE = 8;
 const TEAM_CELL_VISIBLE = 3;
 
@@ -569,7 +601,7 @@ async function onTimelineMove(move: TimelineMove<AppointmentListItem>) {
     const updated = await patchAppointmentSchedule(appointment, body);
     replaceAppointment(updated);
     const target = teacherChanged
-      ? ` zu ${dayColumns.value.find((column) => column.id === move.toRowId)?.name ?? teacherLabel.value}`
+      ? ` zu ${timelineRows.value.find((row) => row.id === move.toRowId)?.name ?? teacherLabel.value}`
       : "";
     showLastMove(
       appointment.id,
@@ -715,23 +747,193 @@ function isToday(date: Date) {
 }
 
 async function loadOptions() {
-  if (!primaryTenant.value?.tenantId || !canManageTenant.value) return;
-  options.value = await $fetch<SchedulingOptions>(
-    `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`,
-    { credentials: "include" },
-  );
+  if (!primaryTenant.value?.tenantId) return;
+  try {
+    options.value = await $fetch<SchedulingOptions>(
+      `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`,
+      { credentials: "include" },
+    );
+  } catch {
+    options.value = null;
+  }
 }
 
 function openQuickCapture() {
   editingAppointment.value = null;
   quickInitialContact.value = "";
+  quickInitialStartsAt.value = "";
+  quickInitialTeacherId.value = "";
   quickStartVoice.value = false;
   quickOpen.value = true;
+}
+
+function onTimelineCreate(create: TimelineCreate) {
+  openQuickCapture();
+  quickInitialStartsAt.value = create.startsAt.toISOString();
+  quickInitialTeacherId.value = create.rowId === UNASSIGNED_ROW_ID ? "" : create.rowId;
+}
+
+function canCompleteAppointment(appointment: AppointmentListItem) {
+  return canAccessWorkspace.value && appointment.status !== "completed" && appointment.status !== "cancelled";
+}
+
+function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[][] {
+  const groups: DropdownMenuItem[][] = [
+    [
+      { label: "Bearbeiten", icon: "i-lucide-pencil", onSelect: () => openEditAppointment(appointment) },
+      ...(canCompleteAppointment(appointment)
+        ? [{ label: "Als erledigt markieren", icon: "i-lucide-check", onSelect: () => markCompleted(appointment) }]
+        : []),
+    ],
+  ];
+  if (canAccessWorkspace.value) {
+    groups.push([
+      { label: "Kopieren auf anderen Tag…", icon: "i-lucide-copy", onSelect: () => openCopyDialog(appointment, false) },
+      {
+        label: "Auf mehrere Tage kopieren…",
+        icon: "i-lucide-calendar-plus-2",
+        onSelect: () => openCopyDialog(appointment, true),
+      },
+    ]);
+  }
+  if (canManageTenant.value) {
+    groups.push([
+      { label: "Löschen", icon: "i-lucide-trash-2", color: "error", onSelect: () => deleteAppointment(appointment) },
+    ]);
+  }
+  return groups;
+}
+
+// --- Copy to other days ---------------------------------------------------
+
+const copySource = ref<AppointmentListItem | null>(null);
+const copyMultiple = ref(false);
+const copyDates = shallowRef<CalendarDate[]>([]);
+const copySaving = ref(false);
+const copyFailures = ref<{ date: string; message: string }[]>([]);
+
+const copyOpen = computed({
+  get: () => Boolean(copySource.value),
+  set: (open: boolean) => {
+    if (!open && !copySaving.value) copySource.value = null;
+  },
+});
+
+function toCalendarDate(date: Date) {
+  return new CalendarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+function fromCalendarDate(value: DateValue) {
+  return new Date(value.year, value.month - 1, value.day);
+}
+
+function openCopyDialog(appointment: AppointmentListItem, multiple: boolean) {
+  copySource.value = appointment;
+  copyMultiple.value = multiple;
+  copyDates.value = [];
+  copyFailures.value = [];
+}
+
+const copyCalendarModel = computed({
+  get: () => (copyMultiple.value ? copyDates.value : copyDates.value[0]),
+  set: (value: DateValue | DateValue[] | undefined | null) => {
+    const list = Array.isArray(value) ? value : value ? [value] : [];
+    copyDates.value = list
+      .map((item) => new CalendarDate(item.year, item.month, item.day))
+      .sort((a, b) => a.compare(b));
+  },
+});
+
+function isCopySourceDay(value: DateValue) {
+  return Boolean(copySource.value && toCalendarDate(new Date(copySource.value.startsAt)).compare(value) === 0);
+}
+
+function formatCopyDate(value: CalendarDate) {
+  return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", day: "2-digit", month: "2-digit" }).format(
+    fromCalendarDate(value),
+  );
+}
+
+function copyBody(source: AppointmentListItem, day: CalendarDate) {
+  const originalStart = new Date(source.startsAt);
+  const startsAt = new Date(
+    day.year,
+    day.month - 1,
+    day.day,
+    originalStart.getHours(),
+    originalStart.getMinutes(),
+  );
+  const duration = new Date(source.endsAt).getTime() - originalStart.getTime();
+  return {
+    startsAt: startsAt.toISOString(),
+    endsAt: new Date(startsAt.getTime() + duration).toISOString(),
+    status: source.status === "draft" ? "draft" : "confirmed",
+    teacherIds: assignedTeacherIds(source),
+    lessonTypeId: source.lessonType?.id ?? null,
+    resourceId: resourcesEnabled.value ? (source.resource?.id ?? null) : null,
+    customerId: source.customer?.id ?? null,
+    appointmentContactText: source.appointmentContactText,
+    appointmentPhoneRaw: source.appointmentPhoneRaw,
+    appointmentPhoneE164: source.appointmentPhoneE164,
+    unstructuredNote: source.unstructuredNote,
+  };
+}
+
+async function runCopy() {
+  const source = copySource.value;
+  const tenantId = primaryTenant.value?.tenantId;
+  if (!source || !tenantId || !copyDates.value.length) return;
+  copySaving.value = true;
+  copyFailures.value = [];
+  const failed: CalendarDate[] = [];
+  for (const day of copyDates.value) {
+    try {
+      await $fetch(`/api/v1/tenants/${tenantId}/appointments`, {
+        method: "POST",
+        credentials: "include",
+        body: copyBody(source, day),
+      });
+    } catch (e: unknown) {
+      failed.push(day);
+      copyFailures.value.push({ date: formatCopyDate(day), message: apiErrorMessage(e, "Fehlgeschlagen") });
+    }
+  }
+  copySaving.value = false;
+  copyDates.value = failed;
+  if (!failed.length) copySource.value = null;
+  await loadAppointments();
+}
+
+function apiErrorMessage(e: unknown, fallback: string) {
+  const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
+  return err.data?.data?.message || err.data?.message || err.statusMessage || fallback;
+}
+
+// --- Jump to date ---------------------------------------------------------
+
+const datePickerOpen = ref(false);
+
+const datePickerValue = computed(() => {
+  if (isDayMode(calendarMode.value)) return toCalendarDate(dayAnchor.value);
+  if (isWeekMode(calendarMode.value)) return toCalendarDate(weekStart.value);
+  return toCalendarDate(monthAnchor.value);
+});
+
+function jumpToDate(value: DateValue | DateValue[] | undefined | null) {
+  if (!value || Array.isArray(value)) return;
+  const date = fromCalendarDate(value);
+  dayAnchor.value = startOfDay(date);
+  weekStart.value = getMondayOf(date);
+  monthAnchor.value = firstOfMonth(date);
+  datePickerOpen.value = false;
+  loadAppointments();
 }
 
 function openAssistant() {
   editingAppointment.value = null;
   quickInitialContact.value = "";
+  quickInitialStartsAt.value = "";
+  quickInitialTeacherId.value = "";
   quickStartVoice.value = speechRecognitionEnabled.value;
   quickOpen.value = true;
 }
@@ -739,6 +941,8 @@ function openAssistant() {
 function openEditAppointment(appointment: AppointmentListItem) {
   editingAppointment.value = appointment;
   quickInitialContact.value = "";
+  quickInitialStartsAt.value = "";
+  quickInitialTeacherId.value = "";
   quickStartVoice.value = false;
   quickOpen.value = true;
 }
@@ -1240,12 +1444,27 @@ watch(
           <div class="flex items-center gap-1">
             <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-chevron-left" @click="shiftCalendar(-1)" />
             <UButton size="sm" variant="ghost" color="neutral" @click="goToToday">Heute</UButton>
+            <UButton
+              size="sm"
+              variant="outline"
+              color="neutral"
+              icon="i-lucide-calendar-search"
+              aria-label="Datum wählen"
+              title="Datum wählen"
+              @click="datePickerOpen = true"
+            />
             <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-chevron-right" @click="shiftCalendar(1)" />
           </div>
         </div>
-        <span class="text-sm font-medium text-neutral-700 dark:text-neutral-200 capitalize">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-neutral-700 capitalize transition hover:bg-neutral-100 hover:text-primary-700 dark:text-neutral-200 dark:hover:bg-neutral-800 dark:hover:text-primary-200"
+          title="Datum wählen"
+          @click="datePickerOpen = true"
+        >
+          <UIcon name="i-lucide-calendar-days" class="size-4 shrink-0 opacity-70" />
           {{ calendarRangeLabel }}
-        </span>
+        </button>
       </div>
 
       <div
@@ -1287,10 +1506,10 @@ watch(
 
       <template v-else-if="calendarMode === 'timeline'">
         <div
-          v-if="!dayAppointments.length && !loading"
+          v-if="!timelineRows.length && !loading"
           class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
         >
-          Keine Termine an diesem Tag.
+          Keine {{ teacherLabel }} hinterlegt und keine Termine an diesem Tag.
         </div>
         <template v-else>
           <Transition
@@ -1316,19 +1535,22 @@ watch(
             </div>
           </Transition>
           <AppointmentTimeline
-            :rows="dayColumns"
+            :rows="timelineRows"
             :day="dayAnchor"
             :from-hour="timelineHours.from"
             :to-hour="timelineHours.to"
             :can-move="canAccessWorkspace"
             :can-change-row="canManageTenant"
+            :can-create="canAccessWorkspace"
             :person-colors="canManageTenant"
             :saving-id="savingId"
             :show-resource="resourcesEnabled"
             :title-of="appointmentTitle"
             :format-time="formatTime"
+            :menu-items="timelineMenuItems"
             @open="openEditAppointment"
             @move="onTimelineMove"
+            @create="onTimelineCreate"
           />
         </template>
       </template>
@@ -1619,13 +1841,104 @@ watch(
       </template>
       <template #body>
         <QuickCaptureForm
-          :key="editingAppointment?.id ?? `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}`"
+          :key="
+            editingAppointment?.id ??
+            `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}-${quickInitialStartsAt}-${quickInitialTeacherId}`
+          "
           :appointment="editingAppointment"
           :initial-contact-text="quickInitialContact"
+          :initial-starts-at="quickInitialStartsAt || undefined"
+          :initial-teacher-id="quickInitialTeacherId || undefined"
           :start-with-voice="quickStartVoice"
           @saved="onAppointmentSaved"
           @cancel="closeQuickCapture"
         />
+      </template>
+    </UModal>
+
+    <UModal v-model:open="datePickerOpen" title="Datum wählen" :ui="{ content: 'max-w-sm' }">
+      <template #body>
+        <UCalendar
+          :model-value="datePickerValue"
+          fixed-weeks
+          class="mx-auto"
+          @update:model-value="jumpToDate"
+        />
+        <div class="mt-3 flex justify-center">
+          <UButton
+            size="sm"
+            variant="soft"
+            color="neutral"
+            icon="i-lucide-calendar-check"
+            @click="jumpToDate(toCalendarDate(new Date()))"
+          >
+            Heute
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="copyOpen"
+      :title="copyMultiple ? 'Auf mehrere Tage kopieren' : 'Kopieren auf anderen Tag'"
+      :dismissible="!copySaving"
+      :ui="{ content: 'max-w-md' }"
+    >
+      <template #body>
+        <div v-if="copySource" class="space-y-4">
+          <div class="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <p class="font-medium">{{ appointmentTitle(copySource) }}</p>
+            <p class="text-xs text-neutral-500 tabular-nums">
+              {{ formatTime(copySource.startsAt) }}–{{ formatTime(copySource.endsAt) }}
+              <template v-if="teachersCaption(copySource)"> · {{ teachersCaption(copySource) }}</template>
+              · Uhrzeit bleibt gleich
+            </p>
+          </div>
+          <p class="text-xs text-neutral-500">
+            {{ copyMultiple ? "Tage im Kalender anklicken (mehrere möglich)." : "Zieltag im Kalender anklicken." }}
+          </p>
+          <UCalendar
+            v-model="copyCalendarModel"
+            :multiple="copyMultiple"
+            :is-date-disabled="isCopySourceDay"
+            fixed-weeks
+            class="mx-auto"
+          />
+          <div v-if="copyDates.length" class="flex flex-wrap gap-1.5">
+            <UBadge v-for="day in copyDates" :key="day.toString()" color="primary" variant="subtle">
+              {{ formatCopyDate(day) }}
+            </UBadge>
+          </div>
+          <UAlert
+            v-if="copyFailures.length"
+            color="error"
+            variant="soft"
+            icon="i-lucide-circle-alert"
+            title="Nicht alle Kopien konnten angelegt werden"
+          >
+            <template #description>
+              <ul class="space-y-0.5">
+                <li v-for="failure in copyFailures" :key="failure.date">
+                  <span class="font-medium">{{ failure.date }}:</span> {{ failure.message }}
+                </li>
+              </ul>
+            </template>
+          </UAlert>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" :disabled="copySaving" @click="copyOpen = false">Abbrechen</UButton>
+          <UButton
+            color="primary"
+            icon="i-lucide-copy"
+            :loading="copySaving"
+            :disabled="!copyDates.length"
+            @click="runCopy"
+          >
+            {{ copyDates.length > 1 ? `${copyDates.length} Kopien anlegen` : "Kopie anlegen" }}
+          </UButton>
+        </div>
       </template>
     </UModal>
   </UContainer>

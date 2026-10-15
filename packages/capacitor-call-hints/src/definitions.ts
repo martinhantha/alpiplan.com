@@ -3,12 +3,15 @@ import type { PermissionState, PluginListenerHandle } from "@capacitor/core";
 
 export interface CallHintsPermissionStatus {
   callLog: PermissionState;
+  /** Android: needed to see the number while the call is still ringing or running. */
+  phoneState?: PermissionState;
 }
 
 export interface CallHintsPlugin {
   getRecentCallHints(options?: { limit?: number }): Promise<{ hints: CallHint[] }>;
   checkPermissions(): Promise<CallHintsPermissionStatus>;
   requestPermissions(): Promise<CallHintsPermissionStatus>;
+  addListener(eventName: "callStateChanged", listenerFunc: () => void): Promise<PluginListenerHandle>;
 }
 
 export interface AlpiplanDevicePermissionStatus {

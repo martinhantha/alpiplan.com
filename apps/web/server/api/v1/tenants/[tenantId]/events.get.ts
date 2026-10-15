@@ -1,6 +1,12 @@
 import { getRouterParam, setHeader, setResponseStatus } from "h3";
 import { requireTenantAccess } from "~/server/utils/authz";
-import { shouldReceiveAppointmentLive, subscribeAppointmentEvents } from "~/server/utils/appointment-events";
+import {
+  shouldNotifyAppointmentLive,
+  shouldReceiveAppointmentLive,
+  subscribeAppointmentEvents,
+} from "~/server/utils/appointment-events";
+import { prisma } from "~/server/utils/prisma";
+import type { LiveViewer } from "~/utils/appointment-live-audience";
 
 export default defineEventHandler(async (event) => {
   const access = await requireTenantAccess(event, getRouterParam(event, "tenantId"));
@@ -23,11 +29,21 @@ export default defineEventHandler(async (event) => {
   write("retry: 3000\n\n");
   write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
 
+  const preferences = await prisma.user.findUnique({
+    where: { id: access.actorUserId },
+    select: { appointmentMovedAlertsEnabled: true },
+  });
+  const viewer: LiveViewer = {
+    userId: access.actorUserId,
+    isAdmin: access.role === "ADMIN" || access.role === "SUPERADMIN",
+    movedAlertsEnabled: preferences?.appointmentMovedAlertsEnabled !== false,
+  };
+
   const unsubscribe = subscribeAppointmentEvents(access.tenant.id, (payload) => {
-    if (!shouldReceiveAppointmentLive(access.actorUserId, payload)) {
+    if (!shouldReceiveAppointmentLive(viewer, payload)) {
       return;
     }
-    write(`data: ${JSON.stringify(payload)}\n\n`);
+    write(`data: ${JSON.stringify({ ...payload, notify: shouldNotifyAppointmentLive(viewer, payload) })}\n\n`);
   });
 
   const ping = setInterval(() => write(": ping\n\n"), 20_000);

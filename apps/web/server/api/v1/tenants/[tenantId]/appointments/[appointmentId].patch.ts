@@ -1,7 +1,11 @@
 import { getRequestHeader, getRouterParam, readBody } from "h3";
 import { throwNotFound } from "~/server/utils/api-errors";
 import { requireTenantAccess, staffAppointmentScope, staffOwnsAppointment } from "~/server/utils/authz";
-import { publishAppointmentLive, toAppointmentLiveEvent } from "~/server/utils/appointment-events";
+import {
+  assignedTeachersFromAppointment,
+  publishAppointmentLive,
+  toAppointmentLiveEvent,
+} from "~/server/utils/appointment-events";
 import { getAppointment, patchAppointment } from "~/server/utils/scheduling";
 
 export default defineEventHandler(async (event) => {
@@ -30,13 +34,21 @@ export default defineEventHandler(async (event) => {
     getRequestHeader(event, "if-match"),
   );
 
-  if (existing.startsAt !== updated.startsAt || existing.endsAt !== updated.endsAt) {
-    publishAppointmentLive(
-      await toAppointmentLiveEvent("appointment.moved", access.tenant.id, access.actorUserId, updated, {
-        previousStartsAt: existing.startsAt,
-      }),
-    );
-  }
+  const previousTeachers = assignedTeachersFromAppointment(existing);
+  const teacherKey = (teachers: { id: string }[]) => teachers.map((teacher) => teacher.id).sort().join(",");
+  const moved =
+    existing.startsAt !== updated.startsAt ||
+    existing.endsAt !== updated.endsAt ||
+    teacherKey(previousTeachers) !== teacherKey(assignedTeachersFromAppointment(updated));
+  publishAppointmentLive(
+    await toAppointmentLiveEvent(
+      moved ? "appointment.moved" : "appointment.updated",
+      access.tenant.id,
+      access.actorUserId,
+      updated,
+      { previousStartsAt: existing.startsAt, previousTeachers },
+    ),
+  );
 
   return updated;
 });

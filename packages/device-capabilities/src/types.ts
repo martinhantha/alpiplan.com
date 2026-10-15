@@ -4,6 +4,8 @@ export interface CallHint {
   raw?: string;
   lastSeenAt: string;
   confidence: number;
+  /** Android: the call is ringing or still running right now. */
+  active?: boolean;
 }
 
 export interface ContactWritePayload {

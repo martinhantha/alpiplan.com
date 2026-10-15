@@ -12,6 +12,7 @@ const props = defineProps<{
   options: PickerOption[];
   label: string;
   highlightId?: string | null;
+  hints?: Record<string, string>;
 }>();
 
 const model = defineModel<string[]>({ required: true });
@@ -121,6 +122,9 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
           {{ avatarInitials(option.displayName) }}
         </span>
         {{ option.displayName }}
+        <span v-if="hints?.[option.id]" class="text-xs font-normal text-amber-700 dark:text-amber-400">
+          · {{ hints[option.id] }}
+        </span>
         <button
           type="button"
           class="flex size-5 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
@@ -184,6 +188,9 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
           <span class="min-w-0 flex-1 truncate text-neutral-800 dark:text-neutral-100">
             {{ option.displayName }}
             <span v-if="option.id === highlightId" class="ml-1 text-xs text-neutral-500">(ich)</span>
+            <span v-if="hints?.[option.id]" class="ml-1 text-xs text-amber-700 dark:text-amber-400">
+              {{ hints[option.id] }}
+            </span>
           </span>
           <span
             class="flex size-5 shrink-0 items-center justify-center rounded border transition-colors"

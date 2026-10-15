@@ -3,10 +3,11 @@ import { prisma } from "~/server/utils/prisma";
 import { sendAppointmentPush } from "~/server/utils/push";
 import {
   assignedTeachersFromAppointment,
+  shouldNotifyAppointmentLive,
   shouldReceiveAppointmentLive,
 } from "~/utils/appointment-live-audience";
 
-export { shouldReceiveAppointmentLive, assignedTeachersFromAppointment };
+export { shouldNotifyAppointmentLive, shouldReceiveAppointmentLive, assignedTeachersFromAppointment };
 
 type Listener = (event: AppointmentLiveEvent) => void;
 
@@ -51,36 +52,49 @@ export async function toAppointmentLiveEvent(
     customer?: { displayName?: string | null } | null;
     lessonType?: { name?: string | null } | null;
   },
-  extra?: { previousStartsAt?: string | null },
+  extra?: {
+    previousStartsAt?: string | null;
+    previousTeachers?: Array<{ id: string; displayName: string }>;
+  },
 ): Promise<AppointmentLiveEvent> {
   const assigned = assignedTeachersFromAppointment(appointment);
-  const teacherIds = assigned.map((item) => item.id);
-  const profiles = teacherIds.length
-    ? await prisma.teacherProfile.findMany({
-        where: { id: { in: teacherIds }, deletedAt: null },
-        select: { id: true, membership: { select: { userId: true } } },
-      })
-    : [];
-  const teacherUserIds = [
+  const previousTeachers = extra?.previousTeachers ?? null;
+  const teacherIds = [...new Set([...assigned, ...(previousTeachers ?? [])].map((item) => item.id))];
+  const [profiles, actor] = await Promise.all([
+    teacherIds.length
+      ? prisma.teacherProfile.findMany({
+          where: { id: { in: teacherIds }, deletedAt: null },
+          select: { id: true, membership: { select: { userId: true } } },
+        })
+      : [],
+    prisma.user.findUnique({ where: { id: actorUserId }, select: { name: true, email: true } }),
+  ]);
+  const userIdsOf = (teachers: Array<{ id: string }>) => [
     ...new Set(
-      profiles
-        .map((profile) => profile.membership?.userId)
+      teachers
+        .map((teacher) => profiles.find((profile) => profile.id === teacher.id)?.membership?.userId)
         .filter((userId): userId is string => Boolean(userId)),
     ),
   ];
+  const teacherUserIds = userIdsOf(assigned);
+  const namesOf = (teachers: Array<{ displayName: string }>) =>
+    teachers.map((item) => item.displayName).filter(Boolean).join(", ") || null;
 
   return {
     type,
     tenantId,
     appointmentId: appointment.id,
     actorUserId,
+    actorName: actor?.name?.trim() || actor?.email || null,
     createdByUserId: appointment.createdByUserId ?? null,
     teacherUserId: teacherUserIds[0] ?? null,
     teacherUserIds,
+    previousTeacherUserIds: previousTeachers ? userIdsOf(previousTeachers) : [],
     title: appointmentEventTitle(appointment),
     startsAt: appointment.startsAt,
     previousStartsAt: extra?.previousStartsAt ?? null,
-    teacherName: assigned.map((item) => item.displayName).filter(Boolean).join(", ") || null,
+    teacherName: namesOf(assigned),
+    previousTeacherName: previousTeachers ? namesOf(previousTeachers) : namesOf(assigned),
     teacherId: assigned[0]?.id ?? null,
   };
 }

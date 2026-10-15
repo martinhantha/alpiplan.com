@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { $fetch } from "ofetch";
 import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
-import { avatarColor, avatarInitials } from "../utils/avatar";
 import { DEFAULT_BRIEFING_MINUTES, formatBriefingTime, parseBriefingTime } from "../utils/rome-time";
 import type { SuperadminOverview, TenantRole } from "../types/superadmin";
 import {
@@ -18,6 +17,7 @@ interface LessonType {
   id: string;
   name: string;
   defaultDurationMin: number | null;
+  teacherIds: string[];
 }
 
 interface TeacherOption {
@@ -71,6 +71,15 @@ const callHintsSaving = ref(false);
 const nextDayBriefingEnabledLocal = ref(true);
 const nextDayBriefingTimeLocal = ref(formatBriefingTime(DEFAULT_BRIEFING_MINUTES));
 const briefingSaving = ref(false);
+const movedAlertsEnabledLocal = ref(true);
+const movedAlertsSaving = ref(false);
+watch(
+  () => user.value?.appointmentMovedAlertsEnabled,
+  (value) => {
+    movedAlertsEnabledLocal.value = value !== false;
+  },
+  { immediate: true },
+);
 const { whatsappApp, setWhatsAppApp } = useWhatsAppPreference();
 
 watch(
@@ -289,6 +298,28 @@ async function saveNextDayBriefing(enabled: boolean) {
   }
 }
 
+async function saveMovedAlerts(enabled: boolean) {
+  movedAlertsEnabledLocal.value = enabled;
+  movedAlertsSaving.value = true;
+  try {
+    session.value = await $fetch("/api/auth/me", {
+      method: "PATCH",
+      credentials: "include",
+      body: { appointmentMovedAlertsEnabled: enabled },
+    });
+    setInfo(
+      enabled
+        ? "Du wirst benachrichtigt, wenn jemand einen Termin verschiebt."
+        : "Keine Benachrichtigung mehr bei verschobenen Terminen anderer.",
+    );
+  } catch (e: unknown) {
+    movedAlertsEnabledLocal.value = user.value?.appointmentMovedAlertsEnabled !== false;
+    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+  } finally {
+    movedAlertsSaving.value = false;
+  }
+}
+
 async function saveNextDayBriefingTime() {
   const savedMinutes = user.value?.nextDayBriefingMinutes ?? DEFAULT_BRIEFING_MINUTES;
   const minutes = parseBriefingTime(nextDayBriefingTimeLocal.value);
@@ -363,7 +394,7 @@ function apiMessage(e: unknown, fallback: string) {
 }
 
 const lessonTypes = ref<LessonType[]>([]);
-const lessonTypeForm = reactive({ id: "", name: "", defaultDurationMin: 60 as number | "" });
+const lessonTypeForm = reactive({ id: "", name: "", defaultDurationMin: 60 as number | "", teacherIds: [] as string[] });
 const lessonTypeLoading = ref(false);
 
 async function loadLessonTypes() {
@@ -386,11 +417,19 @@ function selectLessonType(item: LessonType) {
   lessonTypeForm.id = item.id;
   lessonTypeForm.name = item.name;
   lessonTypeForm.defaultDurationMin = item.defaultDurationMin ?? "";
+  lessonTypeForm.teacherIds = [...(item.teacherIds ?? [])];
 }
 function resetLessonTypeForm() {
   lessonTypeForm.id = "";
   lessonTypeForm.name = "";
   lessonTypeForm.defaultDurationMin = 60;
+  lessonTypeForm.teacherIds = [];
+}
+function lessonTypeTeacherNames(ids: string[]) {
+  return ids
+    .map((id) => teachers.value.find((teacher) => teacher.id === id)?.displayName)
+    .filter(Boolean)
+    .join(", ");
 }
 
 async function saveLessonType() {
@@ -405,6 +444,7 @@ async function saveLessonType() {
       name: lessonTypeForm.name,
       defaultDurationMin:
         lessonTypeForm.defaultDurationMin === "" ? null : Number(lessonTypeForm.defaultDurationMin),
+      teacherIds: lessonTypeForm.teacherIds,
     };
     if (lessonTypeForm.id) {
       await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types/${lessonTypeForm.id}`, {
@@ -740,36 +780,6 @@ async function loadAbsenceTeachers() {
   }
 }
 
-const colorSavingId = ref("");
-
-const colorTeachers = computed(() => {
-  const own = primaryTenant.value?.teacherProfileId;
-  return [...absenceTeachers.value].sort((a, b) => {
-    if (a.id === own) return -1;
-    if (b.id === own) return 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
-});
-
-async function saveTeacherColor(teacher: TeacherOption, color: string | null) {
-  if (!primaryTenant.value?.tenantId) return;
-  const previous = teacher.color ?? null;
-  teacher.color = color;
-  colorSavingId.value = teacher.id;
-  try {
-    await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/teachers/${teacher.id}`, {
-      method: "PATCH",
-      credentials: "include",
-      body: { color },
-    });
-  } catch (e: unknown) {
-    teacher.color = previous;
-    setError(apiMessage(e, "Farbe konnte nicht gespeichert werden"));
-  } finally {
-    colorSavingId.value = "";
-  }
-}
-
 async function loadAbsences() {
   if (!primaryTenant.value?.tenantId || !absenceTeacherId.value) {
     absences.value = [];
@@ -1000,7 +1010,7 @@ watch(activeTab, async (tab) => {
     await loadAbsenceTeachers();
     await loadAbsences();
   }
-  if (tab === "lesson-types") await loadLessonTypes();
+  if (tab === "lesson-types") await Promise.all([loadLessonTypes(), loadTeachers()]);
   if (tab === "availability") {
     await loadTeachers();
     await loadRules();
@@ -1100,39 +1110,6 @@ onBeforeUnmount(() => {
           </select>
         </div>
       </UCard>
-      <UCard v-if="canEdit && colorTeachers.length" class="lg:col-span-2">
-        <template #header><h2 class="font-medium">Farbe im Kalender</h2></template>
-        <div class="space-y-3 text-sm">
-          <p class="text-xs text-neutral-500">
-            Termine werden in dieser Farbe markiert. Standardmäßig wird automatisch eine zugewiesen – zum Ändern
-            auf die Farbe tippen.
-          </p>
-          <div
-            v-for="teacher in colorTeachers"
-            :key="teacher.id"
-            class="flex items-center justify-between gap-3 border-t border-neutral-100 pt-3 first:border-t-0 first:pt-0 dark:border-neutral-800"
-          >
-            <div class="flex min-w-0 items-center gap-2.5">
-              <span
-                class="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm"
-                :style="{ backgroundColor: avatarColor(teacher.id, teacher.color) }"
-              >
-                {{ avatarInitials(teacher.displayName) }}
-              </span>
-              <span class="truncate font-medium">
-                {{ teacher.displayName }}
-                <span v-if="teacher.id === primaryTenant?.teacherProfileId" class="font-normal text-neutral-500">(ich)</span>
-              </span>
-            </div>
-            <TeacherColorPicker
-              :teacher-id="teacher.id"
-              :color="teacher.color"
-              :disabled="colorSavingId === teacher.id"
-              @change="saveTeacherColor(teacher, $event)"
-            />
-          </div>
-        </div>
-      </UCard>
       <UCard class="lg:col-span-2">
         <template #header><h2 class="font-medium">{{ $t("theme.title") }}</h2></template>
         <div class="space-y-2 text-sm">
@@ -1165,6 +1142,28 @@ onBeforeUnmount(() => {
               :checked="nextDayBriefingEnabledLocal"
               :disabled="briefingSaving"
               @change="saveNextDayBriefing(!nextDayBriefingEnabledLocal)"
+            />
+            <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
+          </label>
+        </div>
+        <div
+          v-if="canManageTenant"
+          class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+        >
+          <div>
+            <p class="font-medium">Verschobene Termine</p>
+            <p class="text-xs text-neutral-500 mt-1">
+              Als Admin eine Push-Nachricht, wenn jemand anderes einen Termin zeitlich oder auf eine andere Person
+              verschiebt. Standardmäßig aktiv.
+            </p>
+          </div>
+          <label class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              class="sr-only peer"
+              :checked="movedAlertsEnabledLocal"
+              :disabled="movedAlertsSaving"
+              @change="saveMovedAlerts(!movedAlertsEnabledLocal)"
             />
             <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
           </label>
@@ -1238,8 +1237,9 @@ onBeforeUnmount(() => {
             <div>
               <p class="font-medium">Letzte Anrufe als Telefon-Vorschlag</p>
               <p class="text-xs text-neutral-500 mt-1">
-                Nur in der Android-App, nur nach Opt-in. Nummern bleiben auf dem Gerät und werden nicht an den Server
-                geschickt. Unter iOS und im Browser nicht verfügbar.
+                Nur in der Android-App, nur nach Opt-in. Zeigt auch die Nummer des Anrufs, der gerade läuft.
+                Nummern bleiben auf dem Gerät und werden nicht an den Server geschickt. Unter iOS und im Browser
+                nicht verfügbar.
               </p>
             </div>
             <label class="relative inline-flex items-center shrink-0 mt-1" :class="device.features.callHints ? 'cursor-pointer' : 'opacity-50'">
@@ -1636,6 +1636,9 @@ onBeforeUnmount(() => {
               <p v-if="useDefaultDurationLocal" class="text-xs text-neutral-500">
                 Standard-Dauer: {{ item.defaultDurationMin ? `${item.defaultDurationMin} Min` : "—" }}
               </p>
+              <p v-if="item.teacherIds?.length" class="text-xs text-neutral-500">
+                Bevorzugte {{ teacherLabelLocal }}: {{ lessonTypeTeacherNames(item.teacherIds) }}
+              </p>
             </div>
             <div class="flex gap-1">
               <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil" :disabled="!canEdit" @click="selectLessonType(item)" />
@@ -1659,6 +1662,13 @@ onBeforeUnmount(() => {
           <p v-else class="text-xs text-neutral-500">
             Dauer ist für diesen Mandanten deaktiviert (Tab „Account" → Mandanten-Optionen).
           </p>
+          <UFormField
+            :label="`Bevorzugte ${teacherLabelLocal}`"
+            hint="optional"
+            help="Werden in der Schnellerfassung zuerst vorgeschlagen und automatisch ausgewählt, wenn frei. Danach folgt die Priorität."
+          >
+            <TeacherPicker v-model="lessonTypeForm.teacherIds" :options="teachers" :label="teacherLabelLocal" />
+          </UFormField>
           <div class="flex gap-2">
             <UButton type="submit" color="primary" :loading="lessonTypeLoading" :disabled="!canEdit">
               {{ lessonTypeForm.id ? "Speichern" : "Anlegen" }}

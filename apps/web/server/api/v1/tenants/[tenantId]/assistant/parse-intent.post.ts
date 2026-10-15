@@ -87,6 +87,7 @@ export default defineEventHandler(async (event) => {
     const slot = await suggestNextPrioritySlot(access.tenant.id, {
       teacherId: result.parsed.teacherId ?? scope.forceTeacherId ?? undefined,
       resourceId: result.parsed.resourceId,
+      lessonTypeId: result.parsed.lessonTypeId,
       durationMin: result.parsed.durationMinutes ?? lessonType?.defaultDurationMin ?? 60,
       onDate: result.parsed.date,
     });

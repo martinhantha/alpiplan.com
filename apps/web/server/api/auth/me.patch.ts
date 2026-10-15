@@ -13,8 +13,19 @@ export default defineEventHandler(async (event) => {
   const body = ((await readBody(event)) ?? {}) as {
     nextDayBriefingEnabled?: unknown;
     nextDayBriefingMinutes?: unknown;
+    appointmentMovedAlertsEnabled?: unknown;
   };
-  const data: { nextDayBriefingEnabled?: boolean; nextDayBriefingMinutes?: number } = {};
+  const data: {
+    nextDayBriefingEnabled?: boolean;
+    nextDayBriefingMinutes?: number;
+    appointmentMovedAlertsEnabled?: boolean;
+  } = {};
+  if (body.appointmentMovedAlertsEnabled !== undefined) {
+    if (typeof body.appointmentMovedAlertsEnabled !== "boolean") {
+      throwValidation("Ungültiger Wert für die Verschiebe-Benachrichtigung");
+    }
+    data.appointmentMovedAlertsEnabled = body.appointmentMovedAlertsEnabled;
+  }
   if (body.nextDayBriefingEnabled !== undefined) {
     if (typeof body.nextDayBriefingEnabled !== "boolean") {
       throwValidation("Ungültiger Wert für die Vortags-Info");

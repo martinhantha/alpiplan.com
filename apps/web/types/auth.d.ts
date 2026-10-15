@@ -6,6 +6,8 @@ export interface AuthUser {
   nextDayBriefingEnabled: boolean;
   /** Europe/Rome local time, minutes after midnight */
   nextDayBriefingMinutes: number;
+  /** As tenant admin: alert when someone else moves an appointment */
+  appointmentMovedAlertsEnabled: boolean;
 }
 
 export interface AuthMembership {

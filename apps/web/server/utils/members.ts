@@ -102,6 +102,7 @@ export async function ensureTeacherProfilesForTenant(tenantId: string) {
 }
 
 export async function listTenantMembers(tenantId: string) {
+  await ensureTeacherProfilesForTenant(tenantId);
   const memberships = await prisma.membership.findMany({
     where: { tenantId, deletedAt: null, user: { deletedAt: null } },
     orderBy: { createdAt: "asc" },
@@ -112,6 +113,9 @@ export async function listTenantMembers(tenantId: string) {
       user: {
         select: userPublicSelect,
       },
+      teacherProfile: {
+        select: { id: true, color: true, priority: true, deletedAt: true },
+      },
     },
   });
 
@@ -120,6 +124,10 @@ export async function listTenantMembers(tenantId: string) {
       membershipId: m.id,
       role: m.role,
       createdAt: m.createdAt.toISOString(),
+      teacherProfile:
+        m.teacherProfile && !m.teacherProfile.deletedAt
+          ? { id: m.teacherProfile.id, color: m.teacherProfile.color, priority: m.teacherProfile.priority }
+          : null,
       user: {
         ...m.user,
         disabledAt: m.user.disabledAt?.toISOString() ?? null,

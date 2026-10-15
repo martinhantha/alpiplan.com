@@ -37,6 +37,7 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
       isSuperadmin: user.isSuperadmin,
       nextDayBriefingEnabled: user.nextDayBriefingEnabled,
       nextDayBriefingMinutes: user.nextDayBriefingMinutes,
+      appointmentMovedAlertsEnabled: user.appointmentMovedAlertsEnabled,
     },
     memberships: user.memberships.map((m) => ({
       tenantId: m.tenantId,

@@ -244,8 +244,23 @@ export async function sendPushToUsers(input: {
   return { sent: results.filter((result) => result === "ok").length };
 }
 
+async function movedAlertAdminUserIds(event: AppointmentLiveEvent): Promise<string[]> {
+  if (event.type !== "appointment.moved") return [];
+  const admins = await prisma.membership.findMany({
+    where: {
+      tenantId: event.tenantId,
+      role: "ADMIN",
+      deletedAt: null,
+      userId: { not: event.actorUserId },
+      user: { deletedAt: null, disabledAt: null, appointmentMovedAlertsEnabled: true },
+    },
+    select: { userId: true },
+  });
+  return admins.map((admin) => admin.userId);
+}
+
 export async function sendAppointmentPush(event: AppointmentLiveEvent): Promise<void> {
-  const userIds = pushRecipientUserIds(event);
+  const userIds = [...new Set([...pushRecipientUserIds(event), ...(await movedAlertAdminUserIds(event))])];
   if (!userIds.length) return;
   const copy = liveEventNotificationCopy(event);
   await sendPushToUsers({

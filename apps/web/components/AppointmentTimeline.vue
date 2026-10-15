@@ -4,7 +4,7 @@ export interface TimelineAppointment {
   startsAt: string;
   endsAt: string;
   status: "draft" | "confirmed" | "completed" | "cancelled";
-  lessonType: { id: string; name: string } | null;
+  lessonType: { id: string; name: string; color?: string | null } | null;
   resource: { id: string; name: string } | null;
 }
 
@@ -22,10 +22,16 @@ export interface TimelineMove<T extends TimelineAppointment = TimelineAppointmen
   fromRowId: string;
   toRowId: string;
 }
+
+export interface TimelineCreate {
+  startsAt: Date;
+  rowId: string;
+}
 </script>
 
 <script setup lang="ts" generic="T extends TimelineAppointment">
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
+import type { DropdownMenuItem } from "@nuxt/ui";
 import { avatarColor, avatarInitials } from "../utils/avatar";
 
 const props = defineProps<{
@@ -35,17 +41,21 @@ const props = defineProps<{
   toHour: number;
   canMove: boolean;
   canChangeRow: boolean;
+  /** Clicking free space in a row emits `create`. */
+  canCreate?: boolean;
   /** Color rows and items per person; otherwise everything uses the primary color. */
   personColors?: boolean;
   savingId?: string;
   showResource?: boolean;
   titleOf: (appointment: T) => string;
   formatTime: (value: string | Date) => string;
+  menuItems?: (appointment: T) => DropdownMenuItem[][];
 }>();
 
 const emit = defineEmits<{
   open: [appointment: T];
   move: [move: TimelineMove<T>];
+  create: [create: TimelineCreate];
 }>();
 
 const LANE_HEIGHT = 58;
@@ -114,6 +124,12 @@ const UNASSIGNED_COLOR = "#a3a3a3";
 function rowColor(row: { id: string; color?: string | null }) {
   if (row.id === "__unassigned") return UNASSIGNED_COLOR;
   return props.personColors ? avatarColor(row.id, row.color) : "var(--ui-primary)";
+}
+
+/** Chip body follows the lesson type; the left stripe keeps the person color. */
+function chipColor(appointment: TimelineAppointment, row: { id: string; color?: string | null }) {
+  const type = appointment.lessonType;
+  return type ? avatarColor(type.id, type.color) : rowColor(row);
 }
 
 function chipStyle(color: string, status: TimelineAppointment["status"]) {
@@ -279,6 +295,43 @@ function onChipClick(appointment: T) {
   emit("open", appointment);
 }
 
+// --- Click into free space ----------------------------------------------
+
+const CREATE_PREVIEW_MINUTES = 60;
+const hoverSlot = ref<{ rowId: string; start: number } | null>(null);
+const menuOpenFor = ref<string | null>(null);
+
+function slotStartAt(clientX: number) {
+  const el = rowsRef.value;
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width) return null;
+  const minutes = rangeStart.value + ((clientX - rect.left) / rect.width) * span.value;
+  const start = Math.floor(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+  return Math.min(Math.max(start, rangeStart.value), rangeEnd.value - SNAP_MINUTES);
+}
+
+function onRowPointerMove(event: PointerEvent, rowId: string) {
+  if (!props.canCreate || drag.value || event.pointerType !== "mouse" || event.target !== event.currentTarget) {
+    hoverSlot.value = null;
+    return;
+  }
+  const start = slotStartAt(event.clientX);
+  hoverSlot.value = start === null ? null : { rowId, start };
+}
+
+function onRowClick(event: MouseEvent, rowId: string) {
+  if (!props.canCreate || suppressClickFor || event.target !== event.currentTarget) return;
+  const start = slotStartAt(event.clientX);
+  if (start === null) return;
+  hoverSlot.value = null;
+  emit("create", { startsAt: new Date(props.day.getTime() + start * 60000), rowId });
+}
+
+function hoverSlotEnd(start: number) {
+  return Math.min(start + CREATE_PREVIEW_MINUTES, rangeEnd.value);
+}
+
 const isDragging = (id: string) => drag.value?.active && drag.value.appointment.id === id;
 
 const ghostTargetRow = computed(() => (drag.value?.active ? drag.value.rowId : null));
@@ -399,13 +452,33 @@ function chipTitle(appointment: T) {
               v-for="row in layout"
               :key="row.id"
               class="relative border-b border-neutral-100 transition-colors last:border-b-0 dark:border-neutral-900"
-              :class="ghostTargetRow === row.id ? 'bg-primary-50/50 dark:bg-primary-500/5' : 'hover:bg-neutral-50/60 dark:hover:bg-white/[0.015]'"
+              :class="[
+                ghostTargetRow === row.id ? 'bg-primary-50/50 dark:bg-primary-500/5' : 'hover:bg-neutral-50/60 dark:hover:bg-white/[0.015]',
+                canCreate ? 'cursor-copy' : '',
+              ]"
               :style="{ height: `${row.height}px` }"
+              @pointermove="onRowPointerMove($event, row.id)"
+              @pointerleave="hoverSlot = null"
+              @click="onRowClick($event, row.id)"
             >
-              <button
+              <div
+                v-if="hoverSlot?.rowId === row.id && !drag?.active"
+                class="pointer-events-none absolute flex items-center gap-1 rounded-lg border border-dashed border-primary-400 bg-primary-50/60 px-2 text-[11px] font-medium tabular-nums text-primary-700 dark:border-primary-500/60 dark:bg-primary-500/10 dark:text-primary-200"
+                :style="{
+                  left: `calc(${percentOf(hoverSlot.start)}% + 2px)`,
+                  width: `calc(${percentOf(hoverSlotEnd(hoverSlot.start)) - percentOf(hoverSlot.start)}% - 4px)`,
+                  top: `${ROW_PADDING / 2 + 2}px`,
+                  height: `${LANE_HEIGHT - 4}px`,
+                }"
+              >
+                <UIcon name="i-lucide-plus" class="size-3.5 shrink-0" />
+                <span class="truncate">{{ formatMinutes(hoverSlot.start) }}</span>
+              </div>
+              <div
                 v-for="item in row.items"
                 :key="item.appointment.id"
-                type="button"
+                role="button"
+                tabindex="0"
                 draggable="false"
                 class="group absolute flex select-none overflow-hidden rounded-lg border bg-white text-left text-neutral-900 shadow-sm transition-[box-shadow,transform,opacity] duration-150 hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary-500 dark:bg-neutral-900 dark:text-neutral-50"
                 :class="[
@@ -413,9 +486,10 @@ function chipTitle(appointment: T) {
                   canMove && item.appointment.status !== 'cancelled' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
                   isDragging(item.appointment.id) ? 'opacity-35 shadow-none' : '',
                   savingId === item.appointment.id ? 'animate-pulse' : '',
+                  menuOpenFor === item.appointment.id ? 'z-10 shadow-md' : '',
                 ]"
                 :style="{
-                  ...chipStyle(rowColor(row), item.appointment.status),
+                  ...chipStyle(chipColor(item.appointment, row), item.appointment.status),
                   left: `calc(${percentOf(item.start)}% + 2px)`,
                   width: `calc(${percentOf(item.end) - percentOf(item.start)}% - 4px)`,
                   top: `${item.lane * LANE_HEIGHT + ROW_PADDING / 2 + 2}px`,
@@ -425,6 +499,8 @@ function chipTitle(appointment: T) {
                 @pointerdown="onPointerDown($event, item, row.id, 'move')"
                 @dragstart.prevent
                 @click="onChipClick(item.appointment)"
+                @keydown.enter.self.prevent="onChipClick(item.appointment)"
+                @keydown.space.self.prevent="onChipClick(item.appointment)"
               >
                 <span class="w-1 shrink-0" :style="{ backgroundColor: rowColor(row) }" />
                 <span class="min-w-0 flex-1 px-2 py-1.5 leading-tight">
@@ -455,13 +531,37 @@ function chipTitle(appointment: T) {
                 >
                   <span class="absolute inset-y-3 right-0.5 w-0.5 rounded-full bg-current opacity-40" />
                 </span>
-              </button>
+                <span
+                  v-if="menuItems"
+                  class="absolute right-2 top-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                  :class="menuOpenFor === item.appointment.id ? 'opacity-100' : ''"
+                  @pointerdown.stop
+                  @click.stop
+                  @keydown.stop
+                >
+                  <UDropdownMenu
+                    :items="menuItems(item.appointment)"
+                    :content="{ align: 'end' }"
+                    :modal="false"
+                    @update:open="(open: boolean) => (menuOpenFor = open ? item.appointment.id : null)"
+                  >
+                    <button
+                      type="button"
+                      class="flex size-6 items-center justify-center rounded-md bg-white/90 text-neutral-600 shadow-sm ring-1 ring-neutral-200 hover:text-neutral-900 dark:bg-neutral-800/90 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:text-white"
+                      aria-label="Termin-Aktionen"
+                      title="Aktionen"
+                    >
+                      <UIcon name="i-lucide-ellipsis" class="size-4" />
+                    </button>
+                  </UDropdownMenu>
+                </span>
+              </div>
 
               <div
                 v-if="drag?.active && drag.rowId === row.id"
                 class="pointer-events-none absolute z-20 flex overflow-hidden rounded-lg border bg-white text-neutral-900 shadow-xl ring-2 ring-primary-500 dark:bg-neutral-900 dark:text-neutral-50"
                 :style="{
-                  ...chipStyle(rowColor(row), drag.appointment.status),
+                  ...chipStyle(chipColor(drag.appointment, row), drag.appointment.status),
                   left: `calc(${percentOf(drag.start)}% + 2px)`,
                   width: `calc(${percentOf(drag.end) - percentOf(drag.start)}% - 4px)`,
                   top: `${ROW_PADDING / 2 + 2}px`,
@@ -486,7 +586,9 @@ function chipTitle(appointment: T) {
       class="flex items-center gap-1.5 border-t border-neutral-100 px-3 py-2 text-[11px] text-neutral-500 dark:border-neutral-900"
     >
       <UIcon name="i-lucide-mouse-pointer-2" class="size-3.5" />
-      Ziehen zum Verschieben{{ canChangeRow ? " (auch auf andere Personen)" : "" }}, rechten Rand ziehen für die Dauer, Esc bricht ab.
+      Ziehen zum Verschieben{{ canChangeRow ? " (auch auf andere Personen)" : "" }}, rechten Rand ziehen für die Dauer, Esc bricht ab.{{
+        canCreate ? " Klick auf eine freie Stelle legt einen neuen Termin an." : ""
+      }}
     </div>
   </div>
 </template>

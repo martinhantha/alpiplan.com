@@ -126,6 +126,8 @@ model User {
   nextDayBriefingEnabled Boolean @default(true)
   /// local time (Europe/Rome) of the briefing, minutes after midnight; default 20:00
   nextDayBriefingMinutes Int @default(1200)
+  /// as tenant admin: push + in-app alert when someone else moves an appointment; default on
+  appointmentMovedAlertsEnabled Boolean @default(true)
 
   memberships          Membership[]
   assistantPreferences UserAssistantPreference[]
@@ -175,6 +177,8 @@ model TeacherProfile {
   displayName  String
   /// "#rrggbb" calendar color; null = derived from id on the client
   color        String?
+  /// higher = suggested first in Schnellerfassung and next-free-slot search
+  priority     Int       @default(0)
   qualifications Json?   // e.g. levels, tags
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -187,6 +191,7 @@ model TeacherProfile {
 
   appointments         Appointment[]
   appointmentLinks     AppointmentTeacher[]
+  lessonTypeLinks      LessonTypeTeacher[]
   availabilityRules    AvailabilityRule[]
   availabilityExceptions AvailabilityException[]
 
@@ -302,6 +307,8 @@ model LessonType {
   tenantId  String    @db.Uuid
   name      String
   defaultDurationMin Int?
+  /// "#rrggbb" calendar color; null = derived from id on the client
+  color     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -310,8 +317,22 @@ model LessonType {
   tenant            Tenant        @relation(fields: [tenantId], references: [id])
   appointments      Appointment[]
   defaultForTenants Tenant[]      @relation("TenantDefaultLessonType")
+  /// teachers suggested first when this type is picked in Schnellerfassung
+  teachers          LessonTypeTeacher[]
 
   @@index([tenantId])
+}
+
+model LessonTypeTeacher {
+  lessonTypeId String   @db.Uuid
+  teacherId    String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  lessonType LessonType     @relation(fields: [lessonTypeId], references: [id], onDelete: Cascade)
+  teacher    TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@id([lessonTypeId, teacherId])
+  @@index([teacherId])
 }
 
 model Appointment {

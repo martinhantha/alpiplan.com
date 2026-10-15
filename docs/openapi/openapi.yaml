@@ -274,20 +274,24 @@ paths:
     patch:
       tags: [Availability]
       operationId: updateTeacherProfile
-      description: Set the calendar color (ADMIN only).
+      description: Set the calendar color and/or scheduling priority (ADMIN only). At least one field is required.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [color]
               properties:
                 color:
                   type: string
                   nullable: true
                   pattern: "^#[0-9a-fA-F]{6}$"
                   description: null resets to the automatically assigned color
+                priority:
+                  type: integer
+                  minimum: -100
+                  maximum: 100
+                  description: higher = suggested first in quick capture and next-free-slot search
       responses:
         "200":
           content:
@@ -298,6 +302,7 @@ paths:
                   id: { type: string, format: uuid }
                   displayName: { type: string }
                   color: { type: string, nullable: true }
+                  priority: { type: integer }
 
   /tenants/{tenantId}/teachers/{teacherId}/availability/exceptions:
     parameters:
@@ -531,6 +536,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SchedulingOptions"
+
+  /tenants/{tenantId}/scheduling/availability:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      tags: [Scheduling]
+      operationId: getTeacherAvailability
+      summary: Which teachers are free in a time range, plus up to two free slots on that day
+      parameters:
+        - { name: startsAt, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: endsAt, in: query, required: true, schema: { type: string, format: date-time } }
+        - name: excludeAppointmentId
+          in: query
+          schema: { type: string, format: uuid }
+          description: Ignore this appointment when checking overlaps (editing)
+        - { name: teacherId, in: query, schema: { type: string, format: uuid }, description: Preferred teacher for firstFreeSlot }
+        - { name: resourceId, in: query, schema: { type: string, format: uuid } }
+        - name: lessonTypeId
+          in: query
+          schema: { type: string, format: uuid }
+          description: Teachers assigned to this lesson type are ranked first
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: >-
+                      Ordered best-first: lesson-type teachers, then teacher priority, then a
+                      pseudo-random order that is stable per business date.
+                    items:
+                      type: object
+                      properties:
+                        teacherId: { type: string, format: uuid }
+                        available: { type: boolean }
+                        reason: { type: string, nullable: true, enum: [absent, unavailable, booked] }
+                        fitsLessonType: { type: boolean }
+                  firstFreeSlot:
+                    type: object
+                    nullable: true
+                    properties:
+                      date: { type: string, format: date }
+                      time: { type: string, example: "09:00" }
+                      startsAt: { type: string, format: date-time }
+                      endsAt: { type: string, format: date-time }
+                      teacherId: { type: string, format: uuid, nullable: true }
+                      teacherName: { type: string, nullable: true }
+                  freeSlots:
+                    type: array
+                    maxItems: 2
+                    description: >-
+                      Up to two non-overlapping suggestions on that day, best first.
+                      freeSlots[0] equals firstFreeSlot.
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        time: { type: string, example: "09:00" }
+                        startsAt: { type: string, format: date-time }
+                        endsAt: { type: string, format: date-time }
+                        teacherId: { type: string, format: uuid, nullable: true }
+                        teacherName: { type: string, nullable: true }
 
   /tenants/{tenantId}/sync/push:
     parameters:

@@ -43,7 +43,7 @@ const appointmentSelect = {
   createdAt: true,
   createdByUserId: true,
   updatedAt: true,
-  lessonType: { select: { id: true, name: true, defaultDurationMin: true } },
+  lessonType: { select: { id: true, name: true, defaultDurationMin: true, color: true } },
   teacher: { select: { id: true, displayName: true, color: true } },
   teachers: {
     select: {
@@ -333,9 +333,6 @@ function parseTeacherIds(body: Record<string, unknown>): string[] | undefined {
       if (typeof value !== "string" || !value.trim()) continue;
       const id = assertUuid(value, "teacherIds");
       if (!ids.includes(id)) ids.push(id);
-    }
-    if (ids.length > 8) {
-      throwValidation("Höchstens 8 Zuordnungen", { field: "teacherIds" });
     }
     return ids;
   }
@@ -998,26 +995,74 @@ export async function restoreAppointment(tenantId: string, appointmentIdInput: s
   return getAppointment(tenantId, appointmentId);
 }
 
+/** "#rrggbb" or null (= automatic color derived from the id on the client). */
+function parseCalendarColor(value: unknown): string | null {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) {
+    throwValidation("Farbe muss im Format #rrggbb sein", { field: "color" });
+  }
+  return value.toLowerCase();
+}
+
+const lessonTypeSelect = {
+  id: true,
+  tenantId: true,
+  name: true,
+  defaultDurationMin: true,
+  color: true,
+  createdAt: true,
+  updatedAt: true,
+  teachers: {
+    where: { teacher: { deletedAt: null } },
+    select: { teacherId: true },
+    orderBy: { createdAt: "asc" },
+  },
+} satisfies Prisma.LessonTypeSelect;
+
+function toLessonTypeDto(row: Prisma.LessonTypeGetPayload<{ select: typeof lessonTypeSelect }>) {
+  const { teachers, ...rest } = row;
+  return {
+    ...rest,
+    teacherIds: teachers.map((link) => link.teacherId),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 export async function listLessonTypes(tenantId: string) {
   const rows = await prisma.lessonType.findMany({
     where: { tenantId, deletedAt: null },
     orderBy: { name: "asc" },
-    select: {
-      id: true,
-      tenantId: true,
-      name: true,
-      defaultDurationMin: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: lessonTypeSelect,
   });
-  return {
-    data: rows.map((row) => ({
-      ...row,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    })),
-  };
+  return { data: rows.map(toLessonTypeDto) };
+}
+
+function parseLessonTypeTeacherIds(body: Record<string, unknown>): string[] | undefined {
+  if (!hasOwn(body, "teacherIds")) return undefined;
+  if (body.teacherIds === null) return [];
+  if (!Array.isArray(body.teacherIds)) {
+    throwValidation("teacherIds muss eine Liste sein", { field: "teacherIds" });
+  }
+  const ids: string[] = [];
+  for (const value of body.teacherIds as unknown[]) {
+    if (typeof value !== "string" || !value.trim()) continue;
+    const id = assertUuid(value, "teacherIds");
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+async function validateLessonTypeTeachers(tenantId: string, teacherIds: string[]) {
+  if (!teacherIds.length) return;
+  const found = await prisma.teacherProfile.findMany({
+    where: { tenantId, deletedAt: null, id: { in: teacherIds } },
+    select: { id: true },
+  });
+  const missing = teacherIds.filter((id) => !found.some((teacher) => teacher.id === id));
+  if (missing.length) {
+    throwNotFound("Lehrer nicht gefunden", { teacherIds: missing });
+  }
 }
 
 function normalizeLessonTypePayload(rawBody: unknown, partial = false) {
@@ -1045,11 +1090,14 @@ function normalizeLessonTypePayload(rawBody: unknown, partial = false) {
     }
   }
 
-  return { name, defaultDurationMin };
+  const color = hasOwn(body, "color") ? parseCalendarColor(body.color) : undefined;
+
+  return { name, defaultDurationMin, color, teacherIds: parseLessonTypeTeacherIds(body) };
 }
 
 export async function createLessonType(tenantId: string, rawBody: unknown) {
   const payload = normalizeLessonTypePayload(rawBody);
+  await validateLessonTypeTeachers(tenantId, payload.teacherIds ?? []);
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { useDefaultDuration: true },
@@ -1060,21 +1108,14 @@ export async function createLessonType(tenantId: string, rawBody: unknown) {
       tenantId,
       name: payload.name!,
       defaultDurationMin: useDefaultDuration ? payload.defaultDurationMin ?? null : null,
+      color: payload.color ?? null,
+      teachers: payload.teacherIds?.length
+        ? { create: payload.teacherIds.map((teacherId) => ({ teacherId })) }
+        : undefined,
     },
-    select: {
-      id: true,
-      tenantId: true,
-      name: true,
-      defaultDurationMin: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: lessonTypeSelect,
   });
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  return toLessonTypeDto(row);
 }
 
 export async function patchLessonType(
@@ -1098,27 +1139,25 @@ export async function patchLessonType(
   const useDefaultDuration = tenant?.useDefaultDuration ?? true;
   const data: Prisma.LessonTypeUncheckedUpdateInput = {};
   if (payload.name !== undefined) data.name = payload.name;
+  if (payload.color !== undefined) data.color = payload.color;
   if (payload.defaultDurationMin !== undefined) {
     data.defaultDurationMin = useDefaultDuration ? payload.defaultDurationMin : null;
+  }
+  const teacherIds = payload.teacherIds;
+  if (teacherIds) {
+    await validateLessonTypeTeachers(tenantId, teacherIds);
+    data.teachers = {
+      deleteMany: {},
+      create: teacherIds.map((teacherId) => ({ teacherId })),
+    };
   }
 
   const row = await prisma.lessonType.update({
     where: { id: lessonTypeId },
     data,
-    select: {
-      id: true,
-      tenantId: true,
-      name: true,
-      defaultDurationMin: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: lessonTypeSelect,
   });
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  return toLessonTypeDto(row);
 }
 
 export async function softDeleteLessonType(
@@ -1158,20 +1197,9 @@ export async function restoreLessonType(tenantId: string, lessonTypeIdInput: str
   const row = await prisma.lessonType.update({
     where: { id: lessonTypeId },
     data: { deletedAt: null, deletedByUserId: null },
-    select: {
-      id: true,
-      tenantId: true,
-      name: true,
-      defaultDurationMin: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: lessonTypeSelect,
   });
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  return toLessonTypeDto(row);
 }
 
 export async function listCustomers(tenantId: string, query: { q?: string }) {
@@ -1676,20 +1704,24 @@ export async function updateTeacherProfile(tenantId: string, teacherIdInput: str
   const teacherId = normalizeRequiredUuid(teacherIdInput, "teacherId");
   await requireTeacher(tenantId, teacherId);
   const body = (rawBody ?? {}) as Record<string, unknown>;
-  if (!hasOwn(body, "color")) {
-    throwValidation("color ist erforderlich", { field: "color" });
+  if (!hasOwn(body, "color") && !hasOwn(body, "priority")) {
+    throwValidation("color oder priority ist erforderlich");
   }
-  let color: string | null = null;
-  if (body.color !== null && body.color !== "") {
-    if (typeof body.color !== "string" || !/^#[0-9a-f]{6}$/i.test(body.color)) {
-      throwValidation("Farbe muss im Format #rrggbb sein", { field: "color" });
+  const data: Prisma.TeacherProfileUncheckedUpdateInput = {};
+  if (hasOwn(body, "color")) {
+    data.color = parseCalendarColor(body.color);
+  }
+  if (hasOwn(body, "priority")) {
+    const priority = Number(body.priority);
+    if (!Number.isInteger(priority) || priority < -100 || priority > 100) {
+      throwValidation("Priorität muss eine ganze Zahl zwischen -100 und 100 sein", { field: "priority" });
     }
-    color = body.color.toLowerCase();
+    data.priority = priority;
   }
   return prisma.teacherProfile.update({
     where: { id: teacherId },
-    data: { color },
-    select: { id: true, displayName: true, color: true },
+    data,
+    select: { id: true, displayName: true, color: true, priority: true },
   });
 }
 
@@ -1699,8 +1731,8 @@ export async function getSchedulingOptions(tenantId: string, query: { q?: string
   const [teachers, resources, lessonTypes, customers, tenant] = await Promise.all([
     prisma.teacherProfile.findMany({
       where: { tenantId, deletedAt: null, membership: { deletedAt: null } },
-      select: { id: true, displayName: true, color: true, qualifications: true },
-      orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true, color: true, priority: true, qualifications: true },
+      orderBy: [{ priority: "desc" }, { displayName: "asc" }],
     }),
     prisma.resource.findMany({
       where: { tenantId, deletedAt: null },
@@ -2198,15 +2230,57 @@ export type SuggestedPrioritySlot = {
   priority: number;
 };
 
-export async function suggestNextPrioritySlot(
+function seededTieBreak(seed: string, id: string) {
+  let hash = 2166136261;
+  for (const char of `${seed}:${id}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Lesson-type teachers first, then teacher priority, then a pseudo-random order that is
+ * stable per seed (business date) so suggestions don't jump on every availability refresh.
+ */
+export function rankTeacherIds(
+  teachers: { id: string; priority: number }[],
+  options: { lessonTypeTeacherIds?: string[]; seed: string },
+): string[] {
+  const typeTeachers = new Set(options.lessonTypeTeacherIds ?? []);
+  const fitsType = (id: string) => (typeTeachers.has(id) ? 1 : 0);
+  return [...teachers]
+    .sort(
+      (left, right) =>
+        fitsType(right.id) - fitsType(left.id) ||
+        right.priority - left.priority ||
+        seededTieBreak(options.seed, left.id) - seededTieBreak(options.seed, right.id),
+    )
+    .map((teacher) => teacher.id);
+}
+
+async function lessonTypeTeacherIds(tenantId: string, lessonTypeId: string | null | undefined) {
+  if (!lessonTypeId) return [];
+  const links = await prisma.lessonTypeTeacher.findMany({
+    where: { lessonTypeId, lessonType: { tenantId, deletedAt: null } },
+    select: { teacherId: true },
+  });
+  return links.map((link) => link.teacherId);
+}
+
+export async function suggestPrioritySlots(
   tenantId: string,
   input: {
     teacherId?: string | null;
     resourceId?: string | null;
+    lessonTypeId?: string | null;
     durationMin?: number;
     onDate?: string | null;
+    days?: number;
+    excludeAppointmentId?: string | null;
   },
-): Promise<SuggestedPrioritySlot | null> {
+  limitInput = 1,
+): Promise<SuggestedPrioritySlot[]> {
   const durationMin = Math.max(15, input.durationMin ?? 60);
   const durationMs = durationMin * 60_000;
   const nowParts = getBusinessParts(new Date());
@@ -2214,16 +2288,18 @@ export async function suggestNextPrioritySlot(
     input.onDate && /^\d{4}-\d{2}-\d{2}$/.test(input.onDate) && input.onDate >= nowParts.date
       ? input.onDate
       : nowParts.date;
-  const searchEndDate = addDaysToDateString(searchStartDate, input.onDate ? 3 : 14);
+  const dayCount = Math.max(1, input.days ?? (input.onDate ? 4 : 15));
+  const searchEndDate = addDaysToDateString(searchStartDate, dayCount - 1);
   const searchFrom = fromBusinessDateTime(searchStartDate, "00:00");
   const searchTo = fromBusinessDateTime(addDaysToDateString(searchEndDate, 1), "00:00");
 
-  const [teachers, resources, rules, exceptions, nearbyRows, tenant] = await Promise.all([
+  const [teachers, typeTeacherIds, resources, rules, exceptions, nearbyRows, tenant] = await Promise.all([
     prisma.teacherProfile.findMany({
       where: { tenantId, deletedAt: null, membership: { deletedAt: null } },
-      select: { id: true, displayName: true },
-      orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true, priority: true },
+      orderBy: [{ priority: "desc" }, { displayName: "asc" }],
     }),
+    lessonTypeTeacherIds(tenantId, input.lessonTypeId),
     prisma.resource.findMany({
       where: { tenantId, deletedAt: null },
       select: { id: true, name: true, capacity: true },
@@ -2258,7 +2334,7 @@ export async function suggestNextPrioritySlot(
     }),
     prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { defaultTeacherId: true, resourcesEnabled: true },
+      select: { resourcesEnabled: true },
     }),
   ]);
 
@@ -2271,14 +2347,16 @@ export async function suggestNextPrioritySlot(
       : (resources[0]?.id ?? null)
     : null;
 
-  const preferredTeacherIds: string[] = [];
-  const pushTeacher = (id: string | null | undefined) => {
-    if (!id || preferredTeacherIds.includes(id)) return;
-    if (teachers.some((teacher) => teacher.id === id)) preferredTeacherIds.push(id);
+  const preferredTeacherId =
+    input.teacherId && teachers.some((teacher) => teacher.id === input.teacherId) ? input.teacherId : null;
+  const teacherTiersFor = (date: string): string[][] => {
+    const ranked = rankTeacherIds(teachers, { lessonTypeTeacherIds: typeTeacherIds, seed: date }).filter(
+      (id) => id !== preferredTeacherId,
+    );
+    const typeTier = ranked.filter((id) => typeTeacherIds.includes(id));
+    const restTier = ranked.filter((id) => !typeTeacherIds.includes(id));
+    return [preferredTeacherId ? [preferredTeacherId] : [], typeTier, restTier].filter((tier) => tier.length);
   };
-  pushTeacher(input.teacherId);
-  pushTeacher(tenant?.defaultTeacherId);
-  for (const teacher of teachers) pushTeacher(teacher.id);
 
   const rulesByTeacher = new Map<string, AvailabilityMatchRule[]>();
   const priorityRulesByTeacher = new Map<string, AvailabilityMatchRule[]>();
@@ -2318,7 +2396,7 @@ export async function suggestNextPrioritySlot(
     resources.map((resource) => [resource.id, resource.capacity]),
   );
   const checkBase = {
-    excludeAppointmentId: "",
+    excludeAppointmentId: input.excludeAppointmentId ?? "",
     nearby,
     resourceCapacity,
     rulesByTeacher,
@@ -2385,11 +2463,11 @@ export async function suggestNextPrioritySlot(
       .sort((left, right) => right.priority - left.priority || left.startTime.localeCompare(right.startTime));
   };
 
-  const scanDay = (
+  function* scanDay(
     teacherId: string,
     date: string,
     minPriority: number | null,
-  ): SuggestedPrioritySlot | null => {
+  ): Generator<SuggestedPrioritySlot> {
     const weekday = getBusinessParts(fromBusinessDateTime(date, "12:00")).weekday;
     for (const range of windowsFor(teacherId, weekday, minPriority)) {
       const startMin = parseMinutes(range.startTime);
@@ -2397,30 +2475,149 @@ export async function suggestNextPrioritySlot(
       for (let slot = startMin; slot + durationMin <= endMin; slot += 15) {
         const startsAt = fromBusinessDateTime(date, formatMinutes(slot));
         const found = trySlot(teacherId, startsAt, range.priority);
-        if (found) return found;
+        if (found) yield found;
       }
     }
-    return null;
-  };
+  }
 
   const availableRules = rules.filter((rule) => rule.kind !== AvailabilityRuleKind.unavailable);
   const priorities: number[] = [
     ...new Set(availableRules.map((rule: { priority: number }) => Number(rule.priority) || 0)),
   ].sort((left, right) => right - left);
   const priorityLevels: Array<number | null> = availableRules.length ? priorities : [null];
-  const dayCount = input.onDate ? 4 : 15;
+
+  const limit = Math.max(1, limitInput);
+  const picked: SuggestedPrioritySlot[] = [];
+  // Further suggestions must not overlap earlier ones, so they are real alternatives.
+  const overlapsPicked = (slot: SuggestedPrioritySlot) =>
+    picked.some((other) => slot.startsAt < other.endsAt && slot.endsAt > other.startsAt);
 
   for (let dayOffset = 0; dayOffset < dayCount; dayOffset += 1) {
     const date = addDaysToDateString(searchStartDate, dayOffset);
-    for (const priority of priorityLevels) {
-      for (const teacherId of preferredTeacherIds) {
-        const found = scanDay(teacherId, date, priority);
-        if (found) return found;
+    for (const tier of teacherTiersFor(date)) {
+      for (const priority of priorityLevels) {
+        for (const teacherId of tier) {
+          for (const found of scanDay(teacherId, date, priority)) {
+            if (overlapsPicked(found)) continue;
+            picked.push(found);
+            if (picked.length >= limit) return picked;
+          }
+        }
       }
     }
   }
 
-  return null;
+  return picked;
+}
+
+export async function suggestNextPrioritySlot(
+  tenantId: string,
+  input: Parameters<typeof suggestPrioritySlots>[1],
+): Promise<SuggestedPrioritySlot | null> {
+  const [first] = await suggestPrioritySlots(tenantId, input, 1);
+  return first ?? null;
+}
+
+export type TeacherAvailabilityReason = "absent" | "unavailable" | "booked";
+
+export async function getTeacherAvailability(
+  tenantId: string,
+  query: {
+    startsAt?: string;
+    endsAt?: string;
+    excludeAppointmentId?: string;
+    teacherId?: string;
+    resourceId?: string;
+    lessonTypeId?: string;
+  },
+) {
+  const startsAt = parseRequiredDate(query.startsAt, "startsAt");
+  const endsAt = parseRequiredDate(query.endsAt, "endsAt");
+  ensureRange(startsAt, endsAt);
+  const excludeAppointmentId = query.excludeAppointmentId
+    ? assertUuid(query.excludeAppointmentId, "excludeAppointmentId")
+    : "";
+  const preferredTeacherId = query.teacherId ? assertUuid(query.teacherId, "teacherId") : null;
+  const resourceId = query.resourceId ? assertUuid(query.resourceId, "resourceId") : null;
+  const lessonTypeId = query.lessonTypeId ? assertUuid(query.lessonTypeId, "lessonTypeId") : null;
+
+  const [teachers, typeTeacherIds, rules, exceptions, rows] = await Promise.all([
+    prisma.teacherProfile.findMany({
+      where: { tenantId, deletedAt: null, membership: { deletedAt: null } },
+      select: { id: true, priority: true },
+    }),
+    lessonTypeTeacherIds(tenantId, lessonTypeId),
+    prisma.availabilityRule.findMany({
+      where: { tenantId, deletedAt: null },
+      select: { teacherId: true, weekday: true, weekdays: true, startTime: true, endTime: true, kind: true, allDay: true },
+    }),
+    prisma.availabilityException.findMany({
+      where: { tenantId, deletedAt: null },
+      select: { teacherId: true, type: true, startsOn: true, endsOn: true, startTime: true, endTime: true },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        tenantId,
+        deletedAt: null,
+        status: { in: activeAppointmentStatuses },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
+      },
+      select: slotCheckAppointmentSelect,
+    }),
+  ]);
+
+  const overlapping = rows.map(toSlotCheckAppointment);
+  const start = getBusinessParts(startsAt);
+  const end = getBusinessParts(endsAt);
+
+  const ranking = rankTeacherIds(teachers, { lessonTypeTeacherIds: typeTeacherIds, seed: start.date });
+  const rankedTeachers = ranking.map((id) => teachers.find((teacher) => teacher.id === id)!);
+
+  const data = rankedTeachers.map((teacher) => {
+    const teacherRules: AvailabilityMatchRule[] = rules
+      .filter((rule) => rule.teacherId === teacher.id)
+      .map((rule) => ({ ...rule, weekdays: rule.weekdays.length ? rule.weekdays : [rule.weekday] }));
+    const teacherExceptions: ExceptionMatch[] = exceptions.filter((exception) => exception.teacherId === teacher.id);
+    let reason: TeacherAvailabilityReason | null = null;
+    if (findBlockingException(teacherExceptions, start, end)) {
+      reason = "absent";
+    } else if (teacherBlockedByAvailability(teacherRules, teacherExceptions, startsAt, endsAt)) {
+      reason = "unavailable";
+    } else if (overlapping.some((row) => row.teacherIds.includes(teacher.id))) {
+      reason = "booked";
+    }
+    return {
+      teacherId: teacher.id,
+      available: reason === null,
+      reason,
+      fitsLessonType: typeTeacherIds.includes(teacher.id),
+    };
+  });
+
+  const durationMin = Math.max(15, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000));
+  const freeSlots = (
+    await suggestPrioritySlots(
+      tenantId,
+      {
+        teacherId: preferredTeacherId,
+        resourceId,
+        lessonTypeId,
+        durationMin,
+        onDate: start.date,
+        days: 1,
+        excludeAppointmentId,
+      },
+      2,
+    )
+  ).filter((slot) => slot.date === start.date);
+
+  return {
+    data,
+    firstFreeSlot: freeSlots[0] ?? null,
+    freeSlots,
+  };
 }
 
 export async function suggestAppointmentAlternatives(

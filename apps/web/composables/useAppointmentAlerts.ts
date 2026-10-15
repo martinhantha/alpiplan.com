@@ -14,6 +14,7 @@ let askedPushPermission = false;
 const LIVE_TYPES = new Set<AppointmentLiveEventType>([
   "appointment.created",
   "appointment.moved",
+  "appointment.updated",
   "appointment.deleted",
 ]);
 
@@ -106,7 +107,7 @@ export function useAppointmentAlerts() {
   function show(event: AppointmentLiveEvent) {
     window.dispatchEvent(new CustomEvent(APPOINTMENT_LIVE_EVENT, { detail: event }));
 
-    if (event.actorUserId === user.value?.id) return;
+    if (event.actorUserId === user.value?.id || event.notify === false) return;
 
     alert.value = event;
     canAskNotifications.value = browserCanAskNotifications();
@@ -160,8 +161,15 @@ export function useAppointmentAlerts() {
 }
 
 export function useAppointmentListSync(reload: () => void | Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // Bulk actions (e.g. copying to several days) emit one event per appointment.
   function onLive() {
-    void reload();
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = undefined;
+      void reload();
+    }, 300);
   }
 
   onMounted(() => {
@@ -169,6 +177,7 @@ export function useAppointmentListSync(reload: () => void | Promise<void>) {
   });
 
   onUnmounted(() => {
+    if (timer) clearTimeout(timer);
     window.removeEventListener(APPOINTMENT_LIVE_EVENT, onLive);
   });
 }

@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
+import { avatarColor } from "../utils/avatar";
 
 interface LessonType {
   id: string;
   tenantId: string;
   name: string;
   defaultDurationMin: number | null;
+  color: string | null;
+  teacherIds: string[];
   createdAt: string;
   updatedAt: string;
 }
 
-const { user, primaryTenant } = useAuth();
+interface TeacherOption {
+  id: string;
+  displayName: string;
+  color?: string | null;
+}
+
+const { user, primaryTenant, teacherLabel } = useAuth();
 
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 const isTenantAdmin = computed(() => primaryTenant.value?.role === "ADMIN");
@@ -33,7 +42,18 @@ const editingId = ref<string | null>(null);
 const form = reactive({
   name: "",
   defaultDurationMin: 30 as number | null,
+  teacherIds: [] as string[],
+  color: null as string | null,
 });
+
+const teachers = ref<TeacherOption[]>([]);
+
+function teacherNames(ids: string[]) {
+  return ids
+    .map((id) => teachers.value.find((teacher) => teacher.id === id)?.displayName)
+    .filter(Boolean)
+    .join(", ");
+}
 
 const filtered = computed(() => {
   const q = filters.q.trim().toLowerCase();
@@ -63,11 +83,16 @@ async function load() {
   }
   loading.value = true;
   try {
-    const response = await $fetch<{ data: LessonType[] }>(
-      `/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types`,
-      { credentials: "include" },
-    );
+    const [response, options] = await Promise.all([
+      $fetch<{ data: LessonType[] }>(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types`, {
+        credentials: "include",
+      }),
+      $fetch<{ teachers: TeacherOption[] }>(`/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/options`, {
+        credentials: "include",
+      }),
+    ]);
     lessonTypes.value = response.data;
+    teachers.value = options.teachers;
   } catch (e: unknown) {
     setError(apiMessage(e, "Termintypen konnten nicht geladen werden"));
   } finally {
@@ -80,6 +105,8 @@ function openCreate() {
   editingId.value = null;
   form.name = "";
   form.defaultDurationMin = 30;
+  form.teacherIds = [];
+  form.color = null;
   dialogOpen.value = true;
 }
 
@@ -88,6 +115,8 @@ function openEdit(item: LessonType) {
   editingId.value = item.id;
   form.name = item.name;
   form.defaultDurationMin = item.defaultDurationMin;
+  form.teacherIds = [...(item.teacherIds ?? [])];
+  form.color = item.color ?? null;
   dialogOpen.value = true;
 }
 
@@ -102,6 +131,8 @@ async function submit() {
     const body = {
       name: form.name.trim(),
       defaultDurationMin: form.defaultDurationMin === null ? null : Number(form.defaultDurationMin),
+      teacherIds: form.teacherIds,
+      color: form.color,
     };
     if (dialogMode.value === "create") {
       await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types`, {
@@ -214,12 +245,23 @@ watch(() => primaryTenant.value?.tenantId, load);
       <UCard v-for="item in filtered" :key="item.id">
         <div class="flex items-start justify-between gap-3 flex-wrap">
           <div class="min-w-0">
-            <p class="font-medium truncate">{{ item.name }}</p>
+            <p class="flex items-center gap-2 font-medium">
+              <span
+                class="size-3 shrink-0 rounded-full"
+                :style="{ backgroundColor: avatarColor(item.id, item.color) }"
+                :title="item.color ? 'Eigene Farbe' : 'Automatische Farbe'"
+              />
+              <span class="truncate">{{ item.name }}</span>
+            </p>
             <p v-if="useDuration" class="text-xs text-neutral-500 mt-1">
               Standard-Dauer:
               <span class="font-medium">
                 {{ item.defaultDurationMin ? `${item.defaultDurationMin} min` : "—" }}
               </span>
+            </p>
+            <p v-if="item.teacherIds?.length" class="text-xs text-neutral-500 mt-1">
+              Bevorzugte {{ teacherLabel }}:
+              <span class="font-medium">{{ teacherNames(item.teacherIds) }}</span>
             </p>
           </div>
           <div v-if="canEdit" class="flex items-center gap-2 shrink-0">
@@ -261,6 +303,17 @@ watch(() => primaryTenant.value?.tenantId, load);
           <UFormField label="Name">
             <UInput v-model="form.name" placeholder="z. B. Klavier 30min" />
           </UFormField>
+          <UFormField label="Farbe" help="Hintergrund der Termine in der Zeitachse. Der Streifen links zeigt die Farbe der Person.">
+            <TeacherColorPicker
+              v-if="editingId"
+              :teacher-id="editingId"
+              :color="form.color"
+              @change="form.color = $event"
+            />
+            <p v-else class="text-xs text-neutral-500">
+              Wird automatisch vergeben und kann danach beim Bearbeiten geändert werden.
+            </p>
+          </UFormField>
           <UFormField v-if="useDuration" label="Standard-Dauer (Minuten)" hint="optional, 5 – 1440">
             <UInput v-model.number="form.defaultDurationMin" type="number" min="5" max="1440" />
           </UFormField>
@@ -275,6 +328,13 @@ watch(() => primaryTenant.value?.tenantId, load);
           <p v-if="!useDuration" class="text-xs text-neutral-500">
             Aktivieren in <strong>Einstellungen → Allgemein</strong>.
           </p>
+          <UFormField
+            :label="`Bevorzugte ${teacherLabel}`"
+            hint="optional"
+            help="Werden in der Schnellerfassung zuerst vorgeschlagen und automatisch ausgewählt, wenn frei. Danach folgt die Priorität."
+          >
+            <TeacherPicker v-model="form.teacherIds" :options="teachers" :label="teacherLabel" />
+          </UFormField>
         </form>
       </template>
       <template #footer>

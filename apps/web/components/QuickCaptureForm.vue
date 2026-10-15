@@ -15,6 +15,7 @@ import {
 import { commitUtterance, withLiveInterim } from "../utils/speech-transcript";
 import { isNativeAndroidSpeech, startNativeSpeech } from "../utils/native-speech";
 import type { AppointmentStatus } from "../utils/appointment-status";
+import { CALL_STATE_EVENT } from "../utils/call-state";
 
 type WebSpeechRecognitionEventResult = {
   isFinal: boolean;
@@ -42,6 +43,24 @@ type WebSpeechCtor = new () => WebSpeechRecognition;
 interface TeacherOption {
   id: string;
   displayName: string;
+  color?: string | null;
+  priority?: number;
+}
+type TeacherAvailabilityReason = "absent" | "unavailable" | "booked";
+interface FreeSlotSuggestion {
+  date: string;
+  time: string;
+  startsAt: string;
+  endsAt: string;
+  teacherId: string | null;
+  teacherName: string | null;
+}
+interface TeacherAvailabilityResponse {
+  /** ordered best-first: lesson-type teachers, then priority, then stable random */
+  data: { teacherId: string; available: boolean; reason: TeacherAvailabilityReason | null; fitsLessonType: boolean }[];
+  firstFreeSlot: FreeSlotSuggestion | null;
+  /** up to two non-overlapping suggestions on that day, best first */
+  freeSlots?: FreeSlotSuggestion[];
 }
 interface ResourceOption {
   id: string;
@@ -93,6 +112,8 @@ const props = defineProps<{
   initialContactText?: string;
   initialTeacherId?: string;
   initialLessonTypeId?: string;
+  /** ISO start for a new appointment, e.g. from a click into the timeline. */
+  initialStartsAt?: string;
   startWithVoice?: boolean;
 }>();
 
@@ -103,12 +124,15 @@ const emit = defineEmits<{
 
 const { primaryTenant, canManageTenant } = useAuth();
 const { device } = useDeviceCapabilities();
-const { t } = useI18n();
+const { t, locale } = useI18n();
+
+const intlLocales: Record<string, string> = { de: "de-DE", en: "en-GB", it: "it-IT" };
+const intlLocale = computed(() => intlLocales[locale.value] ?? "de-DE");
 
 const statusOptions: AppointmentStatus[] = ["draft", "confirmed", "completed", "cancelled"];
 
 const teacherLabel = computed(
-  () => options.value?.teacherLabel || primaryTenant.value?.teacherLabel || "Lehrer",
+  () => options.value?.teacherLabel || primaryTenant.value?.teacherLabel || t("quickCapture.teacherFallback"),
 );
 const resourcesEnabled = computed(
   () => options.value?.resourcesEnabled ?? primaryTenant.value?.resourcesEnabled ?? true,
@@ -127,7 +151,7 @@ const conflictType = ref("");
 const conflictTeacherId = ref("");
 const freeSlots = ref<{ startsAt: string; endsAt: string }[]>([]);
 const saved = ref<AppointmentDto | null>(null);
-const initialStart = nextFullHour();
+const initialStart = props.initialStartsAt ? new Date(props.initialStartsAt) : nextFullHour();
 
 const speechSupported = ref(false);
 const speechListening = ref(false);
@@ -231,6 +255,10 @@ function getSpeechCtor(): WebSpeechCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+function micDeniedMessage() {
+  return device.value.platform === "web" ? t("quickCapture.micDeniedWeb") : t("quickCapture.micDeniedApp");
+}
+
 function setupSpeech() {
   if (isNativeAndroidSpeech()) {
     speechSupported.value = true;
@@ -254,10 +282,8 @@ function setupSpeech() {
     if (event.error === "aborted" || event.error === "no-speech") return;
     speechError.value =
       event.error === "not-allowed"
-        ? device.value.platform === "web"
-          ? "Mikrofon-Zugriff verweigert – bitte im Browser erlauben."
-          : "Mikrofon-Zugriff verweigert – bitte in den App-Einstellungen erlauben."
-        : event.message || event.error || "Sprachaufnahme fehlgeschlagen.";
+        ? micDeniedMessage()
+        : event.message || event.error || t("quickCapture.speechFailed");
   };
   recognition.onend = () => {
     speechInterim.value = "";
@@ -304,10 +330,7 @@ async function toggleSpeech() {
   }
   const micOk = await device.value.requestMicrophonePermission();
   if (!micOk) {
-    speechError.value =
-      device.value.platform === "web"
-        ? "Mikrofon-Zugriff verweigert – bitte im Browser erlauben."
-        : "Mikrofon-Zugriff verweigert – bitte in den App-Einstellungen erlauben.";
+    speechError.value = micDeniedMessage();
     return;
   }
   speechTextBase = text.value.trim();
@@ -348,7 +371,7 @@ async function toggleSpeech() {
         }
       }
       const err = e as { message?: string };
-      speechError.value = err.message || "Sprachaufnahme konnte nicht gestartet werden.";
+      speechError.value = err.message || t("quickCapture.speechStartFailed");
       speechListening.value = false;
     }
     return;
@@ -359,7 +382,7 @@ async function toggleSpeech() {
     speechListening.value = true;
   } catch (e) {
     const err = e as { message?: string };
-    speechError.value = err.message || "Sprachaufnahme konnte nicht gestartet werden.";
+    speechError.value = err.message || t("quickCapture.speechStartFailed");
     speechListening.value = false;
   }
 }
@@ -397,7 +420,7 @@ function applyParsed(
     parsed.teacherId &&
     (!isEditing.value || !slotSuggested || !form.teacherIds.length)
   ) {
-    form.teacherIds = [parsed.teacherId];
+    setTeacherIds([parsed.teacherId], true);
   }
   if (parsed.resourceId) form.resourceId = parsed.resourceId;
   if (parsed.lessonTypeId) form.lessonTypeId = parsed.lessonTypeId;
@@ -444,7 +467,7 @@ async function parseFromText() {
       if (isEditing.value || slot?.slotSource !== "priority" || typeof slot.date !== "string" || typeof slot.time !== "string") {
         return "";
       }
-      const when = new Intl.DateTimeFormat("de-DE", {
+      const when = new Intl.DateTimeFormat(intlLocale.value, {
         weekday: "short",
         day: "2-digit",
         month: "2-digit",
@@ -452,15 +475,15 @@ async function parseFromText() {
         minute: "2-digit",
       }).format(new Date(`${slot.date}T${slot.time}`));
       const who = typeof slot.teacherName === "string" && slot.teacherName ? ` · ${slot.teacherName}` : "";
-      return ` Nächster freier Termin (Priorität ${Number(slot.priority) || 0}): ${when}${who}.`;
+      return ` ${t("quickCapture.parseNextSlot", { priority: Number(slot.priority) || 0, when, who })}`;
     })();
     parseHint.value = questions.value.length
-      ? "Bitte noch kurz klären – danach sind die Felder vollständig."
+      ? t("quickCapture.parseClarify")
       : passenger
         ? result.parsed.customerId
-          ? `Felder übernommen. Passagier gefunden: ${passenger}. Bitte prüfen und speichern.${slotHint}`
-          : `Felder übernommen. Passagier „${passenger}“ wird beim Speichern als neuer Kunde angelegt.${slotHint}`
-        : `Felder übernommen, aber kein Passagier erkannt. Name bitte unten eintragen.${slotHint}`;
+          ? `${t("quickCapture.parseFound", { name: passenger })}${slotHint}`
+          : `${t("quickCapture.parseNewCustomer", { name: passenger })}${slotHint}`
+        : `${t("quickCapture.parseNoCustomer")}${slotHint}`;
   } catch (e: unknown) {
     error.value = apiErrorMessage(e);
   } finally {
@@ -474,6 +497,9 @@ function answerQuestion(questionId: string, value: string) {
 }
 
 onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", onCallHintsVisible);
+  window.removeEventListener(CALL_STATE_EVENT, onCallStateChanged);
+  if (availabilityTimer) clearTimeout(availabilityTimer);
   speechListening.value = false;
   speechStopping = true;
   clearSpeechRestart();
@@ -598,8 +624,8 @@ const deviceContactStatusLabel = computed(() => {
   if (deviceContactHint.value) return "";
   if (!savedOnDevice.value) return "";
   return deviceContactLookup.value.match?.googleSynced
-    ? "Bereits in Google Kontakte gespeichert."
-    : "Bereits im Telefon gespeichert.";
+    ? t("quickCapture.contactInGoogle")
+    : t("quickCapture.contactOnPhone");
 });
 const showCallHintsOptInHint = computed(
   () => device.value.features.callHints && !isCallHintsOptIn() && !callHints.value.length,
@@ -613,7 +639,7 @@ function applyCallHint(hint: CallHint) {
 function formatCallHintTime(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "";
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -631,6 +657,14 @@ async function loadCallHints() {
   }
 }
 
+function onCallHintsVisible() {
+  if (document.visibilityState === "visible") void loadCallHints();
+}
+
+function onCallStateChanged() {
+  void loadCallHints();
+}
+
 async function pickDeviceContact() {
   pickingContact.value = true;
   deviceContactHint.value = "";
@@ -643,7 +677,7 @@ async function pickDeviceContact() {
     }
     await refreshDeviceContact();
   } catch {
-    deviceContactHint.value = "Kontakt konnte nicht gelesen werden.";
+    deviceContactHint.value = t("quickCapture.contactReadFailed");
   } finally {
     pickingContact.value = false;
   }
@@ -665,14 +699,14 @@ async function saveDeviceContact() {
     });
     await refreshDeviceContact();
     if (device.value.platform === "web") {
-      deviceContactHint.value = `vCard heruntergeladen — auf dem Telefon importieren (Organisation: ${organization}).`;
+      deviceContactHint.value = t("quickCapture.contactVcardDownloaded", { organization });
     } else if (deviceContactLookup.value.match?.googleSynced) {
-      deviceContactHint.value = "Nummer ist schon in Google Kontakte gespeichert.";
+      deviceContactHint.value = t("quickCapture.contactAlreadyInGoogle");
     } else {
-      deviceContactHint.value = `Kontakt lokal unter „${organization}“ gespeichert, nicht im Google-Konto.`;
+      deviceContactHint.value = t("quickCapture.contactSavedLocally", { organization });
     }
   } catch {
-    deviceContactHint.value = "Kontakt konnte nicht gespeichert werden.";
+    deviceContactHint.value = t("quickCapture.contactSaveFailed");
   } finally {
     savingDeviceContact.value = false;
   }
@@ -682,9 +716,7 @@ async function removeDeviceContact() {
   if (!canRemoveDeviceContact.value) return;
   const google = deviceContactLookup.value.match?.googleSynced;
   const ok = window.confirm(
-    google
-      ? "Dieser Kontakt ist mit Google Kontakte synchronisiert und wird dort ebenfalls gelöscht. Fortfahren?"
-      : "Diesen Kontakt wirklich vom Telefon entfernen?",
+    google ? t("quickCapture.contactDeleteConfirmGoogle") : t("quickCapture.contactDeleteConfirm"),
   );
   if (!ok) return;
   removingDeviceContact.value = true;
@@ -692,9 +724,9 @@ async function removeDeviceContact() {
   try {
     await device.value.deleteDeviceContact(form.phone.trim());
     await refreshDeviceContact();
-    deviceContactHint.value = "Kontakt wurde vom Telefon entfernt.";
+    deviceContactHint.value = t("quickCapture.contactRemoved");
   } catch {
-    deviceContactHint.value = "Kontakt konnte nicht entfernt werden.";
+    deviceContactHint.value = t("quickCapture.contactRemoveFailed");
   } finally {
     removingDeviceContact.value = false;
   }
@@ -714,6 +746,210 @@ const selectedLessonType = computed(() =>
 );
 
 const effectiveDuration = computed(() => form.durationMinutes || selectedLessonType.value?.defaultDurationMin || 60);
+
+const endTime = computed({
+  get: () => {
+    if (!form.date || !form.time) return "";
+    const startsAt = localDateTime(form.date, form.time);
+    return toTimeInput(new Date(startsAt.getTime() + effectiveDuration.value * 60_000));
+  },
+  set: (value: string) => {
+    if (!value || !form.time) return;
+    let minutes = minutesOfDay(value) - minutesOfDay(form.time);
+    if (minutes <= 0) minutes += 24 * 60;
+    form.durationMinutes = minutes;
+  },
+});
+
+const teacherAvailability = ref<Record<string, TeacherAvailabilityResponse["data"][number]>>({});
+const teacherRanking = ref<string[]>([]);
+const suggestedSlots = ref<FreeSlotSuggestion[]>([]);
+const availabilityLoading = ref(false);
+const teacherTouched = ref(isEditing.value || Boolean(props.initialTeacherId));
+let assigningTeachers = false;
+let availabilityRequest = 0;
+let availabilityTimer: ReturnType<typeof setTimeout> | null = null;
+
+function setTeacherIds(ids: string[], touched: boolean) {
+  assigningTeachers = true;
+  form.teacherIds = ids;
+  if (touched) teacherTouched.value = true;
+  assigningTeachers = false;
+}
+
+watch(
+  () => [...form.teacherIds],
+  () => {
+    if (assigningTeachers || hydratingForm) return;
+    teacherTouched.value = true;
+    teacherReplacedHint.value = "";
+  },
+  { flush: "sync" },
+);
+
+const hasAvailability = computed(() => Object.keys(teacherAvailability.value).length > 0);
+
+function teacherIsAvailable(id: string) {
+  return !hasAvailability.value || teacherAvailability.value[id]?.available !== false;
+}
+
+function teacherRank(id: string) {
+  const index = teacherRanking.value.indexOf(id);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+const pickerTeachers = computed(() =>
+  (options.value?.teachers ?? [])
+    .filter((teacher) => teacherIsAvailable(teacher.id) || form.teacherIds.includes(teacher.id))
+    .sort((left, right) => teacherRank(left.id) - teacherRank(right.id)),
+);
+
+const teacherHints = computed(() => {
+  const hints: Record<string, string> = {};
+  for (const id of form.teacherIds) {
+    const reason = teacherAvailability.value[id]?.reason;
+    if (reason) hints[id] = t(`quickCapture.availability.${reason}`);
+  }
+  return hints;
+});
+
+const unavailableSelectedLabel = computed(() =>
+  form.teacherIds
+    .filter((id) => teacherHints.value[id])
+    .map((id) => {
+      const name = options.value?.teachers.find((teacher) => teacher.id === id)?.displayName ?? teacherLabel.value;
+      return `${name} ${teacherHints.value[id]}`;
+    })
+    .join(", "),
+);
+
+const noTeacherAvailable = computed(
+  () => hasAvailability.value && !(options.value?.teachers ?? []).some((teacher) => teacherIsAvailable(teacher.id)),
+);
+
+function slotIsSelected(slot: FreeSlotSuggestion) {
+  return slot.time === form.time && (!slot.teacherId || form.teacherIds.includes(slot.teacherId));
+}
+
+const visibleSuggestedSlots = computed(() => {
+  const slots = suggestedSlots.value.filter((slot) => slot.date === form.date);
+  return slots.every(slotIsSelected) ? [] : slots;
+});
+
+const teacherReplacedHint = ref("");
+let availabilityChecks = 0;
+
+function teacherName(id: string) {
+  return options.value?.teachers.find((teacher) => teacher.id === id)?.displayName ?? teacherLabel.value;
+}
+
+function teacherFitsRules(id: string) {
+  const typeRestricted = Object.values(teacherAvailability.value).some((item) => item.fitsLessonType);
+  return teacherIsAvailable(id) && (!typeRestricted || teacherAvailability.value[id]?.fitsLessonType === true);
+}
+
+function nextTeacherCandidate(exclude: string[]) {
+  const own = primaryTenant.value?.teacherProfileId;
+  if (own && !exclude.includes(own) && teacherAvailability.value[own] && teacherFitsRules(own)) return own;
+  return teacherRanking.value.find((id) => !exclude.includes(id) && teacherIsAvailable(id)) ?? null;
+}
+
+function autoAssignTeacher() {
+  const firstCheck = availabilityChecks === 0;
+  availabilityChecks += 1;
+  if (!canManageTenant.value || !hasAvailability.value) return;
+
+  if (!isEditing.value && !teacherTouched.value) {
+    teacherReplacedHint.value = "";
+    const best = nextTeacherCandidate([]);
+    setTeacherIds(best ? [best] : [], false);
+    return;
+  }
+
+  if (isEditing.value && firstCheck) return;
+  const replaced: string[] = [];
+  const next: string[] = [];
+  for (const id of form.teacherIds) {
+    if (teacherIsAvailable(id)) {
+      next.push(id);
+      continue;
+    }
+    const substitute = nextTeacherCandidate([...form.teacherIds, ...next]);
+    if (!substitute) {
+      next.push(id);
+      continue;
+    }
+    next.push(substitute);
+    const reason = teacherAvailability.value[id]?.reason;
+    replaced.push(
+      t("quickCapture.teacherReplaced", {
+        from: teacherName(id),
+        reason: reason ? t(`quickCapture.availability.${reason}`) : "",
+        to: teacherName(substitute),
+      }),
+    );
+  }
+  if (!replaced.length) return;
+  setTeacherIds(next, false);
+  teacherReplacedHint.value = replaced.join(" ");
+}
+
+async function loadAvailability() {
+  if (!primaryTenant.value || !options.value || !form.date || !form.time) return;
+  const startsAt = localDateTime(form.date, form.time);
+  if (Number.isNaN(startsAt.getTime())) return;
+  const endsAt = new Date(startsAt.getTime() + effectiveDuration.value * 60_000);
+  const requestId = ++availabilityRequest;
+  availabilityLoading.value = true;
+  try {
+    const result = await $fetch<TeacherAvailabilityResponse>(
+      `/api/v1/tenants/${primaryTenant.value.tenantId}/scheduling/availability`,
+      {
+        credentials: "include",
+        query: {
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          excludeAppointmentId: props.appointment?.id || undefined,
+          resourceId: resourcesEnabled.value ? form.resourceId || undefined : undefined,
+          lessonTypeId: form.lessonTypeId || undefined,
+        },
+      },
+    );
+    if (requestId !== availabilityRequest) return;
+    teacherAvailability.value = Object.fromEntries(result.data.map((item) => [item.teacherId, item]));
+    teacherRanking.value = result.data.map((item) => item.teacherId);
+    suggestedSlots.value = result.freeSlots ?? (result.firstFreeSlot ? [result.firstFreeSlot] : []);
+    autoAssignTeacher();
+  } catch {
+    if (requestId !== availabilityRequest) return;
+    teacherAvailability.value = {};
+    teacherRanking.value = [];
+    suggestedSlots.value = [];
+  } finally {
+    if (requestId === availabilityRequest) availabilityLoading.value = false;
+  }
+}
+
+function scheduleAvailability() {
+  if (availabilityTimer) clearTimeout(availabilityTimer);
+  availabilityTimer = setTimeout(() => {
+    availabilityTimer = null;
+    void loadAvailability();
+  }, 250);
+}
+
+watch(
+  () => [form.date, form.time, effectiveDuration.value, form.resourceId, form.lessonTypeId, options.value],
+  scheduleAvailability,
+);
+
+function applySuggestedSlot(slot: FreeSlotSuggestion) {
+  form.date = slot.date;
+  form.time = slot.time;
+  if (slot.teacherId && canManageTenant.value && !form.teacherIds.includes(slot.teacherId)) {
+    setTeacherIds([slot.teacherId], true);
+  }
+}
 
 const captureSelectClass =
   "w-full min-h-10 rounded-md border border-neutral-200 dark:border-neutral-800 bg-transparent px-3 py-2.5 text-sm";
@@ -769,6 +1005,11 @@ function toTimeInput(date: Date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function minutesOfDay(timeValue: string) {
+  const [hour, minute] = timeValue.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
 function localDateTime(dateValue: string, timeValue: string) {
   const [year, month, day] = dateValue.split("-").map(Number);
   const [hour, minute] = timeValue.split(":").map(Number);
@@ -776,7 +1017,7 @@ function localDateTime(dateValue: string, timeValue: string) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -798,7 +1039,7 @@ function apiErrorMessage(e: unknown) {
     err.data?.message ||
     err.data?.statusMessage ||
     err.statusMessage ||
-    "Aktion fehlgeschlagen"
+    t("quickCapture.actionFailed")
   );
 }
 
@@ -820,7 +1061,7 @@ async function loadOptions() {
           preferred && options.value.teachers.some((teacher) => teacher.id === preferred)
             ? preferred
             : (options.value.teachers[0]?.id ?? "");
-        if (fallback) form.teacherIds = [fallback];
+        if (fallback) setTeacherIds([fallback], false);
       }
       if (resourcesEnabled.value) {
         form.resourceId ||= options.value.resources[0]?.id ?? "";
@@ -988,6 +1229,8 @@ onMounted(() => {
   }
   loadOptions();
   void loadCallHints();
+  document.addEventListener("visibilitychange", onCallHintsVisible);
+  window.addEventListener(CALL_STATE_EVENT, onCallStateChanged);
   if (speechRecognitionEnabled.value && props.startWithVoice) {
     window.setTimeout(() => toggleVoiceAssistant(), 250);
   }
@@ -1000,8 +1243,8 @@ onMounted(() => {
       v-if="!primaryTenant"
       color="warning"
       variant="soft"
-      title="Kein Mandant verfügbar"
-      description="Für echte Termine brauchst du eine aktive Mandanten-Mitgliedschaft."
+      :title="t('quickCapture.noTenantTitle')"
+      :description="t('quickCapture.noTenantDescription')"
     />
 
     <UAlert
@@ -1009,8 +1252,8 @@ onMounted(() => {
       color="success"
       variant="soft"
       icon="i-lucide-circle-check"
-      :title="isEditing ? 'Termin aktualisiert' : 'Termin gespeichert'"
-      :description="`${formatDateTime(saved.startsAt)} · ${saved.appointmentContactText || 'ohne Kontakttext'}`"
+      :title="isEditing ? t('quickCapture.updated') : t('quickCapture.saved')"
+      :description="`${formatDateTime(saved.startsAt)} · ${saved.appointmentContactText || t('quickCapture.withoutContactText')}`"
     />
 
     <UAlert
@@ -1018,16 +1261,16 @@ onMounted(() => {
       color="error"
       variant="soft"
       icon="i-lucide-circle-alert"
-      :title="isEditing ? 'Termin konnte nicht aktualisiert werden' : 'Termin konnte nicht gespeichert werden'"
+      :title="isEditing ? t('quickCapture.updateFailed') : t('quickCapture.saveFailed')"
       :description="conflictType ? `${error} (${conflictType})` : error"
     >
       <template v-if="conflictType === 'TIME_OVERLAP'" #actions>
         <div class="w-full space-y-1.5">
           <p v-if="freeSlots.length" class="text-xs text-neutral-700 dark:text-neutral-300">
-            {{ conflictTeacherName || teacherLabel }} ist an diesem Tag noch frei – Zeit übernehmen:
+            {{ t("quickCapture.conflictFreeSlots", { teacher: conflictTeacherName || teacherLabel }) }}
           </p>
           <p v-else class="text-xs text-neutral-700 dark:text-neutral-300">
-            {{ conflictTeacherName || teacherLabel }} hat an diesem Tag keine passende freie Zeit mehr.
+            {{ t("quickCapture.conflictNoSlots", { teacher: conflictTeacherName || teacherLabel }) }}
           </p>
           <div v-if="freeSlots.length" class="flex flex-wrap gap-1.5">
             <UButton
@@ -1047,15 +1290,48 @@ onMounted(() => {
       </template>
     </UAlert>
 
+    <UFormField :label="t('quickCapture.customer')" class="w-full">
+      <div class="relative">
+        <UInput
+          v-model="passengerName"
+          size="md"
+          class="w-full"
+          :ui="captureInputUi"
+          :placeholder="t('quickCapture.customerPlaceholder')"
+          autocomplete="off"
+        />
+        <ul
+          v-if="showCustomerSuggestions"
+          class="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-neutral-200 bg-white py-1 shadow-md dark:border-neutral-700 dark:bg-neutral-900"
+        >
+          <li v-for="customer in customerSuggestions" :key="customer.id">
+            <button
+              type="button"
+              class="w-full px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              @mousedown.prevent="pickCustomerSuggestion(customer)"
+            >
+              {{ customer.displayName }}
+            </button>
+          </li>
+        </ul>
+      </div>
+      <p v-if="willCreateCustomer" class="mt-1.5 flex items-center gap-1 text-xs text-neutral-500">
+        {{ t("quickCapture.newCustomer", { name: passengerName }) }}
+        <FieldInfoPopover :aria-label="t('quickCapture.newCustomerAria')">
+          {{ t("quickCapture.newCustomerInfo") }}
+        </FieldInfoPopover>
+      </p>
+    </UFormField>
+
     <UFormField required>
       <template #label>
         <span class="inline-flex items-center gap-1">
-          Kontakt oder Notiz
+          {{ t("quickCapture.contactOrNote") }}
           <FieldInfoPopover
             v-if="speechRecognitionEnabled && speechSupported"
-            aria-label="Hinweis zur Diktierfunktion"
+            :aria-label="t('quickCapture.dictationAria')"
           >
-            Oder nur diktieren – der Sprachassistent füllt die Felder.
+            {{ t("quickCapture.dictationInfo") }}
           </FieldInfoPopover>
         </span>
       </template>
@@ -1064,7 +1340,7 @@ onMounted(() => {
           v-model="text"
           autoresize
           :rows="3"
-          :placeholder="`z. B. Morgen 14 Uhr mit Luis und ${teacherLabel} Martin`"
+          :placeholder="t('quickCapture.textPlaceholder', { teacher: teacherLabel })"
           class="w-full min-h-[5.5rem] py-2.5 pr-12"
         />
         <UButton
@@ -1074,7 +1350,7 @@ onMounted(() => {
           :color="speechListening ? 'error' : 'neutral'"
           :variant="speechListening ? 'solid' : 'ghost'"
           :icon="speechListening ? 'i-lucide-mic-off' : 'i-lucide-mic'"
-          :title="speechListening ? 'Aufnahme stoppen' : 'Sprachaufnahme starten'"
+          :title="speechListening ? t('quickCapture.stopRecording') : t('quickCapture.startRecording')"
           class="absolute top-1 right-1"
           @click="toggleSpeech"
         />
@@ -1082,7 +1358,7 @@ onMounted(() => {
       <template v-if="speechListening" #help>
         <span class="flex items-center gap-2 text-xs text-primary-700 dark:text-primary-300">
           <span class="inline-block size-2 rounded-full bg-red-500 animate-pulse" />
-          Aufnahme läuft… Sage „Fertig“, „Speichern“ oder „OK“ zum Stoppen.
+          {{ t("quickCapture.recording") }}
           <span v-if="speechInterim" class="italic text-neutral-500 truncate">„{{ speechInterim }}"</span>
         </span>
       </template>
@@ -1099,7 +1375,7 @@ onMounted(() => {
         :loading="parseLoading"
         @click="toggleVoiceAssistant"
       >
-        {{ speechListening ? "Stoppen" : "Sprachassistent" }}
+        {{ speechListening ? t("quickCapture.stop") : t("quickCapture.voiceAssistant") }}
       </UButton>
       <UButton
         type="button"
@@ -1111,29 +1387,26 @@ onMounted(() => {
         :disabled="!text.trim()"
         @click="parseFromText"
       >
-        Text auswerten
+        {{ t("quickCapture.parseText") }}
       </UButton>
-      <FieldInfoPopover aria-label="Hinweise zu Sprachassistent und Textauswertung">
+      <FieldInfoPopover :aria-label="t('quickCapture.assistantHintsAria')">
         <p>
-          Beispiel: „morgen Flug Martin, Passagier Alexandra, Telefon +49 333 6788{{
-            speechRecognitionEnabled ? ". Fertig." : "."
-          }}“
+          {{ speechRecognitionEnabled ? t("quickCapture.exampleVoice") : t("quickCapture.exampleText") }}
         </p>
         <p v-if="speechRecognitionEnabled" class="mt-2">
-          Am Ende „Fertig“, „Speichern“ oder „OK“ sagen, dann stoppt die Aufnahme.
+          {{ t("quickCapture.stopHint") }}
         </p>
         <p class="mt-2">
-          Ohne Uhrzeit wird der nächste freie Termin mit der höchsten Priorität vorgeschlagen.
+          {{ t("quickCapture.priorityHint") }}
         </p>
       </FieldInfoPopover>
       <span
         v-if="speechRecognitionEnabled && !speechSupported"
         class="inline-flex items-center gap-1 text-xs text-neutral-500"
       >
-        Sprache nicht verfügbar
-        <FieldInfoPopover aria-label="Sprachassistent nicht verfügbar">
-          Dieser Browser unterstützt die Web-Speech-API nicht. In Chrome/Edge (Desktop, Android) oder Safari (iOS
-          14+) funktioniert die Diktierfunktion.
+        {{ t("quickCapture.speechUnavailable") }}
+        <FieldInfoPopover :aria-label="t('quickCapture.speechUnavailableAria')">
+          {{ t("quickCapture.speechUnavailableInfo") }}
         </FieldInfoPopover>
       </span>
     </div>
@@ -1165,16 +1438,85 @@ onMounted(() => {
       {{ speechError }}
     </p>
 
-    <div class="grid grid-cols-2 gap-3">
-      <UFormField label="Datum">
+    <UFormField :label="t('quickCapture.lessonType')">
+      <div class="flex items-center gap-2">
+        <select v-model="form.lessonTypeId" :class="[captureSelectClass, 'min-w-0 flex-1']">
+          <option value="">{{ t("quickCapture.noLessonType") }}</option>
+          <option v-for="lessonType in options?.lessonTypes || []" :key="lessonType.id" :value="lessonType.id">
+            {{ lessonType.name }}
+          </option>
+        </select>
+        <span
+          v-if="useTypeDuration"
+          class="shrink-0 text-sm font-medium tabular-nums text-neutral-600 dark:text-neutral-400"
+        >
+          {{ t("quickCapture.minutes", { minutes: effectiveDuration }) }}
+        </span>
+        <UCheckbox v-if="!isEditing" v-model="isDraft" :label="t('quickCapture.draft')" class="shrink-0" />
+      </div>
+    </UFormField>
+
+    <div v-if="visibleSuggestedSlots.length" class="flex flex-wrap items-center gap-2 text-sm">
+      <span class="text-neutral-600 dark:text-neutral-400">
+        {{ visibleSuggestedSlots.length > 1 ? t("quickCapture.freeSlotsSuggestion") : t("quickCapture.firstFreeSlot") }}
+      </span>
+      <UButton
+        v-for="slot in visibleSuggestedSlots"
+        :key="`${slot.startsAt}:${slot.teacherId}`"
+        size="xs"
+        color="primary"
+        :variant="slotIsSelected(slot) ? 'solid' : 'soft'"
+        icon="i-lucide-clock"
+        class="tabular-nums"
+        @click="applySuggestedSlot(slot)"
+      >
+        {{ slot.time }}<template v-if="slot.teacherName"> · {{ slot.teacherName }}</template>
+      </UButton>
+    </div>
+    <p
+      v-else-if="hasAvailability && !availabilityLoading && !suggestedSlots.length && form.date"
+      class="text-sm text-neutral-500"
+    >
+      {{ t("quickCapture.noFreeSlotOnDay") }}
+    </p>
+
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <UFormField :label="t('quickCapture.date')" class="col-span-2 sm:col-span-1">
         <UInput v-model="form.date" type="date" size="md" class="w-full" :ui="captureInputUi" />
       </UFormField>
-      <UFormField label="Uhrzeit">
+      <UFormField :label="t('quickCapture.timeFrom')">
         <UInput v-model="form.time" type="time" size="md" class="w-full" :ui="captureInputUi" />
+      </UFormField>
+      <UFormField>
+        <template #label>
+          <span class="inline-flex items-center gap-1">
+            {{ t("quickCapture.timeTo") }}
+            <FieldInfoPopover :aria-label="t('quickCapture.endTimeAria')">
+              {{ t("quickCapture.endTimeInfo") }}
+            </FieldInfoPopover>
+          </span>
+        </template>
+        <UInput v-model="endTime" type="time" size="md" class="w-full" :ui="captureInputUi" />
       </UFormField>
     </div>
 
-    <UFormField v-if="isEditing" label="Status">
+    <div
+      v-if="unavailableSelectedLabel || noTeacherAvailable || teacherReplacedHint"
+      class="space-y-1.5 text-sm"
+    >
+      <p v-if="noTeacherAvailable" class="text-amber-700 dark:text-amber-400">
+        {{ t("quickCapture.noTeacherFree", { teacher: teacherLabel }) }}
+      </p>
+      <p v-else-if="unavailableSelectedLabel" class="text-amber-700 dark:text-amber-400">
+        {{ unavailableSelectedLabel }}.
+      </p>
+      <p v-if="teacherReplacedHint" class="flex items-start gap-1.5 text-primary-700 dark:text-primary-300">
+        <UIcon name="i-lucide-refresh-cw" class="mt-0.5 size-3.5 shrink-0" />
+        {{ teacherReplacedHint }}
+      </p>
+    </div>
+
+    <UFormField v-if="isEditing" :label="t('quickCapture.status')">
       <select v-model="form.status" :class="captureSelectClass">
         <option v-for="status in statusOptions" :key="status" :value="status">
           {{ t(`appointment.status.${status}`) }}
@@ -1183,7 +1525,7 @@ onMounted(() => {
     </UFormField>
 
     <div v-if="!useTypeDuration" class="space-y-1.5">
-      <span class="text-sm text-neutral-600 dark:text-neutral-400">Dauer</span>
+      <span class="text-sm text-neutral-600 dark:text-neutral-400">{{ t("quickCapture.duration") }}</span>
       <div class="flex flex-wrap gap-1.5">
         <UButton
           v-for="minutes in durationOptions"
@@ -1193,7 +1535,7 @@ onMounted(() => {
           :color="form.durationMinutes === minutes ? 'primary' : 'neutral'"
           @click="form.durationMinutes = minutes"
         >
-          {{ minutes }} Min
+          {{ t("quickCapture.minutes", { minutes }) }}
         </UButton>
       </div>
     </div>
@@ -1205,9 +1547,9 @@ onMounted(() => {
             {{ teacherLabel }}
             <FieldInfoPopover
               v-if="canManageTenant && (options?.teachers || []).length"
-              :aria-label="`Hinweis zur ${teacherLabel}-Auswahl`"
+              :aria-label="t('quickCapture.teacherPickerAria', { teacher: teacherLabel })"
             >
-              Mehrere zuordnen möglich.
+              {{ t("quickCapture.teacherPickerInfo", { teacher: teacherLabel }) }}
             </FieldInfoPopover>
           </span>
         </template>
@@ -1215,52 +1557,34 @@ onMounted(() => {
           <TeacherPicker
             v-if="(options?.teachers || []).length"
             v-model="form.teacherIds"
-            :options="options?.teachers || []"
+            :options="pickerTeachers"
             :label="teacherLabel"
             :highlight-id="primaryTenant?.teacherProfileId"
+            :hints="teacherHints"
           />
-          <p v-else class="text-sm text-neutral-500">Keine {{ teacherLabel }} hinterlegt.</p>
+          <p v-else class="text-sm text-neutral-500">{{ t("quickCapture.noTeachers", { teacher: teacherLabel }) }}</p>
         </template>
         <p v-else class="text-sm text-neutral-600 dark:text-neutral-400">
-          Mit: {{ colleagueNames }}
+          {{ t("quickCapture.withColleagues", { names: colleagueNames }) }}
         </p>
       </UFormField>
 
-      <UFormField v-if="resourcesEnabled" label="Ressource">
+      <UFormField v-if="resourcesEnabled" :label="t('quickCapture.resource')">
         <select v-model="form.resourceId" :class="captureSelectClass">
-          <option value="">Ohne Ressource</option>
+          <option value="">{{ t("quickCapture.noResource") }}</option>
           <option v-for="resource in options?.resources || []" :key="resource.id" :value="resource.id">
-            {{ resource.name }} · Kapazität {{ resource.capacity }}
+            {{ t("quickCapture.resourceOption", { name: resource.name, capacity: resource.capacity }) }}
           </option>
         </select>
-      </UFormField>
-
-      <UFormField label="Terminart">
-        <div class="flex items-center gap-2">
-          <select v-model="form.lessonTypeId" :class="[captureSelectClass, 'min-w-0 flex-1']">
-            <option value="">Ohne Terminart</option>
-            <option v-for="lessonType in options?.lessonTypes || []" :key="lessonType.id" :value="lessonType.id">
-              {{ lessonType.name }}
-            </option>
-          </select>
-          <span
-            v-if="useTypeDuration"
-            class="shrink-0 text-sm font-medium tabular-nums text-neutral-600 dark:text-neutral-400"
-          >
-            {{ effectiveDuration }} Min
-          </span>
-          <UCheckbox v-if="!isEditing" v-model="isDraft" label="Entwurf" class="shrink-0" />
-        </div>
       </UFormField>
     </div>
 
     <UFormField v-if="form.status === 'draft'">
       <template #label>
         <span class="inline-flex items-center gap-1">
-          Erinnerung (optional)
-          <FieldInfoPopover aria-label="Hinweis zur Entwurfs-Erinnerung">
-            Zum gewählten Zeitpunkt kommt eine Benachrichtigung. Ohne Datum wird keine Erinnerung gesendet. Sobald der
-            Termin bestätigt ist, entfällt die Erinnerung.
+          {{ t("quickCapture.reminder") }}
+          <FieldInfoPopover :aria-label="t('quickCapture.reminderAria')">
+            {{ t("quickCapture.reminderInfo") }}
           </FieldInfoPopover>
         </span>
       </template>
@@ -1270,7 +1594,7 @@ onMounted(() => {
           size="md"
           class="w-full"
           :ui="captureInputUi"
-          placeholder="z. B. Wetter prüfen und bestätigen"
+          :placeholder="t('quickCapture.reminderPlaceholder')"
         />
         <div class="grid grid-cols-2 gap-3">
           <UInput v-model="form.reminderDate" type="date" size="md" class="w-full" :ui="captureInputUi" />
@@ -1279,120 +1603,94 @@ onMounted(() => {
       </div>
     </UFormField>
 
-    <UFormField label="Passagier / Kunde" class="w-full">
-      <div class="relative">
-        <UInput
-          v-model="passengerName"
-          size="md"
-          class="w-full"
-          :ui="captureInputUi"
-          placeholder="Name, z. B. Alexandra"
-          autocomplete="off"
-        />
-        <ul
-          v-if="showCustomerSuggestions"
-          class="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-neutral-200 bg-white py-1 shadow-md dark:border-neutral-700 dark:bg-neutral-900"
-        >
-          <li v-for="customer in customerSuggestions" :key="customer.id">
-            <button
-              type="button"
-              class="w-full px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              @mousedown.prevent="pickCustomerSuggestion(customer)"
+    <UFormField class="w-full">
+      <template #label>
+        <span class="inline-flex items-center gap-1">
+          {{ t("quickCapture.phone") }}
+          <FieldInfoPopover
+            v-if="showCallHintsOptInHint"
+            :aria-label="t('quickCapture.callHintsAria')"
+          >
+            {{ t("quickCapture.callHintsInfo") }}
+          </FieldInfoPopover>
+        </span>
+      </template>
+      <div class="space-y-1.5">
+        <div class="flex gap-2">
+          <UInput
+            v-model="form.phone"
+            type="tel"
+            size="md"
+            class="min-w-0 flex-1 w-full"
+            :ui="captureInputUi"
+            placeholder="+43 …"
+          />
+          <UButton
+            v-if="canPickContact"
+            type="button"
+            size="sm"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-contact"
+            :loading="pickingContact"
+            class="shrink-0"
+            :title="t('quickCapture.pickContact')"
+            @click="pickDeviceContact"
+          />
+        </div>
+        <div v-if="callHints.length" class="flex flex-col gap-0.5">
+          <button
+            v-for="hint in callHints"
+            :key="`${hint.lastSeenAt}:${hint.e164 || hint.raw}`"
+            type="button"
+            class="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800/80"
+            @click="applyCallHint(hint)"
+          >
+            <span class="min-w-0 truncate" :class="hint.active ? 'font-medium' : ''">{{ hint.e164 || hint.raw }}</span>
+            <span
+              v-if="hint.active"
+              class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary-700 dark:text-primary-300"
             >
-              {{ customer.displayName }}
-            </button>
-          </li>
-        </ul>
+              <span class="inline-block size-2 rounded-full bg-green-500 animate-pulse" />
+              {{ t("quickCapture.callActive") }}
+            </span>
+            <span v-else class="shrink-0 text-xs text-neutral-500 tabular-nums">{{ formatCallHintTime(hint.lastSeenAt) }}</span>
+          </button>
+        </div>
+        <div v-if="canManageDeviceContact" class="flex flex-wrap items-center gap-2">
+          <UButton
+            v-if="canSaveDeviceContact"
+            type="button"
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-user-plus"
+            :loading="savingDeviceContact || checkingDeviceContact"
+            @click="saveDeviceContact"
+          >
+            {{ t("quickCapture.saveToPhone") }}
+          </UButton>
+          <UButton
+            v-else-if="canRemoveDeviceContact"
+            type="button"
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-user-minus"
+            :loading="removingDeviceContact || checkingDeviceContact"
+            @click="removeDeviceContact"
+          >
+            {{ t("quickCapture.removeFromPhone") }}
+          </UButton>
+          <span v-if="deviceContactStatusLabel || deviceContactHint" class="text-xs text-neutral-500">
+            {{ deviceContactHint || deviceContactStatusLabel }}
+          </span>
+        </div>
       </div>
-      <p v-if="willCreateCustomer" class="mt-1.5 flex items-center gap-1 text-xs text-neutral-500">
-        Neuer Kunde: {{ passengerName }}
-        <FieldInfoPopover aria-label="Hinweis zur Kundenerstellung">
-          Beim Speichern wird der Passagier als Kunde erstellt, falls er noch nicht existiert.
-        </FieldInfoPopover>
-      </p>
     </UFormField>
 
-    <UFormField class="w-full">
-        <template #label>
-          <span class="inline-flex items-center gap-1">
-            Telefon
-            <FieldInfoPopover
-              v-if="showCallHintsOptInHint"
-              aria-label="Hinweis zu Anruf-Vorschlägen"
-            >
-              Letzte Anrufe als Vorschlag: in den Einstellungen aktivieren (Android-App).
-            </FieldInfoPopover>
-          </span>
-        </template>
-        <div class="space-y-1.5">
-          <div class="flex gap-2">
-            <UInput
-              v-model="form.phone"
-              type="tel"
-              size="md"
-              class="min-w-0 flex-1 w-full"
-              :ui="captureInputUi"
-              placeholder="+43 …"
-            />
-            <UButton
-              v-if="canPickContact"
-              type="button"
-              size="sm"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-contact"
-              :loading="pickingContact"
-              class="shrink-0"
-              title="Kontakt wählen"
-              @click="pickDeviceContact"
-            />
-          </div>
-          <div v-if="callHints.length" class="flex flex-col gap-0.5">
-            <button
-              v-for="hint in callHints"
-              :key="`${hint.lastSeenAt}:${hint.e164 || hint.raw}`"
-              type="button"
-              class="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800/80"
-              @click="applyCallHint(hint)"
-            >
-              <span class="min-w-0 truncate">{{ hint.e164 || hint.raw }}</span>
-              <span class="shrink-0 text-xs text-neutral-500 tabular-nums">{{ formatCallHintTime(hint.lastSeenAt) }}</span>
-            </button>
-          </div>
-          <div v-if="canManageDeviceContact" class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-if="canSaveDeviceContact"
-              type="button"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-user-plus"
-              :loading="savingDeviceContact || checkingDeviceContact"
-              @click="saveDeviceContact"
-            >
-              Aufs Telefon speichern
-            </UButton>
-            <UButton
-              v-else-if="canRemoveDeviceContact"
-              type="button"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-user-minus"
-              :loading="removingDeviceContact || checkingDeviceContact"
-              @click="removeDeviceContact"
-            >
-              Vom Telefon entfernen
-            </UButton>
-            <span v-if="deviceContactStatusLabel || deviceContactHint" class="text-xs text-neutral-500">
-              {{ deviceContactHint || deviceContactStatusLabel }}
-            </span>
-          </div>
-        </div>
-      </UFormField>
-
     <div class="flex items-center justify-end gap-2 pt-1">
-      <UButton size="sm" variant="ghost" color="neutral" @click="emit('cancel')">Schließen</UButton>
+      <UButton size="sm" variant="ghost" color="neutral" @click="emit('cancel')">{{ t("quickCapture.close") }}</UButton>
       <UButton
         size="sm"
         color="primary"
@@ -1400,7 +1698,7 @@ onMounted(() => {
         :loading="saving"
         @click="saveAppointment"
       >
-        Speichern
+        {{ t("quickCapture.save") }}
       </UButton>
     </div>
   </div>

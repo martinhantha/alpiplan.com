@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
+import { avatarColor } from "../utils/avatar";
 
 type TenantRole = "ADMIN" | "STAFF" | "END_CUSTOMER";
+
+interface TeacherProfileInfo {
+  id: string;
+  color: string | null;
+  priority: number;
+}
 
 interface MembershipInfo {
   tenantId: string;
@@ -20,11 +27,13 @@ interface UserItem {
   memberships: MembershipInfo[];
   membershipIdInActive: string | null;
   roleInActive: TenantRole | null;
+  teacherProfile: TeacherProfileInfo | null;
 }
 
 interface MemberApiItem {
   membershipId: string;
   role: TenantRole;
+  teacherProfile: TeacherProfileInfo | null;
   user: { id: string; email: string; name: string | null; isSuperadmin: boolean; disabledAt: string | null };
 }
 
@@ -51,6 +60,7 @@ const { user, primaryTenant } = useAuth();
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 const isTenantAdmin = computed(() => primaryTenant.value?.role === "ADMIN");
 const canEdit = computed(() => isSuperadmin.value || isTenantAdmin.value);
+const teacherLabel = computed(() => primaryTenant.value?.teacherLabel || "Lehrer");
 
 const users = ref<UserItem[]>([]);
 const tenants = ref<SuperadminTenant[]>([]);
@@ -84,6 +94,8 @@ const editForm = reactive({
   password: "",
   role: "STAFF" as TenantRole,
   isSuperadmin: false,
+  teacherColor: null as string | null,
+  teacherPriority: 0,
 });
 interface EditableMembership {
   tenantId: string;
@@ -190,9 +202,18 @@ async function loadUsers() {
   error.value = "";
   try {
     if (isSuperadmin.value) {
-      const overview = await $fetch<SuperadminOverview>("/api/admin/overview", {
-        credentials: "include",
-      });
+      const activeTenantId = primaryTenant.value?.tenantId;
+      const [overview, activeMembers] = await Promise.all([
+        $fetch<SuperadminOverview>("/api/admin/overview", {
+          credentials: "include",
+        }),
+        activeTenantId
+          ? $fetch<{ data: MemberApiItem[] }>(`/api/v1/tenants/${activeTenantId}/members`, {
+              credentials: "include",
+            }).catch(() => ({ data: [] as MemberApiItem[] }))
+          : Promise.resolve({ data: [] as MemberApiItem[] }),
+      ]);
+      const teacherProfiles = new Map(activeMembers.data.map((m) => [m.user.id, m.teacherProfile]));
       tenants.value = overview.tenants;
       users.value = overview.users.map((u) => {
         const active = activeMembershipFor(u.memberships);
@@ -205,6 +226,7 @@ async function loadUsers() {
           memberships: u.memberships,
           membershipIdInActive: active ? active.tenantId : null,
           roleInActive: active ? active.role : null,
+          teacherProfile: active ? (teacherProfiles.get(u.id) ?? null) : null,
         };
       });
     } else {
@@ -232,6 +254,7 @@ async function loadUsers() {
         ],
         membershipIdInActive: primaryTenant.value!.tenantId,
         roleInActive: m.role,
+        teacherProfile: m.teacherProfile,
       }));
     }
   } catch (e: unknown) {
@@ -330,6 +353,8 @@ function openEdit(userItem: UserItem) {
   editForm.password = "";
   editForm.role = userItem.roleInActive ?? "STAFF";
   editForm.isSuperadmin = userItem.isSuperadmin;
+  editForm.teacherColor = userItem.teacherProfile?.color ?? null;
+  editForm.teacherPriority = userItem.teacherProfile?.priority ?? 0;
   editMemberships.value = userItem.memberships.map((m) => ({
     tenantId: m.tenantId,
     tenantName: m.tenantName,
@@ -430,6 +455,25 @@ async function submitEdit() {
         credentials: "include",
         body: tenantBody,
       });
+    }
+
+    const profile = target.teacherProfile;
+    if (profile && activeTenantId) {
+      const teacherBody: Record<string, unknown> = {};
+      if ((editForm.teacherColor ?? null) !== (profile.color ?? null)) {
+        teacherBody.color = editForm.teacherColor;
+      }
+      const priority = Math.round(Number(editForm.teacherPriority) || 0);
+      if (priority !== profile.priority) {
+        teacherBody.priority = priority;
+      }
+      if (Object.keys(teacherBody).length) {
+        await $fetch(`/api/v1/tenants/${activeTenantId}/teachers/${profile.id}`, {
+          method: "PATCH",
+          credentials: "include",
+          body: teacherBody,
+        });
+      }
     }
 
     if (isSuperadmin.value) {
@@ -736,11 +780,22 @@ watch(
       <UCard v-for="u in filteredUsers" :key="u.id">
         <div class="flex items-start justify-between gap-3 flex-wrap">
           <div class="min-w-0 flex-1">
-            <p class="font-medium truncate">{{ u.name || u.email }}</p>
+            <p class="flex items-center gap-2 font-medium">
+              <span
+                v-if="u.teacherProfile"
+                class="size-3 shrink-0 rounded-full"
+                :style="{ backgroundColor: avatarColor(u.teacherProfile.id, u.teacherProfile.color) }"
+                title="Farbe im Kalender"
+              />
+              <span class="truncate">{{ u.name || u.email }}</span>
+            </p>
             <p class="text-xs text-neutral-500 truncate">{{ u.email }}</p>
             <div class="mt-2 flex flex-wrap gap-1 items-center">
               <UBadge v-if="u.isSuperadmin" color="secondary" variant="soft">SUPERADMIN</UBadge>
               <UBadge v-if="u.disabledAt" color="warning" variant="soft">Gesperrt</UBadge>
+              <UBadge v-if="u.teacherProfile" color="neutral" variant="subtle">
+                {{ teacherLabel }} · Priorität {{ u.teacherProfile.priority }}
+              </UBadge>
             </div>
             <div class="mt-2">
               <p class="text-[11px] uppercase tracking-wide text-neutral-500 mb-1">
@@ -865,6 +920,23 @@ watch(
           <UFormField label="Neues Passwort" hint="leer lassen, um nicht zu ändern">
             <UInput v-model="editForm.password" type="password" autocomplete="new-password" />
           </UFormField>
+
+          <div
+            v-if="editingUser?.teacherProfile"
+            class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+          >
+            <h3 class="text-sm font-medium">{{ teacherLabel }} · Planung</h3>
+            <UFormField label="Farbe im Kalender">
+              <TeacherColorPicker
+                :teacher-id="editingUser.teacherProfile.id"
+                :color="editForm.teacherColor"
+                @change="editForm.teacherColor = $event"
+              />
+            </UFormField>
+            <UFormField label="Priorität" hint="höher = wird in der Schnellerfassung zuerst vorgeschlagen">
+              <UInput v-model.number="editForm.teacherPriority" type="number" min="-100" max="100" step="1" />
+            </UFormField>
+          </div>
 
           <div class="border-t border-neutral-200 dark:border-neutral-800 pt-4">
             <div class="flex items-center justify-between mb-2">

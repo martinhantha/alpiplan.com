@@ -16,7 +16,9 @@ function formatWhen(value: string | null | undefined) {
 
 const when = computed(() => (alert.value ? formatWhen(alert.value.startsAt) : ""));
 const previousWhen = computed(() =>
-  alert.value?.type === "appointment.moved" ? formatWhen(alert.value.previousStartsAt) : "",
+  alert.value?.type === "appointment.moved" && alert.value.previousStartsAt !== alert.value.startsAt
+    ? formatWhen(alert.value.previousStartsAt)
+    : "",
 );
 
 const headline = computed(() => {
@@ -84,6 +86,7 @@ async function openAppointments() {
                 {{ when }}
               </template>
               <span v-if="alert.teacherName"> · {{ alert.teacherName }}</span>
+              <span v-if="alert.type === 'appointment.moved' && alert.actorName"> · von {{ alert.actorName }}</span>
             </p>
             <div class="mt-3 flex justify-end gap-2">
               <UButton v-if="canAskNotifications" size="xs" variant="soft" color="neutral" @click="enableNotifications">

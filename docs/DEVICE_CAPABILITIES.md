@@ -13,7 +13,7 @@ Implementierung: Paket [`packages/device-capabilities`](../packages/device-capab
 
 - `pickContact` — native Kontakte oder Web Contact Picker
 - `saveOrUpdateDeviceContact` — native Kontakte; Browser: `.vcf`-Download
-- `getRecentCallHints` — Android optional; iOS/Web leer
+- `getRecentCallHints` — Android optional; iOS/Web leer. Ein laufender Anruf kommt als erster Eintrag mit `active: true` (über `PHONE_STATE`-Broadcast, braucht `READ_PHONE_STATE` + `READ_CALL_LOG`); Event `callStateChanged` lädt das Formular neu.
 - `startSpeechToText` / `takePhoto` / `requestPushPermission` — Platzhalter bzw. Web-Notification
 
 ## Einbindung
