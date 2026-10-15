@@ -432,8 +432,9 @@ const timelineRows = computed(() => {
   const known = new Set(rows.map((row) => row.id));
   const extra = dayColumns.value.filter((column) => !known.has(column.id) && column.id !== UNASSIGNED_ROW_ID);
   const unassigned = withAppointments.get(UNASSIGNED_ROW_ID);
+  const visible = [...rows, ...extra].filter((row) => !timeline.auto || row.appointments.length > 0);
   return [
-    ...[...rows, ...extra].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value)),
+    ...visible.sort((a, b) => a.name.localeCompare(b.name, intlLocale.value)),
     ...(unassigned ? [unassigned] : []),
   ];
 });
@@ -1506,7 +1507,8 @@ watch(
           v-if="!timelineRows.length && !loading"
           class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
         >
-          Keine {{ teacherLabel }} hinterlegt und keine Termine an diesem Tag.
+          <template v-if="timeline.auto">Keine Termine an diesem Tag.</template>
+          <template v-else>Keine {{ teacherLabel }} hinterlegt und keine Termine an diesem Tag.</template>
         </div>
         <template v-else>
           <Transition
@@ -1705,18 +1707,20 @@ watch(
         <div
           v-for="day in weekDays"
           :key="day.key"
-          class="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-white p-1.5 md:min-h-[140px] dark:bg-neutral-950"
+          class="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-white p-1.5 md:min-h-[140px] dark:bg-neutral-950 cursor-pointer transition hover:border-primary-300 dark:hover:border-primary-700"
           :class="
             isToday(day.date)
               ? 'border-primary-300 dark:border-primary-700 ring-1 ring-primary-200 dark:ring-primary-900/40'
               : 'border-neutral-200 dark:border-neutral-800'
           "
+          title="Zeitachse für diesen Tag"
+          @click="openDay(day.date)"
         >
           <button
             type="button"
             class="flex items-center justify-between px-0.5 text-left text-xs font-medium text-neutral-600 hover:text-primary-700 dark:text-neutral-400 dark:hover:text-primary-200"
             title="Zeitachse für diesen Tag"
-            @click="openDay(day.date)"
+            @click.stop="openDay(day.date)"
           >
             <span>{{ formatDayHeader(day.date) }}</span>
             <span v-if="appointmentsByDay(day.key).length" class="font-normal tabular-nums text-neutral-400">
@@ -1731,13 +1735,13 @@ watch(
             :status="appointment.status"
             :color="appointmentColor(appointment)"
             :person-name="canPlanAllAppointments ? (appointment.teachers?.[0] ?? appointment.teacher)?.displayName : null"
-            @click="openEditAppointment(appointment)"
+            @click.stop="openEditAppointment(appointment)"
           />
           <button
             v-if="appointmentsByDay(day.key).length > WEEK_DAY_VISIBLE"
             type="button"
             class="rounded px-1.5 py-1 text-left text-[11px] font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10"
-            @click="openDay(day.date)"
+            @click.stop="openDay(day.date)"
           >
             +{{ appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }} weitere
           </button>
