@@ -491,7 +491,7 @@ function bookedHoursLabel(list: AppointmentListItem[]) {
   return `${String(hours).replace(".", ",")} h`;
 }
 
-function openDay(date: Date, mode: "day" | "timeline" = "day") {
+function openDay(date: Date, mode: "day" | "timeline" = "timeline") {
   dayAnchor.value = startOfDay(date);
   calendarMode.value = mode;
   persistViewPreference();
@@ -1718,8 +1718,8 @@ watch(
           <button
             type="button"
             class="flex items-center justify-between px-0.5 text-left text-xs font-medium text-neutral-600 hover:text-primary-700 dark:text-neutral-400 dark:hover:text-primary-200"
-            title="Tagesansicht"
-            @click="openDay(day.date, canPlanAllAppointments ? 'timeline' : 'day')"
+            title="Zeitachse für diesen Tag"
+            @click="openDay(day.date)"
           >
             <span>{{ formatDayHeader(day.date) }}</span>
             <span v-if="appointmentsByDay(day.key).length" class="font-normal tabular-nums text-neutral-400">
@@ -1740,7 +1740,7 @@ watch(
             v-if="appointmentsByDay(day.key).length > WEEK_DAY_VISIBLE"
             type="button"
             class="rounded px-1.5 py-1 text-left text-[11px] font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10"
-            @click="openDay(day.date, canPlanAllAppointments ? 'timeline' : 'day')"
+            @click="openDay(day.date)"
           >
             +{{ appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }} weitere
           </button>
@@ -1758,7 +1758,7 @@ watch(
           <div
             v-for="day in monthGrid"
             :key="day.key"
-            class="rounded-md border min-h-[72px] sm:min-h-[110px] p-0.5 sm:p-1.5 flex flex-col gap-0.5 sm:gap-1 transition overflow-hidden"
+            class="rounded-md border min-h-[72px] sm:min-h-[110px] p-0.5 sm:p-1.5 flex flex-col gap-0.5 sm:gap-1 transition overflow-hidden cursor-pointer hover:border-primary-300 dark:hover:border-primary-700"
             :class="[
               day.inMonth
                 ? 'bg-white dark:bg-neutral-950'
@@ -1767,6 +1767,8 @@ watch(
                 ? 'border-primary-300 dark:border-primary-700 ring-1 ring-primary-200 dark:ring-primary-900/40'
                 : 'border-neutral-200 dark:border-neutral-800',
             ]"
+            title="Zeitachse für diesen Tag"
+            @click="openDay(day.date)"
           >
             <div class="flex items-center justify-center sm:justify-end text-[11px] sm:text-xs">
               <span
@@ -1793,7 +1795,7 @@ watch(
                     appointment.status === 'cancelled',
                 }"
                 :title="`${formatTime(appointment.startsAt)} ${appointmentTitle(appointment)}`"
-                @click="openEditAppointment(appointment)"
+                @click.stop="openEditAppointment(appointment)"
               >
                 <span
                   v-if="appointmentColor(appointment)"
@@ -1807,7 +1809,7 @@ watch(
                 v-if="appointmentsByDay(day.key).length > 3"
                 type="button"
                 class="text-[9px] sm:text-[11px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 text-left truncate"
-                @click="openDay(day.date)"
+                @click.stop="openDay(day.date)"
               >
                 +{{ appointmentsByDay(day.key).length - 3 }}
               </button>
