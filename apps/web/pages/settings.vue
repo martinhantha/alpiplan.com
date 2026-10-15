@@ -262,10 +262,7 @@ const tabs = computed(() => {
     items.push({ id: "absences", label: t("settings.tabs.absences"), icon: "i-lucide-calendar-off" });
   }
   if (canEdit.value) {
-    items.push(
-      { id: "lesson-types", label: t("settings.tabs.lessonTypes"), icon: "i-lucide-tag" },
-      { id: "availability", label: t("settings.tabs.availability"), icon: "i-lucide-clock" },
-    );
+    items.push({ id: "availability", label: t("settings.tabs.availability"), icon: "i-lucide-clock" });
   }
   if (isSuperadmin.value) {
     items.push({ id: "users", label: t("settings.tabs.users"), icon: "i-lucide-users" });
@@ -421,12 +418,9 @@ function apiMessage(e: unknown, fallback: string) {
 }
 
 const lessonTypes = ref<LessonType[]>([]);
-const lessonTypeForm = reactive({ id: "", name: "", defaultDurationMin: 60 as number | "", teacherIds: [] as string[] });
-const lessonTypeLoading = ref(false);
 
 async function loadLessonTypes() {
   if (!primaryTenant.value?.tenantId) return;
-  lessonTypeLoading.value = true;
   try {
     const response = await $fetch<{ data: LessonType[] }>(
       `/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types`,
@@ -434,82 +428,7 @@ async function loadLessonTypes() {
     );
     lessonTypes.value = response.data;
   } catch (e: unknown) {
-    setError(apiMessage(e, "Termintypen konnten nicht geladen werden"));
-  } finally {
-    lessonTypeLoading.value = false;
-  }
-}
-
-function selectLessonType(item: LessonType) {
-  lessonTypeForm.id = item.id;
-  lessonTypeForm.name = item.name;
-  lessonTypeForm.defaultDurationMin = item.defaultDurationMin ?? "";
-  lessonTypeForm.teacherIds = [...(item.teacherIds ?? [])];
-}
-function resetLessonTypeForm() {
-  lessonTypeForm.id = "";
-  lessonTypeForm.name = "";
-  lessonTypeForm.defaultDurationMin = 60;
-  lessonTypeForm.teacherIds = [];
-}
-function lessonTypeTeacherNames(ids: string[]) {
-  return ids
-    .map((id) => teachers.value.find((teacher) => teacher.id === id)?.displayName)
-    .filter(Boolean)
-    .join(", ");
-}
-
-async function saveLessonType() {
-  if (!primaryTenant.value?.tenantId) return;
-  if (!lessonTypeForm.name.trim()) {
-    setError("Name ist erforderlich");
-    return;
-  }
-  lessonTypeLoading.value = true;
-  try {
-    const body = {
-      name: lessonTypeForm.name,
-      defaultDurationMin:
-        lessonTypeForm.defaultDurationMin === "" ? null : Number(lessonTypeForm.defaultDurationMin),
-      teacherIds: lessonTypeForm.teacherIds,
-    };
-    if (lessonTypeForm.id) {
-      await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types/${lessonTypeForm.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        body,
-      });
-      setInfo("Termintyp aktualisiert");
-    } else {
-      await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types`, {
-        method: "POST",
-        credentials: "include",
-        body,
-      });
-      setInfo("Termintyp angelegt");
-    }
-    resetLessonTypeForm();
-    await loadLessonTypes();
-  } catch (e: unknown) {
-    setError(apiMessage(e, "Termintyp konnte nicht gespeichert werden"));
-  } finally {
-    lessonTypeLoading.value = false;
-  }
-}
-
-async function deleteLessonType(item: LessonType) {
-  if (!primaryTenant.value?.tenantId) return;
-  if (!confirm(`Termintyp „${item.name}“ löschen? Er kann im Papierkorb wiederhergestellt werden.`)) return;
-  try {
-    await $fetch(`/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types/${item.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    setInfo("Termintyp gelöscht");
-    if (lessonTypeForm.id === item.id) resetLessonTypeForm();
-    await loadLessonTypes();
-  } catch (e: unknown) {
-    setError(apiMessage(e, "Termintyp konnte nicht gelöscht werden"));
+    setError(apiMessage(e, "Terminarten konnten nicht geladen werden"));
   }
 }
 
@@ -1037,7 +956,6 @@ watch(activeTab, async (tab) => {
     await loadAbsenceTeachers();
     await loadAbsences();
   }
-  if (tab === "lesson-types") await Promise.all([loadLessonTypes(), loadTeachers()]);
   if (tab === "availability") {
     await loadTeachers();
     await loadRules();
@@ -1051,7 +969,7 @@ watch(selectedTeacherId, () => {
 });
 
 watch(canEdit, (ok) => {
-  if (!ok && (activeTab.value === "lesson-types" || activeTab.value === "availability")) {
+  if (!ok && activeTab.value === "availability") {
     activeTab.value = "account";
   }
 });
@@ -1663,67 +1581,6 @@ onBeforeUnmount(() => {
           </form>
         </UCard>
       </div>
-    </section>
-
-    <section v-else-if="activeTab === 'lesson-types' && canEdit" class="grid gap-4 lg:grid-cols-3">
-      <UCard class="lg:col-span-2">
-        <template #header>
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="font-medium">Termintypen ({{ lessonTypes.length }})</h2>
-            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="lessonTypeLoading" @click="loadLessonTypes" />
-          </div>
-        </template>
-        <div v-if="!lessonTypes.length" class="text-sm text-neutral-500">Noch keine Termintypen angelegt.</div>
-        <div v-else class="divide-y divide-neutral-200 dark:divide-neutral-800">
-          <div v-for="item in lessonTypes" :key="item.id" class="flex items-center justify-between py-2 gap-3">
-            <div>
-              <p class="font-medium">{{ item.name }}</p>
-              <p v-if="useDefaultDurationLocal" class="text-xs text-neutral-500">
-                Standard-Dauer: {{ item.defaultDurationMin ? `${item.defaultDurationMin} Min` : "—" }}
-              </p>
-              <p v-if="item.teacherIds?.length" class="text-xs text-neutral-500">
-                Bevorzugte {{ teacherLabelLocal }}: {{ lessonTypeTeacherNames(item.teacherIds) }}
-              </p>
-            </div>
-            <div class="flex gap-1">
-              <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil" :disabled="!canEdit" @click="selectLessonType(item)" />
-              <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" :disabled="!canEdit" @click="deleteLessonType(item)" />
-            </div>
-          </div>
-        </div>
-      </UCard>
-
-      <UCard>
-        <template #header>
-          <h2 class="font-medium">{{ lessonTypeForm.id ? "Termintyp bearbeiten" : "Neuer Termintyp" }}</h2>
-        </template>
-        <form class="space-y-3" @submit.prevent="saveLessonType">
-          <UFormField label="Name">
-            <UInput v-model="lessonTypeForm.name" placeholder="z. B. Einzelstunde" :disabled="!canEdit" />
-          </UFormField>
-          <UFormField v-if="useDefaultDurationLocal" label="Standard-Dauer (Minuten)" hint="leer = keine Vorgabe">
-            <UInput v-model.number="lessonTypeForm.defaultDurationMin" type="number" min="5" max="1440" :disabled="!canEdit" />
-          </UFormField>
-          <p v-else class="text-xs text-neutral-500">
-            Dauer ist für diesen Mandanten deaktiviert (Tab „Account" → Mandanten-Optionen).
-          </p>
-          <UFormField
-            :label="`Bevorzugte ${teacherLabelLocal}`"
-            hint="optional"
-            help="Werden in der Schnellerfassung zuerst vorgeschlagen und automatisch ausgewählt, wenn frei. Danach folgt die Priorität."
-          >
-            <TeacherPicker v-model="lessonTypeForm.teacherIds" :options="teachers" :label="teacherLabelLocal" />
-          </UFormField>
-          <div class="flex gap-2">
-            <UButton type="submit" color="primary" :loading="lessonTypeLoading" :disabled="!canEdit">
-              {{ lessonTypeForm.id ? "Speichern" : "Anlegen" }}
-            </UButton>
-            <UButton v-if="lessonTypeForm.id" variant="ghost" color="neutral" @click="resetLessonTypeForm">
-              Abbrechen
-            </UButton>
-          </div>
-        </form>
-      </UCard>
     </section>
 
     <section v-else-if="activeTab === 'availability' && canEdit" class="space-y-4">

@@ -623,9 +623,14 @@ const canManageDeviceContact = computed(
 const deviceContactStatusLabel = computed(() => {
   if (deviceContactHint.value) return "";
   if (!savedOnDevice.value) return "";
-  return deviceContactLookup.value.match?.googleSynced
-    ? t("quickCapture.contactInGoogle")
-    : t("quickCapture.contactOnPhone");
+  const match = deviceContactLookup.value.match;
+  const name = match?.displayName?.trim();
+  if (name) {
+    return match?.googleSynced
+      ? t("quickCapture.contactInGoogleAs", { name })
+      : t("quickCapture.contactOnPhoneAs", { name });
+  }
+  return match?.googleSynced ? t("quickCapture.contactInGoogle") : t("quickCapture.contactOnPhone");
 });
 const showCallHintsOptInHint = computed(
   () => device.value.features.callHints && !isCallHintsOptIn() && !callHints.value.length,
@@ -698,10 +703,17 @@ async function saveDeviceContact() {
       organization,
     });
     await refreshDeviceContact();
+    const match = deviceContactLookup.value.match;
     if (device.value.platform === "web") {
       deviceContactHint.value = t("quickCapture.contactVcardDownloaded", { organization });
-    } else if (deviceContactLookup.value.match?.googleSynced) {
-      deviceContactHint.value = t("quickCapture.contactAlreadyInGoogle");
+    } else if (deviceContactLookup.value.status === "missing") {
+      deviceContactHint.value = t("quickCapture.contactNotFoundAfterSave");
+    } else if (match?.googleSynced) {
+      deviceContactHint.value = match.displayName
+        ? t("quickCapture.contactInGoogleAs", { name: match.displayName })
+        : t("quickCapture.contactAlreadyInGoogle");
+    } else if (match?.displayName) {
+      deviceContactHint.value = t("quickCapture.contactOnPhoneAs", { name: match.displayName });
     } else {
       deviceContactHint.value = t("quickCapture.contactSavedLocally", { organization });
     }

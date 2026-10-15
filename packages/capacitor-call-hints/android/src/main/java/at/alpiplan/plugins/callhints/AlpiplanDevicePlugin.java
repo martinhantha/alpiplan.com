@@ -1,8 +1,6 @@
 package at.alpiplan.plugins.callhints;
 
 import android.Manifest;
-import android.accounts.Account;
-import android.accounts.AccountManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -52,9 +50,14 @@ import java.util.HashSet;
 )
 public class AlpiplanDevicePlugin extends Plugin {
 
-    private static final String ACCOUNT_NAME = "Alpiplan";
-    private static final String ACCOUNT_TYPE = "at.alpiplan.app";
+    private static final String DEFAULT_ORGANIZATION = "Alpiplan";
     private static final String GOOGLE_ACCOUNT_PREFIX = "com.google";
+    private static final String[] LOCAL_PHONE_ACCOUNT_TYPES = new String[] {
+        "vnd.sec.contact.phone",
+        "com.android.huawei.phone",
+        "com.android.localphone",
+        "Local Phone Account",
+    };
     private static final String NOTIFICATION_CHANNEL_ID = "alpiplan_appointments";
     private static final long SPEECH_RESTART_DELAY_MS = 120L;
     private static final long SPEECH_RECREATE_DELAY_MS = 220L;
@@ -391,30 +394,49 @@ public class AlpiplanDevicePlugin extends Plugin {
         String note = emptyToNull(call.getString("note"));
         String organization = emptyToNull(call.getString("organization"));
         if (organization == null) {
-            organization = ACCOUNT_NAME;
+            organization = DEFAULT_ORGANIZATION;
         }
 
-        try {
-            if (phone != null) {
-                PhoneContactMatch existing = firstMatchByPhone(phone);
-                if (existing != null) {
-                    call.resolve(toContactResult(existing));
-                    return;
-                }
-            }
-            String contactId = applyInsert(displayName, phone, note, organization, true);
-            if (contactId == null) {
-                contactId = applyInsert(displayName, phone, note, organization, false);
-            }
-            if (contactId == null) {
-                call.reject("Contact could not be saved locally");
+        if (phone != null) {
+            PhoneContactMatch existing = firstMatchByPhone(phone);
+            if (existing != null) {
+                JSObject result = toContactResult(existing);
+                result.put("existing", true);
+                call.resolve(result);
                 return;
             }
-            JSObject result = new JSObject();
-            result.put("contactId", contactId);
-            call.resolve(result);
-        } catch (Exception exception) {
-            call.reject("Failed to save local contact", exception);
+        }
+
+        ArrayList<String[]> targets = new ArrayList<>();
+        String[] localAccount = resolveLocalPhoneAccount();
+        if (localAccount != null) {
+            targets.add(localAccount);
+        }
+        targets.add(new String[] { null, null });
+
+        Exception lastError = null;
+        for (String[] target : targets) {
+            try {
+                String contactId = applyInsert(displayName, phone, note, organization, target[0], target[1]);
+                if (contactId == null) {
+                    continue;
+                }
+                JSObject result = new JSObject();
+                result.put("found", true);
+                result.put("existing", false);
+                result.put("contactId", contactId);
+                result.put("displayName", displayName);
+                result.put("accountType", target[1] == null ? "device" : target[1]);
+                call.resolve(result);
+                return;
+            } catch (Exception exception) {
+                lastError = exception;
+            }
+        }
+        if (lastError != null) {
+            call.reject("Failed to save local contact", lastError);
+        } else {
+            call.reject("Contact could not be saved locally");
         }
     }
 
@@ -567,18 +589,22 @@ public class AlpiplanDevicePlugin extends Plugin {
         return false;
     }
 
-    private String applyInsert(String displayName, String phone, String note, String organization, boolean useAlpiplanAccount)
-        throws Exception {
+    private String applyInsert(
+        String displayName,
+        String phone,
+        String note,
+        String organization,
+        String accountName,
+        String accountType
+    ) throws Exception {
         ArrayList<ContentProviderOperation> ops = new ArrayList<>();
-        ContentProviderOperation.Builder accountOp = ContentProviderOperation.newInsert(RawContacts.CONTENT_URI);
-        if (useAlpiplanAccount) {
-            String[] account = resolveNonGoogleAccount();
-            accountOp.withValue(RawContacts.ACCOUNT_NAME, account[0]).withValue(RawContacts.ACCOUNT_TYPE, account[1]);
-        } else {
-            // Last-resort local insert. Some OEMs still remap this to Google.
-            accountOp.withValue(RawContacts.ACCOUNT_TYPE, null).withValue(RawContacts.ACCOUNT_NAME, null);
-        }
-        ops.add(accountOp.build());
+        // A null account means "device only"; some OEMs still remap it to their default account.
+        ops.add(
+            ContentProviderOperation.newInsert(RawContacts.CONTENT_URI)
+                .withValue(RawContacts.ACCOUNT_NAME, accountName)
+                .withValue(RawContacts.ACCOUNT_TYPE, accountType)
+                .build()
+        );
 
         ops.add(
             ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
@@ -628,24 +654,29 @@ public class AlpiplanDevicePlugin extends Plugin {
     }
 
     /**
-     * Prefer the Alpiplan local account. If the device already has a non-Google phone
-     * account (Samsung "Phone", etc.), use that instead so the contact never syncs.
+     * Returns the OEM "phone" account (e.g. Samsung "Telefon") if the contacts provider
+     * already holds contacts in it. Accounts without a registered authenticator or with
+     * foreign sync adapters get wiped or hidden, so only known device-local types qualify.
      */
-    private String[] resolveNonGoogleAccount() {
-        try {
-            Account[] accounts = AccountManager.get(getContext()).getAccounts();
-            for (Account account : accounts) {
-                if (account.type != null && account.type.startsWith(GOOGLE_ACCOUNT_PREFIX)) {
-                    continue;
+    private String[] resolveLocalPhoneAccount() {
+        ContentResolver resolver = getContext().getContentResolver();
+        for (String type : LOCAL_PHONE_ACCOUNT_TYPES) {
+            try (Cursor cursor = resolver.query(
+                RawContacts.CONTENT_URI,
+                new String[] { RawContacts.ACCOUNT_NAME },
+                RawContacts.ACCOUNT_TYPE + "=? AND " + RawContacts.DELETED + "=0",
+                new String[] { type },
+                null
+            )) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    String name = cursor.getString(0);
+                    return new String[] { name, type };
                 }
-                if (account.name != null && account.type != null) {
-                    return new String[] { account.name, account.type };
-                }
+            } catch (Exception ignored) {
+                // Try the next known type.
             }
-        } catch (Exception ignored) {
-            // Missing GET_ACCOUNTS is fine — fall back to the Alpiplan local account.
         }
-        return new String[] { ACCOUNT_NAME, ACCOUNT_TYPE };
+        return null;
     }
 
     private static String emptyToNull(String value) {

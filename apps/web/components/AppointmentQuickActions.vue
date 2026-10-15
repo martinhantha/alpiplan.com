@@ -112,10 +112,12 @@ async function saveDeviceContact() {
 
 async function removeDeviceContact() {
   if (!phone.value || !canRemoveContact.value) return;
+  const name = lookup.value.match?.displayName?.trim();
+  const label = name ? `Kontakt „${name}“` : "Diesen Kontakt";
   const ok = window.confirm(
     lookup.value.match?.googleSynced
-      ? "Dieser Kontakt ist mit Google Kontakte synchronisiert und wird dort ebenfalls gelöscht. Fortfahren?"
-      : "Diesen Kontakt wirklich vom Telefon entfernen?",
+      ? `${label} ist mit Google Kontakte synchronisiert und wird dort ebenfalls gelöscht. Fortfahren?`
+      : `${label} wirklich vom Telefon entfernen?`,
   );
   if (!ok) return;
   removingContact.value = true;
@@ -188,7 +190,13 @@ async function removeDeviceContact() {
       :loading="removingContact || checkingContact"
       :square="compact"
       :aria-label="lookup.match?.googleSynced ? 'Aus Google Kontakte entfernen' : 'Kontakt vom Telefon entfernen'"
-      :title="lookup.match?.googleSynced ? 'Aus Google Kontakte entfernen' : 'Kontakt vom Telefon entfernen'"
+      :title="
+        lookup.match?.displayName
+          ? `Gespeichert als „${lookup.match.displayName}“ – ${lookup.match.googleSynced ? 'aus Google Kontakte entfernen' : 'vom Telefon entfernen'}`
+          : lookup.match?.googleSynced
+            ? 'Aus Google Kontakte entfernen'
+            : 'Kontakt vom Telefon entfernen'
+      "
       @click="removeDeviceContact"
     >
       <span v-if="!compact" class="hidden sm:inline">

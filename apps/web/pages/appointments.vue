@@ -788,11 +788,10 @@ function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[]
   ];
   if (canAccessWorkspace.value) {
     groups.push([
-      { label: "Kopieren auf anderen Tag…", icon: "i-lucide-copy", onSelect: () => openCopyDialog(appointment, false) },
       {
-        label: "Auf mehrere Tage kopieren…",
-        icon: "i-lucide-calendar-plus-2",
-        onSelect: () => openCopyDialog(appointment, true),
+        label: "Auf einen oder mehrere Tage kopieren…",
+        icon: "i-lucide-copy",
+        onSelect: () => openCopyDialog(appointment),
       },
     ]);
   }
@@ -807,7 +806,6 @@ function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[]
 // --- Copy to other days ---------------------------------------------------
 
 const copySource = ref<AppointmentListItem | null>(null);
-const copyMultiple = ref(false);
 const copyDates = shallowRef<CalendarDate[]>([]);
 const copySaving = ref(false);
 const copyFailures = ref<{ date: string; message: string }[]>([]);
@@ -827,15 +825,14 @@ function fromCalendarDate(value: DateValue) {
   return new Date(value.year, value.month - 1, value.day);
 }
 
-function openCopyDialog(appointment: AppointmentListItem, multiple: boolean) {
+function openCopyDialog(appointment: AppointmentListItem) {
   copySource.value = appointment;
-  copyMultiple.value = multiple;
   copyDates.value = [];
   copyFailures.value = [];
 }
 
 const copyCalendarModel = computed({
-  get: () => (copyMultiple.value ? copyDates.value : copyDates.value[0]),
+  get: () => copyDates.value,
   set: (value: DateValue | DateValue[] | undefined | null) => {
     const list = Array.isArray(value) ? value : value ? [value] : [];
     copyDates.value = list
@@ -1882,7 +1879,7 @@ watch(
 
     <UModal
       v-model:open="copyOpen"
-      :title="copyMultiple ? 'Auf mehrere Tage kopieren' : 'Kopieren auf anderen Tag'"
+      title="Auf einen oder mehrere Tage kopieren"
       :dismissible="!copySaving"
       :ui="{ content: 'max-w-md' }"
     >
@@ -1897,11 +1894,11 @@ watch(
             </p>
           </div>
           <p class="text-xs text-neutral-500">
-            {{ copyMultiple ? "Tage im Kalender anklicken (mehrere möglich)." : "Zieltag im Kalender anklicken." }}
+            Einen oder mehrere Tage im Kalender anklicken.
           </p>
           <UCalendar
             v-model="copyCalendarModel"
-            :multiple="copyMultiple"
+            multiple
             :is-date-disabled="isCopySourceDay"
             fixed-weeks
             class="mx-auto"
