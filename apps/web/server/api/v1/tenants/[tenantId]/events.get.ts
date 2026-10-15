@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
   const viewer: LiveViewer = {
     userId: access.actorUserId,
     isAdmin: access.role === "ADMIN" || access.role === "SUPERADMIN",
+    seesAllAppointments: !access.performsAppointments,
     movedAlertsEnabled: preferences?.appointmentMovedAlertsEnabled !== false,
   };
 

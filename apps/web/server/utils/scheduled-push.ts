@@ -80,10 +80,10 @@ async function teacherUserIds(appointment: {
     teacherId?: string | null;
     teacher?: { id?: string | null } | null;
   }> | null;
-}): Promise<string[]> {
+}): Promise<{ all: string[]; reminderEnabled: string[] }> {
   const assigned = assignedTeachersFromAppointment(appointment);
   const ids = assigned.map((item) => item.id);
-  if (!ids.length) return [];
+  if (!ids.length) return { all: [], reminderEnabled: [] };
   const profiles = await prisma.teacherProfile.findMany({
     where: {
       id: { in: ids },
@@ -94,19 +94,24 @@ async function teacherUserIds(appointment: {
       membership: {
         select: {
           userId: true,
-          user: { select: { deletedAt: true, disabledAt: true } },
+          user: { select: { deletedAt: true, disabledAt: true, appointmentReminderEnabled: true } },
         },
       },
     },
   });
-  return [
-    ...new Set(
-      profiles
-        .map((profile) => profile.membership)
-        .filter((membership) => membership?.user && !membership.user.deletedAt && !membership.user.disabledAt)
-        .map((membership) => membership!.userId),
-    ),
-  ];
+  const active = profiles
+    .map((profile) => profile.membership)
+    .filter((membership) => membership?.user && !membership.user.deletedAt && !membership.user.disabledAt);
+  return {
+    all: [...new Set(active.map((membership) => membership!.userId))],
+    reminderEnabled: [
+      ...new Set(
+        active
+          .filter((membership) => membership!.user.appointmentReminderEnabled)
+          .map((membership) => membership!.userId),
+      ),
+    ],
+  };
 }
 
 async function sendDueReminders(now: Date): Promise<void> {
@@ -133,11 +138,13 @@ async function sendDueReminders(now: Date): Promise<void> {
     if (!claimed.count) continue;
 
     try {
-      const userIds = await teacherUserIds(appointment);
-      if (!userIds.length) {
+      const teachers = await teacherUserIds(appointment);
+      if (!teachers.all.length) {
         await unclaimReminder(appointment.id);
         continue;
       }
+      const userIds = teachers.reminderEnabled;
+      if (!userIds.length) continue;
       const title = resolveAppointmentDisplayName(appointment);
       const minutes = Math.max(
         1,
@@ -197,7 +204,7 @@ async function sendDueDraftReminders(now: Date): Promise<void> {
 
     try {
       const userIds = [
-        ...new Set([...(appointment.createdByUserId ? [appointment.createdByUserId] : []), ...(await teacherUserIds(appointment))]),
+        ...new Set([...(appointment.createdByUserId ? [appointment.createdByUserId] : []), ...(await teacherUserIds(appointment)).all]),
       ];
       if (!userIds.length) continue;
       const title = resolveAppointmentDisplayName(appointment);

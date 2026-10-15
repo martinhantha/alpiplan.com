@@ -26,7 +26,7 @@ interface AppointmentListItem {
   } | null;
 }
 
-const { user, primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } =
+const { user, primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canPlanAllAppointments, canAccessWorkspace } =
   useAuth();
 const { t, intlLocale } = useAppLocale();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
@@ -35,7 +35,7 @@ const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 function teachersCaption(appointment: AppointmentListItem) {
   return formatTeachersCaption(appointment, {
     teacherProfileId: primaryTenant.value?.teacherProfileId,
-    canManageTenant: canManageTenant.value,
+    canManageTenant: canPlanAllAppointments.value,
     teacherLabel: teacherLabel.value,
   });
 }
@@ -156,7 +156,7 @@ const selectedDateAppointments = computed(() =>
 );
 
 async function loadSchedulingOptions() {
-  if (!primaryTenant.value?.tenantId || !canManageTenant.value) {
+  if (!primaryTenant.value?.tenantId || !canPlanAllAppointments.value) {
     schedulingOptions.value = null;
     filterTeacherId.value = "";
     return;
@@ -590,7 +590,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         </template>
         <div class="space-y-3">
           <select
-            v-if="canManageTenant && schedulingOptions?.teachers?.length"
+            v-if="canPlanAllAppointments && schedulingOptions?.teachers?.length"
             v-model="filterTeacherId"
             class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
           >

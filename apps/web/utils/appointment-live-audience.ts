@@ -37,6 +37,8 @@ type AudienceEvent = Pick<
 export interface LiveViewer {
   userId: string;
   isAdmin: boolean;
+  /** Staff that only organizes appointments sees every appointment of the tenant. */
+  seesAllAppointments?: boolean;
   /** Admin preference: alert when someone else moves an appointment. */
   movedAlertsEnabled: boolean;
 }
@@ -50,7 +52,7 @@ function isAssignedTeacher(viewerUserId: string, event: AudienceEvent) {
 
 /** Whether the viewer's open views must refresh for this event (no alert implied). */
 export function shouldReceiveAppointmentLive(viewer: LiveViewer, event: AudienceEvent): boolean {
-  if (viewer.isAdmin || event.actorUserId === viewer.userId) return true;
+  if (viewer.isAdmin || viewer.seesAllAppointments || event.actorUserId === viewer.userId) return true;
   if (isAssignedTeacher(viewer.userId, event)) return true;
   if ((event.previousTeacherUserIds ?? []).includes(viewer.userId)) return true;
   return Boolean(event.createdByUserId && event.createdByUserId === viewer.userId);

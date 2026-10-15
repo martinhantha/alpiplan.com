@@ -14,12 +14,20 @@ export default defineEventHandler(async (event) => {
     nextDayBriefingEnabled?: unknown;
     nextDayBriefingMinutes?: unknown;
     appointmentMovedAlertsEnabled?: unknown;
+    appointmentReminderEnabled?: unknown;
   };
   const data: {
     nextDayBriefingEnabled?: boolean;
     nextDayBriefingMinutes?: number;
     appointmentMovedAlertsEnabled?: boolean;
+    appointmentReminderEnabled?: boolean;
   } = {};
+  if (body.appointmentReminderEnabled !== undefined) {
+    if (typeof body.appointmentReminderEnabled !== "boolean") {
+      throwValidation("Ungültiger Wert für die Terminerinnerung");
+    }
+    data.appointmentReminderEnabled = body.appointmentReminderEnabled;
+  }
   if (body.appointmentMovedAlertsEnabled !== undefined) {
     if (typeof body.appointmentMovedAlertsEnabled !== "boolean") {
       throwValidation("Ungültiger Wert für die Verschiebe-Benachrichtigung");

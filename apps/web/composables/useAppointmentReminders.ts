@@ -151,7 +151,7 @@ export function useAppointmentReminders() {
 
   async function refresh() {
     const tenantId = primaryTenant.value?.tenantId;
-    if (!import.meta.client || !user.value || !tenantId) {
+    if (!import.meta.client || !user.value || !tenantId || user.value.appointmentReminderEnabled === false) {
       clearTimers();
       reminder.value = null;
       queue.length = 0;
@@ -203,7 +203,7 @@ export function useAppointmentReminders() {
   });
 
   watch(
-    () => primaryTenant.value?.tenantId,
+    () => [primaryTenant.value?.tenantId, user.value?.appointmentReminderEnabled],
     () => {
       clearTimers();
       void refresh();

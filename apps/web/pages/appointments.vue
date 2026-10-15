@@ -40,7 +40,7 @@ interface SchedulingOptions {
   lessonTypes: { id: string; name: string }[];
 }
 
-const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canAccessWorkspace } = useAuth();
+const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canPlanAllAppointments, canAccessWorkspace } = useAuth();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
 const { intlLocale } = useAppLocale();
 
@@ -118,7 +118,7 @@ function startOfDay(date: Date): Date {
 }
 
 function appointmentColor(appointment: AppointmentListItem): string | null {
-  if (!canManageTenant.value) return null;
+  if (!canPlanAllAppointments.value) return null;
   const teacher = appointment.teachers?.[0] ?? appointment.teacher;
   return teacher ? avatarColor(teacher.id, teacher.color) : null;
 }
@@ -126,7 +126,7 @@ function appointmentColor(appointment: AppointmentListItem): string | null {
 function teachersCaption(appointment: AppointmentListItem) {
   return formatTeachersCaption(appointment, {
     teacherProfileId: primaryTenant.value?.teacherProfileId,
-    canManageTenant: canManageTenant.value,
+    canManageTenant: canPlanAllAppointments.value,
     teacherLabel: teacherLabel.value,
   });
 }
@@ -416,7 +416,7 @@ const dayColumns = computed(() => {
 /** Like `dayColumns`, but every person gets a row, even without appointments that day. */
 const timelineRows = computed(() => {
   const withAppointments = new Map(dayColumns.value.map((column) => [column.id, column]));
-  const ownTeacherId = canManageTenant.value ? null : (primaryTenant.value?.teacherProfileId ?? "");
+  const ownTeacherId = canPlanAllAppointments.value ? null : (primaryTenant.value?.teacherProfileId ?? "");
   const rows = (options.value?.teachers ?? [])
     .filter((teacher) => ownTeacherId === null || teacher.id === ownTeacherId)
     .filter((teacher) => !filters.teacherId || teacher.id === filters.teacherId)
@@ -1069,7 +1069,7 @@ watch(
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
         </h1>
         <p v-if="!canManageTenant" class="mt-1 text-sm text-neutral-500">
-          Nur eigene Termine. Löschen nur durch Admin.
+          {{ canPlanAllAppointments ? "" : "Nur eigene Termine. " }}Löschen nur durch Admin.
         </p>
       </div>
       <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -1199,7 +1199,7 @@ watch(
             :ui="filterControlUi"
           />
         </UFormField>
-        <UFormField v-if="canManageTenant" :label="teacherLabel" class="min-w-0">
+        <UFormField v-if="canPlanAllAppointments" :label="teacherLabel" class="min-w-0">
           <USelect
             v-model="teacherFilterModel"
             size="md"
@@ -1406,7 +1406,7 @@ watch(
               type="button"
               class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
               :class="
-                calendarMode === 'week' || (calendarMode === 'team' && !canManageTenant)
+                calendarMode === 'week' || (calendarMode === 'team' && !canPlanAllAppointments)
                   ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
                   : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               "
@@ -1415,7 +1415,7 @@ watch(
               Woche
             </button>
             <button
-              v-if="canManageTenant"
+              v-if="canPlanAllAppointments"
               type="button"
               class="px-3 py-1.5 text-sm border-l border-neutral-300 dark:border-neutral-700 transition"
               :class="
@@ -1540,9 +1540,9 @@ watch(
             :from-hour="timelineHours.from"
             :to-hour="timelineHours.to"
             :can-move="canAccessWorkspace"
-            :can-change-row="canManageTenant"
+            :can-change-row="canPlanAllAppointments"
             :can-create="canAccessWorkspace"
-            :person-colors="canManageTenant"
+            :person-colors="canPlanAllAppointments"
             :saving-id="savingId"
             :show-resource="resourcesEnabled"
             :title-of="appointmentTitle"
@@ -1575,7 +1575,7 @@ watch(
               <div class="flex items-center justify-between gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
                 <span class="flex min-w-0 items-center gap-2">
                   <span
-                    v-if="canManageTenant"
+                    v-if="canPlanAllAppointments"
                     class="size-2.5 shrink-0 rounded-full"
                     :class="column.id === UNASSIGNED_ROW_ID ? 'border border-dashed border-neutral-400' : ''"
                     :style="column.id === UNASSIGNED_ROW_ID ? {} : { backgroundColor: avatarColor(column.id, column.color) }"
@@ -1588,7 +1588,7 @@ watch(
                 v-for="appointment in column.appointments"
                 :key="appointment.id"
                 class="rounded-md border border-l-[3px] border-neutral-200 dark:border-neutral-800 px-2.5 py-2 text-sm bg-neutral-50 dark:bg-neutral-900"
-                :style="!canManageTenant || column.id === UNASSIGNED_ROW_ID ? {} : { borderLeftColor: avatarColor(column.id, column.color) }"
+                :style="!canPlanAllAppointments || column.id === UNASSIGNED_ROW_ID ? {} : { borderLeftColor: avatarColor(column.id, column.color) }"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
@@ -1630,7 +1630,7 @@ watch(
         </div>
       </template>
 
-      <div v-else-if="calendarMode === 'team' && canManageTenant" class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+      <div v-else-if="calendarMode === 'team' && canPlanAllAppointments" class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
         <table class="w-full min-w-[56rem] table-fixed border-collapse text-xs">
           <thead>
             <tr class="bg-neutral-50 dark:bg-neutral-900/60">
@@ -1719,7 +1719,7 @@ watch(
             type="button"
             class="flex items-center justify-between px-0.5 text-left text-xs font-medium text-neutral-600 hover:text-primary-700 dark:text-neutral-400 dark:hover:text-primary-200"
             title="Tagesansicht"
-            @click="openDay(day.date, canManageTenant ? 'timeline' : 'day')"
+            @click="openDay(day.date, canPlanAllAppointments ? 'timeline' : 'day')"
           >
             <span>{{ formatDayHeader(day.date) }}</span>
             <span v-if="appointmentsByDay(day.key).length" class="font-normal tabular-nums text-neutral-400">
@@ -1733,14 +1733,14 @@ watch(
             :title="appointmentTitle(appointment)"
             :status="appointment.status"
             :color="appointmentColor(appointment)"
-            :person-name="canManageTenant ? (appointment.teachers?.[0] ?? appointment.teacher)?.displayName : null"
+            :person-name="canPlanAllAppointments ? (appointment.teachers?.[0] ?? appointment.teacher)?.displayName : null"
             @click="openEditAppointment(appointment)"
           />
           <button
             v-if="appointmentsByDay(day.key).length > WEEK_DAY_VISIBLE"
             type="button"
             class="rounded px-1.5 py-1 text-left text-[11px] font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10"
-            @click="openDay(day.date, canManageTenant ? 'timeline' : 'day')"
+            @click="openDay(day.date, canPlanAllAppointments ? 'timeline' : 'day')"
           >
             +{{ appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }} weitere
           </button>

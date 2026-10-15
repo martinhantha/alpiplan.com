@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { TenantRole } from "@prisma/client";
+import { AppointmentStatus, TenantRole } from "@prisma/client";
 import { prisma } from "~/server/utils/prisma";
 import { throwApiError, throwConflict, throwNotFound, throwValidation } from "~/server/utils/api-errors";
 import { assertUuid } from "~/server/utils/authz";
@@ -60,10 +60,31 @@ export async function ensureTeacherProfile(params: {
 }) {
   if (!teacherRoles.includes(params.role)) return;
   const displayName = params.displayName.trim() || "Lehrer";
-  const existing = await prisma.teacherProfile.findUnique({
-    where: { membershipId: params.membershipId },
-    select: { id: true, deletedAt: true },
-  });
+  const [membership, existing] = await Promise.all([
+    prisma.membership.findUnique({
+      where: { id: params.membershipId },
+      select: { performsAppointments: true },
+    }),
+    prisma.teacherProfile.findUnique({
+      where: { membershipId: params.membershipId },
+      select: { id: true, deletedAt: true },
+    }),
+  ]);
+  if (membership && !membership.performsAppointments) {
+    if (existing && !existing.deletedAt) {
+      await prisma.$transaction([
+        prisma.teacherProfile.update({
+          where: { id: existing.id },
+          data: { deletedAt: new Date() },
+        }),
+        prisma.tenant.updateMany({
+          where: { id: params.tenantId, defaultTeacherId: existing.id },
+          data: { defaultTeacherId: null },
+        }),
+      ]);
+    }
+    return;
+  }
   if (!existing) {
     await prisma.teacherProfile.create({
       data: {
@@ -84,7 +105,7 @@ export async function ensureTeacherProfile(params: {
 
 export async function ensureTeacherProfilesForTenant(tenantId: string) {
   const memberships = await prisma.membership.findMany({
-    where: { tenantId, deletedAt: null, role: { in: teacherRoles } },
+    where: { tenantId, deletedAt: null, role: { in: teacherRoles }, performsAppointments: true },
     select: {
       id: true,
       role: true,
@@ -109,6 +130,7 @@ export async function listTenantMembers(tenantId: string) {
     select: {
       id: true,
       role: true,
+      performsAppointments: true,
       createdAt: true,
       user: {
         select: userPublicSelect,
@@ -123,6 +145,7 @@ export async function listTenantMembers(tenantId: string) {
     data: memberships.map((m) => ({
       membershipId: m.id,
       role: m.role,
+      performsAppointments: m.performsAppointments,
       createdAt: m.createdAt.toISOString(),
       teacherProfile:
         m.teacherProfile && !m.teacherProfile.deletedAt
@@ -239,9 +262,18 @@ export async function updateTenantMember(
     }
   }
 
-  const membershipUpdate: { role?: TenantRole } = {};
+  const membershipUpdate: { role?: TenantRole; performsAppointments?: boolean } = {};
   if (hasOwn(body, "role")) {
     membershipUpdate.role = normalizeRole(body.role);
+  }
+  if (hasOwn(body, "performsAppointments")) {
+    if (typeof body.performsAppointments !== "boolean") {
+      throwValidation("performsAppointments muss true oder false sein", { field: "performsAppointments" });
+    }
+    membershipUpdate.performsAppointments = body.performsAppointments;
+    if (!body.performsAppointments) {
+      await assertNoOpenTeacherAppointments(membership.id);
+    }
   }
 
   const wantsDisabled = hasOwn(body, "disabled");
@@ -275,6 +307,7 @@ export async function updateTenantMember(
     select: {
       id: true,
       role: true,
+      performsAppointments: true,
       createdAt: true,
       user: { select: userPublicSelect },
     },
@@ -293,12 +326,35 @@ export async function updateTenantMember(
   return {
     membershipId: refreshed.id,
     role: refreshed.role,
+    performsAppointments: refreshed.performsAppointments,
     createdAt: refreshed.createdAt.toISOString(),
     user: {
       ...refreshed.user,
       disabledAt: refreshed.user.disabledAt?.toISOString() ?? null,
     },
   };
+}
+
+async function assertNoOpenTeacherAppointments(membershipId: string) {
+  const profile = await prisma.teacherProfile.findUnique({
+    where: { membershipId },
+    select: { id: true, deletedAt: true },
+  });
+  if (!profile || profile.deletedAt) return;
+  const openCount = await prisma.appointment.count({
+    where: {
+      deletedAt: null,
+      status: { in: [AppointmentStatus.draft, AppointmentStatus.confirmed] },
+      endsAt: { gt: new Date() },
+      OR: [{ teacherId: profile.id }, { teachers: { some: { teacherId: profile.id } } }],
+    },
+  });
+  if (openCount > 0) {
+    throwConflict(
+      `Benutzer hat noch ${openCount} offene ${openCount === 1 ? "Termin" : "Termine"} – bitte zuerst einer anderen Person zuweisen.`,
+      { conflictType: "OPEN_APPOINTMENTS", openCount },
+    );
+  }
 }
 
 function hasOwn(obj: Record<string, unknown>, key: string): boolean {

@@ -8,6 +8,8 @@ export interface AuthUser {
   nextDayBriefingMinutes: number;
   /** As tenant admin: alert when someone else moves an appointment */
   appointmentMovedAlertsEnabled: boolean;
+  /** Reminder 15 minutes before own appointments */
+  appointmentReminderEnabled: boolean;
 }
 
 export interface AuthMembership {
@@ -22,6 +24,7 @@ export interface AuthMembership {
   autoCompleteAppointments: boolean;
   autoCompleteAfterMinutes: number;
   teacherProfileId: string | null;
+  performsAppointments: boolean;
 }
 
 export interface AuthSession {

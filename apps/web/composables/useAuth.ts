@@ -17,6 +17,9 @@ export function useAuth() {
   const canManageTenant = computed(
     () => Boolean(user.value?.isSuperadmin || primaryTenant.value?.role === "ADMIN"),
   );
+  const canPlanAllAppointments = computed(
+    () => canManageTenant.value || (primaryTenant.value?.role === "STAFF" && primaryTenant.value.performsAppointments === false),
+  );
   const canAccessWorkspace = computed(() => {
     if (user.value?.isSuperadmin) return true;
     const role = primaryTenant.value?.role;
@@ -67,6 +70,7 @@ export function useAuth() {
     speechRecognitionEnabled,
     nextDayBriefingEnabled,
     canManageTenant,
+    canPlanAllAppointments,
     canAccessWorkspace,
     login,
     logout,

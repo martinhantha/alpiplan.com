@@ -38,6 +38,7 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
       nextDayBriefingEnabled: user.nextDayBriefingEnabled,
       nextDayBriefingMinutes: user.nextDayBriefingMinutes,
       appointmentMovedAlertsEnabled: user.appointmentMovedAlertsEnabled,
+      appointmentReminderEnabled: user.appointmentReminderEnabled,
     },
     memberships: user.memberships.map((m) => ({
       tenantId: m.tenantId,
@@ -51,6 +52,7 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
       autoCompleteAppointments: m.tenant.autoCompleteAppointments,
       autoCompleteAfterMinutes: m.tenant.autoCompleteAfterMinutes,
       teacherProfileId: m.teacherProfile?.deletedAt ? null : m.teacherProfile?.id ?? null,
+      performsAppointments: m.performsAppointments,
     })),
   };
 }

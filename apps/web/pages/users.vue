@@ -27,12 +27,14 @@ interface UserItem {
   memberships: MembershipInfo[];
   membershipIdInActive: string | null;
   roleInActive: TenantRole | null;
+  performsAppointmentsInActive: boolean;
   teacherProfile: TeacherProfileInfo | null;
 }
 
 interface MemberApiItem {
   membershipId: string;
   role: TenantRole;
+  performsAppointments: boolean;
   teacherProfile: TeacherProfileInfo | null;
   user: { id: string; email: string; name: string | null; isSuperadmin: boolean; disabledAt: string | null };
 }
@@ -96,6 +98,7 @@ const editForm = reactive({
   isSuperadmin: false,
   teacherColor: null as string | null,
   teacherPriority: 0,
+  performsAppointments: true,
 });
 interface EditableMembership {
   tenantId: string;
@@ -213,7 +216,7 @@ async function loadUsers() {
             }).catch(() => ({ data: [] as MemberApiItem[] }))
           : Promise.resolve({ data: [] as MemberApiItem[] }),
       ]);
-      const teacherProfiles = new Map(activeMembers.data.map((m) => [m.user.id, m.teacherProfile]));
+      const activeMemberByUser = new Map(activeMembers.data.map((m) => [m.user.id, m]));
       tenants.value = overview.tenants;
       users.value = overview.users.map((u) => {
         const active = activeMembershipFor(u.memberships);
@@ -226,7 +229,8 @@ async function loadUsers() {
           memberships: u.memberships,
           membershipIdInActive: active ? active.tenantId : null,
           roleInActive: active ? active.role : null,
-          teacherProfile: active ? (teacherProfiles.get(u.id) ?? null) : null,
+          performsAppointmentsInActive: activeMemberByUser.get(u.id)?.performsAppointments ?? true,
+          teacherProfile: active ? (activeMemberByUser.get(u.id)?.teacherProfile ?? null) : null,
         };
       });
     } else {
@@ -254,6 +258,7 @@ async function loadUsers() {
         ],
         membershipIdInActive: primaryTenant.value!.tenantId,
         roleInActive: m.role,
+        performsAppointmentsInActive: m.performsAppointments,
         teacherProfile: m.teacherProfile,
       }));
     }
@@ -355,6 +360,7 @@ function openEdit(userItem: UserItem) {
   editForm.isSuperadmin = userItem.isSuperadmin;
   editForm.teacherColor = userItem.teacherProfile?.color ?? null;
   editForm.teacherPriority = userItem.teacherProfile?.priority ?? 0;
+  editForm.performsAppointments = userItem.performsAppointmentsInActive;
   editMemberships.value = userItem.memberships.map((m) => ({
     tenantId: m.tenantId,
     tenantName: m.tenantName,
@@ -447,6 +453,9 @@ async function submitEdit() {
       if (activeEdit && activeEdit.role !== target.roleInActive) {
         tenantBody.role = activeEdit.role;
       }
+      if (editForm.performsAppointments !== target.performsAppointmentsInActive) {
+        tenantBody.performsAppointments = editForm.performsAppointments;
+      }
     }
 
     if (Object.keys(tenantBody).length && activeTenantId) {
@@ -458,7 +467,7 @@ async function submitEdit() {
     }
 
     const profile = target.teacherProfile;
-    if (profile && activeTenantId) {
+    if (profile && activeTenantId && editForm.performsAppointments) {
       const teacherBody: Record<string, unknown> = {};
       if ((editForm.teacherColor ?? null) !== (profile.color ?? null)) {
         teacherBody.color = editForm.teacherColor;
@@ -796,6 +805,9 @@ watch(
               <UBadge v-if="u.teacherProfile" color="neutral" variant="subtle">
                 {{ teacherLabel }} · Priorität {{ u.teacherProfile.priority }}
               </UBadge>
+              <UBadge v-else-if="u.roleInActive && !u.performsAppointmentsInActive" color="info" variant="subtle">
+                Nur organisieren
+              </UBadge>
             </div>
             <div class="mt-2">
               <p class="text-[11px] uppercase tracking-wide text-neutral-500 mb-1">
@@ -922,20 +934,31 @@ watch(
           </UFormField>
 
           <div
-            v-if="editingUser?.teacherProfile"
+            v-if="editingUser?.roleInActive === 'ADMIN' || editingUser?.roleInActive === 'STAFF'"
             class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800"
           >
             <h3 class="text-sm font-medium">{{ teacherLabel }} · Planung</h3>
-            <UFormField label="Farbe im Kalender">
-              <TeacherColorPicker
-                :teacher-id="editingUser.teacherProfile.id"
-                :color="editForm.teacherColor"
-                @change="editForm.teacherColor = $event"
-              />
-            </UFormField>
-            <UFormField label="Priorität" hint="höher = wird in der Schnellerfassung zuerst vorgeschlagen">
-              <UInput v-model.number="editForm.teacherPriority" type="number" min="-100" max="100" step="1" />
-            </UFormField>
+            <UCheckbox
+              v-model="editForm.performsAppointments"
+              :label="`Führt Termine durch (als ${teacherLabel} buchbar)`"
+              :description="
+                editForm.performsAppointments
+                  ? undefined
+                  : 'Nur organisieren: nicht buchbar, sieht und plant alle Termine. Löschen bleibt Admins vorbehalten.'
+              "
+            />
+            <template v-if="editingUser.teacherProfile && editForm.performsAppointments">
+              <UFormField label="Farbe im Kalender">
+                <TeacherColorPicker
+                  :teacher-id="editingUser.teacherProfile.id"
+                  :color="editForm.teacherColor"
+                  @change="editForm.teacherColor = $event"
+                />
+              </UFormField>
+              <UFormField label="Priorität" hint="höher = wird in der Schnellerfassung zuerst vorgeschlagen">
+                <UInput v-model.number="editForm.teacherPriority" type="number" min="-100" max="100" step="1" />
+              </UFormField>
+            </template>
           </div>
 
           <div class="border-t border-neutral-200 dark:border-neutral-800 pt-4">

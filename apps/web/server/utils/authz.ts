@@ -47,6 +47,7 @@ export interface TenantAccess {
   };
   actorUserId: string;
   role: TenantAccessRole | "SUPERADMIN";
+  performsAppointments: boolean;
 }
 
 const uuidPattern =
@@ -81,6 +82,7 @@ export async function requireTenantAccess(
       tenant,
       actorUserId: session.user.id,
       role: "SUPERADMIN",
+      performsAppointments: true,
     };
   }
 
@@ -91,7 +93,7 @@ export async function requireTenantAccess(
       deletedAt: null,
       role: { in: allowedRoles },
     },
-    select: { role: true },
+    select: { role: true, performsAppointments: true },
   });
 
   if (!membership) {
@@ -103,6 +105,7 @@ export async function requireTenantAccess(
     tenant,
     actorUserId: session.user.id,
     role: membership.role,
+    performsAppointments: membership.performsAppointments,
   };
 }
 
@@ -140,7 +143,7 @@ export async function staffAppointmentScope(access: TenantAccess): Promise<{
   forceTeacherId: string | null;
   empty: boolean;
 }> {
-  if (access.role !== "STAFF") {
+  if (access.role !== "STAFF" || !access.performsAppointments) {
     return { forceTeacherId: null, empty: false };
   }
   const teacherId = await getActorTeacherProfileId(access.tenant.id, access.actorUserId);

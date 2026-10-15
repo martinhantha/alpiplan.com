@@ -73,6 +73,15 @@ const nextDayBriefingTimeLocal = ref(formatBriefingTime(DEFAULT_BRIEFING_MINUTES
 const briefingSaving = ref(false);
 const movedAlertsEnabledLocal = ref(true);
 const movedAlertsSaving = ref(false);
+const reminderEnabledLocal = ref(true);
+const reminderSaving = ref(false);
+watch(
+  () => user.value?.appointmentReminderEnabled,
+  (value) => {
+    reminderEnabledLocal.value = value !== false;
+  },
+  { immediate: true },
+);
 watch(
   () => user.value?.appointmentMovedAlertsEnabled,
   (value) => {
@@ -295,6 +304,24 @@ async function saveNextDayBriefing(enabled: boolean) {
     setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
   } finally {
     briefingSaving.value = false;
+  }
+}
+
+async function saveReminder(enabled: boolean) {
+  reminderEnabledLocal.value = enabled;
+  reminderSaving.value = true;
+  try {
+    session.value = await $fetch("/api/auth/me", {
+      method: "PATCH",
+      credentials: "include",
+      body: { appointmentReminderEnabled: enabled },
+    });
+    setInfo(enabled ? "Erinnerung 15 Minuten vor deinen Terminen aktiv." : "Terminerinnerung deaktiviert.");
+  } catch (e: unknown) {
+    reminderEnabledLocal.value = user.value?.appointmentReminderEnabled !== false;
+    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+  } finally {
+    reminderSaving.value = false;
   }
 }
 
@@ -1142,6 +1169,24 @@ onBeforeUnmount(() => {
               :checked="nextDayBriefingEnabledLocal"
               :disabled="briefingSaving"
               @change="saveNextDayBriefing(!nextDayBriefingEnabledLocal)"
+            />
+            <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
+          </label>
+        </div>
+        <div class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+          <div>
+            <p class="font-medium">Erinnerung vor dem Termin</p>
+            <p class="text-xs text-neutral-500 mt-1">
+              15 Minuten vor deinen eigenen Terminen eine Benachrichtigung. Standardmäßig aktiv.
+            </p>
+          </div>
+          <label class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              class="sr-only peer"
+              :checked="reminderEnabledLocal"
+              :disabled="reminderSaving"
+              @change="saveReminder(!reminderEnabledLocal)"
             />
             <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 dark:bg-neutral-700 dark:after:bg-neutral-200" />
           </label>

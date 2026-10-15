@@ -128,6 +128,8 @@ model User {
   nextDayBriefingMinutes Int @default(1200)
   /// as tenant admin: push + in-app alert when someone else moves an appointment; default on
   appointmentMovedAlertsEnabled Boolean @default(true)
+  /// push + in-app reminder 15 minutes before own appointments; default on
+  appointmentReminderEnabled Boolean @default(true)
 
   memberships          Membership[]
   assistantPreferences UserAssistantPreference[]
@@ -155,6 +157,8 @@ model Membership {
   tenantId  String     @db.Uuid
   userId    String     @db.Uuid
   role      TenantRole
+  /// false = only organizes appointments (no teacher profile, not bookable); STAFF then sees all appointments
+  performsAppointments Boolean @default(true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   deletedAt DateTime?

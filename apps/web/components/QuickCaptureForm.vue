@@ -122,7 +122,7 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-const { primaryTenant, canManageTenant } = useAuth();
+const { primaryTenant, canPlanAllAppointments } = useAuth();
 const { device } = useDeviceCapabilities();
 const { t, locale } = useI18n();
 
@@ -416,7 +416,7 @@ function applyParsed(
   if (parsed.time && (!isEditing.value || !slotSuggested)) form.time = parsed.time;
   if (parsed.durationMinutes) form.durationMinutes = parsed.durationMinutes;
   if (
-    canManageTenant.value &&
+    canPlanAllAppointments.value &&
     parsed.teacherId &&
     (!isEditing.value || !slotSuggested || !form.teacherIds.length)
   ) {
@@ -857,7 +857,7 @@ function nextTeacherCandidate(exclude: string[]) {
 function autoAssignTeacher() {
   const firstCheck = availabilityChecks === 0;
   availabilityChecks += 1;
-  if (!canManageTenant.value || !hasAvailability.value) return;
+  if (!canPlanAllAppointments.value || !hasAvailability.value) return;
 
   if (!isEditing.value && !teacherTouched.value) {
     teacherReplacedHint.value = "";
@@ -946,7 +946,7 @@ watch(
 function applySuggestedSlot(slot: FreeSlotSuggestion) {
   form.date = slot.date;
   form.time = slot.time;
-  if (slot.teacherId && canManageTenant.value && !form.teacherIds.includes(slot.teacherId)) {
+  if (slot.teacherId && canPlanAllAppointments.value && !form.teacherIds.includes(slot.teacherId)) {
     setTeacherIds([slot.teacherId], true);
   }
 }
@@ -1174,7 +1174,7 @@ async function saveAppointment() {
       appointmentPhoneE164: phoneValue.startsWith("+") ? phoneValue : null,
       unstructuredNote: form.note.trim() || null,
     };
-    if (canManageTenant.value || !isEditing.value) {
+    if (canPlanAllAppointments.value || !isEditing.value) {
       payload.teacherIds = form.teacherIds;
       payload.teacherId = form.teacherIds[0] ?? null;
     }
@@ -1541,19 +1541,19 @@ onMounted(() => {
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
-      <UFormField v-if="canManageTenant || colleagueNames" class="sm:col-span-2">
+      <UFormField v-if="canPlanAllAppointments || colleagueNames" class="sm:col-span-2">
         <template #label>
           <span class="inline-flex items-center gap-1">
             {{ teacherLabel }}
             <FieldInfoPopover
-              v-if="canManageTenant && (options?.teachers || []).length"
+              v-if="canPlanAllAppointments && (options?.teachers || []).length"
               :aria-label="t('quickCapture.teacherPickerAria', { teacher: teacherLabel })"
             >
               {{ t("quickCapture.teacherPickerInfo", { teacher: teacherLabel }) }}
             </FieldInfoPopover>
           </span>
         </template>
-        <template v-if="canManageTenant">
+        <template v-if="canPlanAllAppointments">
           <TeacherPicker
             v-if="(options?.teachers || []).length"
             v-model="form.teacherIds"

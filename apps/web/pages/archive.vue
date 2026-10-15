@@ -22,7 +22,7 @@ interface Pagination {
   totalPages: number;
 }
 
-const { primaryTenant, teacherLabel, canManageTenant, canAccessWorkspace } = useAuth();
+const { primaryTenant, teacherLabel, canManageTenant, canPlanAllAppointments, canAccessWorkspace } = useAuth();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
 const { intlLocale } = useAppLocale();
 
@@ -353,7 +353,7 @@ watch(
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
         </h1>
         <p v-if="!canManageTenant" class="mt-1 text-sm text-neutral-500">
-          Nur eigene Termine. Löschen nur durch Admin.
+          {{ canPlanAllAppointments ? "" : "Nur eigene Termine. " }}Löschen nur durch Admin.
         </p>
       </div>
       <UButton
@@ -436,7 +436,7 @@ watch(
             :ui="filterControlUi"
           />
         </UFormField>
-        <UFormField v-if="canManageTenant" :label="teacherLabel" class="min-w-0">
+        <UFormField v-if="canPlanAllAppointments" :label="teacherLabel" class="min-w-0">
           <USelect
             v-model="teacherFilterModel"
             size="md"
