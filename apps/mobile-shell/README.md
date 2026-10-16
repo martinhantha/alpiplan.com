@@ -61,6 +61,16 @@ pnpm cap:sync
 
 Store-Builds: Android Studio / Xcode. `READ_CALL_LOG` ist bei Google Play eine **eingeschränkte** Permission — internes APK/MDM ist der einfachere Weg; Play Store braucht eine Kernfunktions-Begründung.
 
+### Android Play Store (signiertes AAB)
+
+1. **Version** in `capacitor.config.ts` → `nativeAppVersion` (`versionCode` + `versionName`). Gilt für **Android und iOS** (nach `pnpm cap:sync` bzw. `patch-ios-info-plist` / `apply-android-identity`). `versionCode` bei jedem Store-Upload erhöhen.
+2. **Upload-Keystore:** einmalig z. B. `keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`
+3. `keystore.properties.example` nach `android/keystore.properties` kopieren, Passwörter setzen, `upload-keystore.jks` nach `android/` legen.
+4. `pnpm cap:sync` (setzt Version + Release-Signierung in `build.gradle`).
+5. `cd android && ./gradlew bundleRelease` — AAB unter `app/build/outputs/bundle/release/app-release.aab`.
+
+Ohne `keystore.properties` baut Gradle ein **unsigniertes** Release-Bundle; die Play Console lehnt das ab.
+
 ## Plugins
 
 | Plugin | Zweck |

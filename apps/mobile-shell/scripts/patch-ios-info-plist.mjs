@@ -7,6 +7,9 @@ if (!existsSync(plistPath)) process.exit(0);
 const capacitorConfig = readFileSync(resolve("capacitor.config.ts"), "utf8");
 const appId = capacitorConfig.match(/appId:\s*"([^"]+)"/)?.[1] ?? "at.alpiplan.app";
 const appName = capacitorConfig.match(/appName:\s*"([^"]+)"/)?.[1] ?? "Alpiplan";
+const versionBlock = capacitorConfig.match(/nativeAppVersion\s*=\s*\{([^}]+)\}/)?.[1];
+const versionCode = versionBlock?.match(/versionCode:\s*(\d+)/)?.[1];
+const versionName = versionBlock?.match(/versionName:\s*"([^"]+)"/)?.[1];
 
 const stringKeys = {
   CFBundleDisplayName: appName,
@@ -62,11 +65,23 @@ writeFileSync(plistPath, xml);
 
 const pbxprojPath = resolve("ios/App/App.xcodeproj/project.pbxproj");
 if (existsSync(pbxprojPath)) {
-  const pbxproj = readFileSync(pbxprojPath, "utf8").replace(
+  let pbxproj = readFileSync(pbxprojPath, "utf8").replace(
     /PRODUCT_BUNDLE_IDENTIFIER = [^;]+;/g,
     `PRODUCT_BUNDLE_IDENTIFIER = ${appId};`,
   );
+  if (versionCode && versionName) {
+    pbxproj = pbxproj.replace(
+      /MARKETING_VERSION = [^;]+;/g,
+      `MARKETING_VERSION = ${versionName};`,
+    );
+    pbxproj = pbxproj.replace(
+      /CURRENT_PROJECT_VERSION = [^;]+;/g,
+      `CURRENT_PROJECT_VERSION = ${versionCode};`,
+    );
+  }
   writeFileSync(pbxprojPath, pbxproj);
 }
 
-console.log(`Patched iOS identity ${appName} (${appId}).`);
+const versionLabel =
+  versionCode && versionName ? `, version ${versionName} (${versionCode})` : "";
+console.log(`Patched iOS identity ${appName} (${appId})${versionLabel}.`);

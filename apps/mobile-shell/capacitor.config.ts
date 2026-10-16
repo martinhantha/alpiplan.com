@@ -29,6 +29,12 @@ loadEnvFile(resolve(process.cwd(), ".env"));
 
 const serverUrl = process.env.CAPACITOR_SERVER_URL?.replace(/\/+$/, "");
 
+/** Store version: bump versionCode on every Play/App Store upload. */
+export const nativeAppVersion = {
+  versionCode: 5,
+  versionName: "1.0.4",
+} as const;
+
 const config: CapacitorConfig = {
   appId: "at.alpiplan.app",
   appName: "Alpiplan",

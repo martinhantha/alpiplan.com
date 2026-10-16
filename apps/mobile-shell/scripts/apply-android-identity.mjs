@@ -10,16 +10,36 @@ import { dirname, join, resolve } from "node:path";
 
 const root = process.cwd();
 const MIN_SDK_VERSION = 24;
+const COMPILE_SDK_VERSION = 36;
+const TARGET_SDK_VERSION = 36;
 const { appId, appName } = readIdentity();
+const { versionCode, versionName } = readNativeVersion();
+
+function readCapacitorConfigSource() {
+  return readFileSync(resolve(root, "capacitor.config.ts"), "utf8");
+}
 
 function readIdentity() {
-  const source = readFileSync(resolve(root, "capacitor.config.ts"), "utf8");
+  const source = readCapacitorConfigSource();
   const appId = source.match(/appId:\s*"([^"]+)"/)?.[1];
   const appName = source.match(/appName:\s*"([^"]+)"/)?.[1];
   if (!appId || !appName) {
     throw new Error("Could not read appId/appName from capacitor.config.ts");
   }
   return { appId, appName };
+}
+
+function readNativeVersion() {
+  const source = readCapacitorConfigSource();
+  const block = source.match(/nativeAppVersion\s*=\s*\{([^}]+)\}/)?.[1];
+  const versionCode = Number(block?.match(/versionCode:\s*(\d+)/)?.[1]);
+  const versionName = block?.match(/versionName:\s*"([^"]+)"/)?.[1];
+  if (!versionCode || !versionName) {
+    throw new Error(
+      "Could not read versionCode/versionName from nativeAppVersion in capacitor.config.ts",
+    );
+  }
+  return { versionCode, versionName };
 }
 
 function xmlEscape(value) {
@@ -53,11 +73,19 @@ function removeEmptyDirs(startDir, stopAt) {
 const variablesPath = resolve(root, "android/variables.gradle");
 if (existsSync(variablesPath)) {
   let variables = readFileSync(variablesPath, "utf8");
-  const next = variables.replace(
+  variables = variables.replace(
     /minSdkVersion\s*=\s*\d+/,
     `minSdkVersion = ${MIN_SDK_VERSION}`,
   );
-  if (next !== variables) writeFileSync(variablesPath, next);
+  variables = variables.replace(
+    /compileSdkVersion\s*=\s*\d+/,
+    `compileSdkVersion = ${COMPILE_SDK_VERSION}`,
+  );
+  variables = variables.replace(
+    /targetSdkVersion\s*=\s*\d+/,
+    `targetSdkVersion = ${TARGET_SDK_VERSION}`,
+  );
+  writeFileSync(variablesPath, variables);
 }
 
 const stringsPath = resolve(root, "android/app/src/main/res/values/strings.xml");
@@ -80,6 +108,8 @@ if (existsSync(gradlePath)) {
   let gradle = readFileSync(gradlePath, "utf8");
   gradle = gradle.replace(/namespace\s+"[^"]+"/, `namespace "${appId}"`);
   gradle = gradle.replace(/applicationId\s+"[^"]+"/, `applicationId "${appId}"`);
+  gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`);
+  gradle = gradle.replace(/versionName\s+"[^"]+"/, `versionName "${versionName}"`);
   writeFileSync(gradlePath, gradle);
 }
 
@@ -98,4 +128,6 @@ for (const file of findFiles(javaRoot, "MainActivity.java")) {
   removeEmptyDirs(dirname(file), javaRoot);
 }
 
-console.log(`Applied Android identity ${appName} (${appId}).`);
+console.log(
+  `Applied Android identity ${appName} (${appId}), version ${versionName} (${versionCode}).`,
+);
