@@ -2,7 +2,7 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="at.alpiplan.plugins.callhints" >
 4
-5    <uses-sdk android:minSdkVersion="23" />
+5    <uses-sdk android:minSdkVersion="24" />
 6
 7    <uses-permission android:name="android.permission.READ_CALL_LOG" />
 7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:2:5-72
