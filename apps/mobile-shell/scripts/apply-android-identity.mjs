@@ -9,6 +9,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 
 const root = process.cwd();
+const MIN_SDK_VERSION = 24;
 const { appId, appName } = readIdentity();
 
 function readIdentity() {
@@ -47,6 +48,16 @@ function removeEmptyDirs(startDir, stopAt) {
     rmSync(dir, { recursive: true, force: true });
     dir = dirname(dir);
   }
+}
+
+const variablesPath = resolve(root, "android/variables.gradle");
+if (existsSync(variablesPath)) {
+  let variables = readFileSync(variablesPath, "utf8");
+  const next = variables.replace(
+    /minSdkVersion\s*=\s*\d+/,
+    `minSdkVersion = ${MIN_SDK_VERSION}`,
+  );
+  if (next !== variables) writeFileSync(variablesPath, next);
 }
 
 const stringsPath = resolve(root, "android/app/src/main/res/values/strings.xml");
