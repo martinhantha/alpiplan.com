@@ -50,8 +50,11 @@ Hinweis: Für die Nutzung ist ein Alpiplan-Konto deiner Organisation erforderlic
 ## Schlüsselwörter (max. 100, ohne Leerzeichen nach Kommas)
 Skischule,Skilehrer,Kalender,Terminplaner,Dienstplan,Kurse,Teamplanung,Einteilung,Unterricht
 
+## Datenschutz-URL (Privacy Policy)
+https://app.alpiplan.com/datenschutz
+
 ## Support-URL
-https://alpiplan.com/support   (muss öffentlich erreichbar sein – noch anzulegen)
+https://app.alpiplan.com/support
 
 ## Marketing-URL (optional)
 https://alpiplan.com

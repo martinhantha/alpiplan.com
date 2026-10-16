@@ -28,6 +28,11 @@ export default defineNuxtConfig({
     authCookie: process.env.AUTH_COOKIE_NAME ?? "alpiplan_at",
     public: {
       demoEmail: process.env.NUXT_PUBLIC_DEMO_EMAIL ?? "demo@alpiplan.local",
+      /** Öffentliche Datenschutzseite / App-Store-URL */
+      legalName: process.env.NUXT_PUBLIC_LEGAL_NAME ?? "Alpiplan",
+      legalAddress: process.env.NUXT_PUBLIC_LEGAL_ADDRESS ?? "",
+      privacyEmail: process.env.NUXT_PUBLIC_PRIVACY_EMAIL ?? "support@alpiplan.com",
+      supportEmail: process.env.NUXT_PUBLIC_SUPPORT_EMAIL ?? "support@alpiplan.com",
     },
   },
   nitro: {
@@ -35,6 +40,12 @@ export default defineNuxtConfig({
       external: ["@prisma/client", ".prisma/client"],
     },
     routeRules: {
+      "/datenschutz": {
+        headers: { "cache-control": "public, max-age=3600" },
+      },
+      "/support": {
+        headers: { "cache-control": "public, max-age=3600" },
+      },
       "/sw.js": {
         headers: { "cache-control": "no-cache", "service-worker-allowed": "/" },
       },

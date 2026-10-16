@@ -92,11 +92,17 @@ async function onSubmit() {
           </UButton>
         </form>
 
-        <!-- <template #footer>
-          <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-           
+        <template #footer>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed text-center space-x-3">
+            <NuxtLink to="/support" class="underline underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-200">
+              Support
+            </NuxtLink>
+            <span aria-hidden="true">·</span>
+            <NuxtLink to="/datenschutz" class="underline underline-offset-2 hover:text-neutral-700 dark:hover:text-neutral-200">
+              Datenschutz
+            </NuxtLink>
           </p>
-        </template> -->
+        </template>
       </UCard>
     </div>
   </div>

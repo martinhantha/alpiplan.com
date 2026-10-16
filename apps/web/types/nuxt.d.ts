@@ -6,6 +6,10 @@ declare module "nuxt/schema" {
   }
   interface PublicRuntimeConfig {
     demoEmail: string;
+    legalName: string;
+    legalAddress: string;
+    privacyEmail: string;
+    supportEmail: string;
   }
   interface PageMeta {
     /** Route ohne Login (z. B. /login) */
