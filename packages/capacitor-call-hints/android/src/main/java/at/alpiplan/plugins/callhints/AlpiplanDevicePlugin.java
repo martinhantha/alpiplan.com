@@ -413,6 +413,10 @@ public class AlpiplanDevicePlugin extends Plugin {
             targets.add(localAccount);
         }
         targets.add(new String[] { null, null });
+        String[] cloudAccount = resolveCloudDefaultAccount();
+        if (cloudAccount != null) {
+            targets.add(cloudAccount);
+        }
 
         Exception lastError = null;
         for (String[] target : targets) {
@@ -677,6 +681,28 @@ public class AlpiplanDevicePlugin extends Plugin {
             }
         }
         return null;
+    }
+
+    /**
+     * Android 16+ rejects inserts into local/SIM accounts while the user's default contacts
+     * account is a cloud account, so that account is the only remaining target.
+     */
+    private String[] resolveCloudDefaultAccount() {
+        if (Build.VERSION.SDK_INT < 36) {
+            return null;
+        }
+        try {
+            RawContacts.DefaultAccount.DefaultAccountAndState state =
+                RawContacts.DefaultAccount.getDefaultAccountForNewContacts(getContext().getContentResolver());
+            if (state == null
+                    || state.getState() != RawContacts.DefaultAccount.DefaultAccountAndState.DEFAULT_ACCOUNT_STATE_CLOUD
+                    || state.getAccount() == null) {
+                return null;
+            }
+            return new String[] { state.getAccount().name, state.getAccount().type };
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static String emptyToNull(String value) {

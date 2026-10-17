@@ -27,7 +27,7 @@ interface ImportResult {
   warnings: ImportIssue[];
 }
 
-const { primaryTenant, canManageTenant } = useAuth();
+const { user, primaryTenant, canManageTenant } = useAuth();
 const tenantId = computed(() => primaryTenant.value?.tenantId ?? "");
 
 const statusLabels: Record<AppointmentStatus, string> = {
@@ -214,6 +214,19 @@ const canImport = computed(
 
 const CONFIRM_WORD = "LÖSCHEN";
 const deleteMode = ref<"soft" | "permanent">("soft");
+const canPurge = computed(() => Boolean(user.value?.isSuperadmin));
+const deleteModeItems = [
+  {
+    value: "soft",
+    label: "In den Papierkorb verschieben",
+    description: "Termine verschwinden aus Kalender und Listen, können im Papierkorb einzeln wiederhergestellt werden.",
+  },
+  {
+    value: "permanent",
+    label: "Endgültig aus der Datenbank löschen",
+    description: "Entfernt alle Termine im Zeitraum inkl. Papierkorb unwiderruflich. Vorher am besten exportieren.",
+  },
+];
 const deleteConfirm = ref("");
 const deleting = ref(false);
 
@@ -464,21 +477,10 @@ watch(deleteMode, () => {
           </div>
         </template>
         <div class="space-y-4">
-          <URadioGroup
-            v-model="deleteMode"
-            :items="[
-              {
-                value: 'soft',
-                label: 'In den Papierkorb verschieben',
-                description: 'Termine verschwinden aus Kalender und Listen, können im Papierkorb einzeln wiederhergestellt werden.',
-              },
-              {
-                value: 'permanent',
-                label: 'Endgültig aus der Datenbank löschen',
-                description: 'Entfernt alle Termine im Zeitraum inkl. Papierkorb unwiderruflich. Vorher am besten exportieren.',
-              },
-            ]"
-          />
+          <URadioGroup v-if="canPurge" v-model="deleteMode" :items="deleteModeItems" />
+          <p v-else class="text-sm text-muted">
+            Termine im Zeitraum werden in den Papierkorb verschoben und können dort einzeln wiederhergestellt werden.
+          </p>
 
           <UAlert
             v-if="deleteMode === 'permanent'"

@@ -1,5 +1,5 @@
 import { getRouterParam, readBody } from "h3";
-import { throwValidation } from "~/server/utils/api-errors";
+import { throwApiError, throwValidation } from "~/server/utils/api-errors";
 import { requireTenantAccess } from "~/server/utils/authz";
 import { deleteAppointmentRange, parseDateRange } from "~/server/utils/appointment-data";
 
@@ -9,6 +9,9 @@ export default defineEventHandler(async (event) => {
   const mode = body?.mode;
   if (mode !== "soft" && mode !== "permanent") {
     throwValidation("mode muss „soft“ oder „permanent“ sein", { field: "mode" });
+  }
+  if (mode === "permanent" && !access.session.user.isSuperadmin) {
+    throwApiError(403, "FORBIDDEN", "Endgültiges Löschen ist nur für Superadmin erlaubt");
   }
   return deleteAppointmentRange(access.tenant.id, parseDateRange(body?.from, body?.to), {
     mode,
