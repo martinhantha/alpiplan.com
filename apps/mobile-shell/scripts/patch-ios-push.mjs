@@ -152,8 +152,6 @@ import FirebaseMessaging
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
-    var window: UIWindow?
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         #if canImport(FirebaseMessaging)
@@ -195,12 +193,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         }
     }
 
-    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+}
+
+// iOS 27 terminates apps that have not adopted the UIScene lifecycle (see Info.plist
+// UIApplicationSceneManifest). With scenes, URL opens and universal links arrive here
+// instead of on the app delegate.
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard scene is UIWindowScene else { return }
+        openURLContexts(connectionOptions.urlContexts)
+        connectionOptions.userActivities.forEach(continueUserActivity)
     }
 
-    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        openURLContexts(URLContexts)
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        continueUserActivity(userActivity)
+    }
+
+    private func openURLContexts(_ contexts: Set<UIOpenURLContext>) {
+        for context in contexts {
+            var options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+            options[.sourceApplication] = context.options.sourceApplication
+            options[.annotation] = context.options.annotation
+            options[.openInPlace] = context.options.openInPlace
+            _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: context.url, options: options)
+        }
+    }
+
+    private func continueUserActivity(_ userActivity: NSUserActivity) {
+        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
     }
 
 }

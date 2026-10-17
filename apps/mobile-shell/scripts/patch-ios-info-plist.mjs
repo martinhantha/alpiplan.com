@@ -49,10 +49,38 @@ if (!xml.includes("<key>LSApplicationQueriesSchemes</key>")) {
   );
 }
 
+// iOS 27 terminates apps at launch that have not adopted the UIScene lifecycle.
+// SceneDelegate is generated into AppDelegate.swift by patch-ios-push.mjs.
+if (!xml.includes("<key>UIApplicationSceneManifest</key>")) {
+  inserts.push(
+    [
+      "\t<key>UIApplicationSceneManifest</key>",
+      "\t<dict>",
+      "\t\t<key>UIApplicationSupportsMultipleScenes</key>",
+      "\t\t<false/>",
+      "\t\t<key>UISceneConfigurations</key>",
+      "\t\t<dict>",
+      "\t\t\t<key>UIWindowSceneSessionRoleApplication</key>",
+      "\t\t\t<array>",
+      "\t\t\t\t<dict>",
+      "\t\t\t\t\t<key>UISceneConfigurationName</key>",
+      "\t\t\t\t\t<string>Default Configuration</string>",
+      "\t\t\t\t\t<key>UISceneDelegateClassName</key>",
+      "\t\t\t\t\t<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>",
+      "\t\t\t\t\t<key>UISceneStoryboardFile</key>",
+      "\t\t\t\t\t<string>Main</string>",
+      "\t\t\t\t</dict>",
+      "\t\t\t</array>",
+      "\t\t</dict>",
+      "\t</dict>",
+    ].join("\n"),
+  );
+}
+
 if (inserts.length > 0) {
   const next = xml.replace(
-    /\t<\/dict>\n<\/plist>\s*$/,
-    `${inserts.join("\n")}\n\t</dict>\n</plist>\n`,
+    /\s*<\/dict>\s*<\/plist>\s*$/,
+    `\n${inserts.join("\n")}\n</dict>\n</plist>\n`,
   );
   if (next === xml) {
     console.warn("Could not patch ios/App/App/Info.plist — unexpected plist format.");
