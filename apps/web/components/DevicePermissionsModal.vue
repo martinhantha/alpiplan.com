@@ -11,7 +11,9 @@ const {
   contactsGranted,
   callHintsSupported,
   callLogGranted,
-  allGranted,
+  notificationsSupported,
+  notificationsGranted,
+  anyAskable,
   anyDenied,
   requestNow,
   openAppSettings,
@@ -27,9 +29,9 @@ const {
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
         Alpiplan braucht
         <template v-if="speechRecognitionEnabled">Mikrofon (Spracheingabe) und </template>
-        Kontakte (Adressbuch)<template v-if="callHintsSupported">
-        sowie Anrufliste und Telefon (Nummer des letzten Anrufs als Vorschlag)</template>.
-        Die Systemabfrage erscheint sofort.
+        Kontakte (Adressbuch)<template v-if="callHintsSupported">,
+        Anrufliste und Telefon (Nummer des letzten Anrufs als Vorschlag)</template>
+        sowie Benachrichtigungen für neue und verschobene Termine. Die Systemabfragen erscheinen nacheinander.
       </p>
       <ul class="mt-4 space-y-2 text-sm">
         <li v-if="speechRecognitionEnabled" class="flex items-center justify-between gap-3">
@@ -50,9 +52,15 @@ const {
             {{ permissionLabel(callLogGranted) }}
           </UBadge>
         </li>
+        <li v-if="notificationsSupported" class="flex items-center justify-between gap-3">
+          <span>Benachrichtigungen</span>
+          <UBadge :color="notificationsGranted ? 'success' : 'neutral'" variant="subtle">
+            {{ permissionLabel(notificationsGranted) }}
+          </UBadge>
+        </li>
       </ul>
       <p v-if="anyDenied" class="mt-3 text-xs text-neutral-500">
-        Wenn Android nichts mehr anzeigt, die Rechte in den App-Einstellungen einschalten.
+        Abgelehnte Rechte fragt das System nicht erneut ab — bitte in den App-Einstellungen einschalten.
       </p>
       <p v-if="lastError" class="mt-3 text-xs text-red-600 dark:text-red-400">{{ lastError }}</p>
     </template>
@@ -74,7 +82,7 @@ const {
           color="primary"
           icon="i-lucide-shield-check"
           :loading="requesting"
-          :disabled="(allGranted && (!callHintsSupported || callLogGranted)) || requesting"
+          :disabled="!anyAskable || requesting"
           @click="requestNow"
         >
           Jetzt erlauben

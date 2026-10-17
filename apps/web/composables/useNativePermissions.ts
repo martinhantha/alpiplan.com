@@ -10,7 +10,7 @@ import {
 import { isCallHintsPluginAvailable, persistCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 
-const PROMPT_SESSION_KEY = "alpiplan.device.permissionsPrompted";
+let autoPrompted = false;
 
 type NativePermissionStatus = AlpiplanDevicePermissionStatus & {
   callLog?: PermissionState;
@@ -49,6 +49,11 @@ function isGranted(state: string | undefined) {
   return value === "granted";
 }
 
+/** Not yet answered; "denied" means the OS no longer shows a dialog. */
+function isAskable(state: PermissionState | undefined) {
+  return state === "prompt" || state === "prompt-with-rationale";
+}
+
 function supportsCallHints() {
   return Capacitor.getPlatform() === "android" && isCallHintsPluginAvailable();
 }
@@ -84,8 +89,16 @@ export function useNativePermissions(options?: {
   const microphoneGranted = computed(() => isGranted(status.value.microphone));
   const contactsGranted = computed(() => isGranted(status.value.contacts));
   const callLogGranted = computed(() => isGranted(status.value.callLog));
-  const callLogAskable = computed(
-    () => callHintsSupported.value && !callLogGranted.value && status.value.callLog !== "denied",
+  const notificationsSupported = computed(() => isNative.value && status.value.notifications !== undefined);
+  const notificationsGranted = computed(() => isGranted(status.value.notifications));
+  const deviceAskable = computed(
+    () =>
+      isAskable(status.value.contacts) || (needMicrophone.value && isAskable(status.value.microphone)),
+  );
+  const callLogAskable = computed(() => callHintsSupported.value && isAskable(status.value.callLog));
+  const notificationsAskable = computed(() => isAskable(status.value.notifications));
+  const anyAskable = computed(
+    () => deviceAskable.value || callLogAskable.value || notificationsAskable.value,
   );
   const allGranted = computed(
     () => contactsGranted.value && (!needMicrophone.value || microphoneGranted.value),
@@ -94,7 +107,8 @@ export function useNativePermissions(options?: {
     () =>
       status.value.contacts === "denied" ||
       (needMicrophone.value && status.value.microphone === "denied") ||
-      (callHintsSupported.value && status.value.callLog === "denied"),
+      (callHintsSupported.value && status.value.callLog === "denied") ||
+      status.value.notifications === "denied",
   );
 
   async function refreshStatus() {
@@ -124,7 +138,7 @@ export function useNativePermissions(options?: {
     requesting.value = true;
     lastError.value = "";
     try {
-      if (!allGranted.value) {
+      if (deviceAskable.value) {
         await queueNativePermissionRequest(() =>
           needMicrophone.value
             ? AlpiplanDevice.requestAllPermissions()
@@ -132,8 +146,13 @@ export function useNativePermissions(options?: {
         );
       }
       await requestCallHints();
+      if (notificationsAskable.value) {
+        await queueNativePermissionRequest(() =>
+          AlpiplanDevice.requestPermissions({ alias: "notifications" }),
+        );
+      }
       await refreshStatus();
-      if (allGranted.value && !callLogAskable.value) open.value = false;
+      if (!anyAskable.value && !anyDenied.value) open.value = false;
     } catch (error) {
       lastError.value =
         error instanceof Error ? error.message : "Berechtigung konnte nicht angefragt werden.";
@@ -164,12 +183,8 @@ export function useNativePermissions(options?: {
     await refreshStatus();
     document.addEventListener("visibilitychange", onAppVisible);
     window.addEventListener("focus", onAppVisible);
-    if (!options?.autoPrompt) return;
-    if (allGranted.value && !callLogAskable.value) return;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(PROMPT_SESSION_KEY) === "1") {
-      return;
-    }
-    sessionStorage.setItem(PROMPT_SESSION_KEY, "1");
+    if (!options?.autoPrompt || autoPrompted || !anyAskable.value) return;
+    autoPrompted = true;
     open.value = true;
     await nextTick();
     await requestNow();
@@ -191,6 +206,9 @@ export function useNativePermissions(options?: {
     contactsGranted,
     callHintsSupported,
     callLogGranted,
+    notificationsSupported,
+    notificationsGranted,
+    anyAskable,
     allGranted,
     anyDenied,
     refreshStatus,
