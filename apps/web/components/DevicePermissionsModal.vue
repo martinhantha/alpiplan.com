@@ -9,6 +9,8 @@ const {
   isNative,
   microphoneGranted,
   contactsGranted,
+  callHintsSupported,
+  callLogGranted,
   allGranted,
   anyDenied,
   requestNow,
@@ -25,7 +27,9 @@ const {
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
         Alpiplan braucht
         <template v-if="speechRecognitionEnabled">Mikrofon (Spracheingabe) und </template>
-        Kontakte (Adressbuch). Die Systemabfrage erscheint sofort.
+        Kontakte (Adressbuch)<template v-if="callHintsSupported">
+        sowie Anrufliste und Telefon (Nummer des letzten Anrufs als Vorschlag)</template>.
+        Die Systemabfrage erscheint sofort.
       </p>
       <ul class="mt-4 space-y-2 text-sm">
         <li v-if="speechRecognitionEnabled" class="flex items-center justify-between gap-3">
@@ -38,6 +42,12 @@ const {
           <span>Kontakte</span>
           <UBadge :color="contactsGranted ? 'success' : 'neutral'" variant="subtle">
             {{ permissionLabel(contactsGranted) }}
+          </UBadge>
+        </li>
+        <li v-if="callHintsSupported" class="flex items-center justify-between gap-3">
+          <span>Anrufliste &amp; Telefon</span>
+          <UBadge :color="callLogGranted ? 'success' : 'neutral'" variant="subtle">
+            {{ permissionLabel(callLogGranted) }}
           </UBadge>
         </li>
       </ul>
@@ -64,7 +74,7 @@ const {
           color="primary"
           icon="i-lucide-shield-check"
           :loading="requesting"
-          :disabled="allGranted || requesting"
+          :disabled="(allGranted && (!callHintsSupported || callLogGranted)) || requesting"
           @click="requestNow"
         >
           Jetzt erlauben

@@ -1,12 +1,22 @@
 import { Capacitor } from "@capacitor/core";
 import type { PermissionState } from "@capacitor/core";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toValue, type MaybeRefOrGetter } from "vue";
-import { AlpiplanDevice, type AlpiplanDevicePermissionStatus } from "@alpiplan/capacitor-call-hints";
+import {
+  AlpiplanDevice,
+  CallHints,
+  type AlpiplanDevicePermissionStatus,
+  type CallHintsPermissionStatus,
+} from "@alpiplan/capacitor-call-hints";
+import { isCallHintsPluginAvailable, persistCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 
 const PROMPT_SESSION_KEY = "alpiplan.device.permissionsPrompted";
 
-const emptyStatus: AlpiplanDevicePermissionStatus = {
+type NativePermissionStatus = AlpiplanDevicePermissionStatus & {
+  callLog?: PermissionState;
+};
+
+const emptyStatus: NativePermissionStatus = {
   microphone: "prompt",
   contacts: "prompt",
 };
@@ -24,17 +34,32 @@ function normalizeState(state: string | undefined): PermissionState {
 
 function normalizeStatus(
   raw: Partial<AlpiplanDevicePermissionStatus> | null | undefined,
-): AlpiplanDevicePermissionStatus {
+  callHints?: Partial<CallHintsPermissionStatus> | null,
+): NativePermissionStatus {
   return {
     microphone: normalizeState(raw?.microphone),
     contacts: normalizeState(raw?.contacts),
     notifications: raw?.notifications ? normalizeState(raw.notifications) : undefined,
+    callLog: callHints?.callLog ? normalizeState(callHints.callLog) : undefined,
   };
 }
 
 function isGranted(state: string | undefined) {
   const value = normalizeState(state);
   return value === "granted";
+}
+
+function supportsCallHints() {
+  return Capacitor.getPlatform() === "android" && isCallHintsPluginAvailable();
+}
+
+async function readCallHintsStatus(): Promise<CallHintsPermissionStatus | null> {
+  if (!supportsCallHints()) return null;
+  try {
+    return await CallHints.checkPermissions();
+  } catch {
+    return null;
+  }
 }
 
 export function permissionLabel(granted: boolean) {
@@ -48,29 +73,49 @@ export function useNativePermissions(options?: {
   const open = ref(false);
   const requesting = useState("alpiplan.nativePermissions.requesting", () => false);
   const lastError = useState("alpiplan.nativePermissions.error", () => "");
-  const status = useState<AlpiplanDevicePermissionStatus>("alpiplan.nativePermissions.status", () => ({
+  const status = useState<NativePermissionStatus>("alpiplan.nativePermissions.status", () => ({
     ...emptyStatus,
   }));
+  const { refresh: refreshDevice } = useDeviceCapabilities();
   const isNative = computed(() => Capacitor.isNativePlatform());
+  const callHintsSupported = computed(() => isNative.value && supportsCallHints());
   const needMicrophone = computed(() => toValue(options?.needMicrophone) ?? true);
 
   const microphoneGranted = computed(() => isGranted(status.value.microphone));
   const contactsGranted = computed(() => isGranted(status.value.contacts));
+  const callLogGranted = computed(() => isGranted(status.value.callLog));
+  const callLogAskable = computed(
+    () => callHintsSupported.value && !callLogGranted.value && status.value.callLog !== "denied",
+  );
   const allGranted = computed(
     () => contactsGranted.value && (!needMicrophone.value || microphoneGranted.value),
   );
   const anyDenied = computed(
     () =>
       status.value.contacts === "denied" ||
-      (needMicrophone.value && status.value.microphone === "denied"),
+      (needMicrophone.value && status.value.microphone === "denied") ||
+      (callHintsSupported.value && status.value.callLog === "denied"),
   );
 
   async function refreshStatus() {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      status.value = normalizeStatus(await AlpiplanDevice.checkPermissions());
+      const [device, callHints] = await Promise.all([
+        AlpiplanDevice.checkPermissions(),
+        readCallHintsStatus(),
+      ]);
+      status.value = normalizeStatus(device, callHints);
     } catch {
       status.value = { ...emptyStatus };
+    }
+  }
+
+  async function requestCallHints() {
+    if (!callLogAskable.value) return;
+    const result = await queueNativePermissionRequest(() => CallHints.requestPermissions());
+    if (isGranted(result.callLog)) {
+      persistCallHintsOptIn(true);
+      await refreshDevice();
     }
   }
 
@@ -79,14 +124,16 @@ export function useNativePermissions(options?: {
     requesting.value = true;
     lastError.value = "";
     try {
-      const result = await queueNativePermissionRequest(() =>
-        needMicrophone.value
-          ? AlpiplanDevice.requestAllPermissions()
-          : AlpiplanDevice.requestPermissions({ alias: "contacts" }),
-      );
-      status.value = normalizeStatus(result);
+      if (!allGranted.value) {
+        await queueNativePermissionRequest(() =>
+          needMicrophone.value
+            ? AlpiplanDevice.requestAllPermissions()
+            : AlpiplanDevice.requestPermissions({ alias: "contacts" }),
+        );
+      }
+      await requestCallHints();
       await refreshStatus();
-      if (allGranted.value) open.value = false;
+      if (allGranted.value && !callLogAskable.value) open.value = false;
     } catch (error) {
       lastError.value =
         error instanceof Error ? error.message : "Berechtigung konnte nicht angefragt werden.";
@@ -118,7 +165,7 @@ export function useNativePermissions(options?: {
     document.addEventListener("visibilitychange", onAppVisible);
     window.addEventListener("focus", onAppVisible);
     if (!options?.autoPrompt) return;
-    if (allGranted.value) return;
+    if (allGranted.value && !callLogAskable.value) return;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(PROMPT_SESSION_KEY) === "1") {
       return;
     }
@@ -142,6 +189,8 @@ export function useNativePermissions(options?: {
     isNative,
     microphoneGranted,
     contactsGranted,
+    callHintsSupported,
+    callLogGranted,
     allGranted,
     anyDenied,
     refreshStatus,
