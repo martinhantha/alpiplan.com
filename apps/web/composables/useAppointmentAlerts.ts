@@ -9,8 +9,6 @@ import { liveEventNotificationCopy } from "~/utils/appointment-live-audience";
 import { registerNativePushToken } from "~/utils/push-registration";
 import { enableWebPush, syncWebPushSubscription } from "~/utils/web-push-registration";
 
-let askedPushPermission = false;
-
 const LIVE_TYPES = new Set<AppointmentLiveEventType>([
   "appointment.created",
   "appointment.moved",
@@ -80,17 +78,6 @@ export function useAppointmentAlerts() {
     source = null;
   }
 
-  async function maybeRequestPush() {
-    if (askedPushPermission) return;
-    if (!Capacitor.isNativePlatform()) return;
-    askedPushPermission = true;
-    try {
-      await device.value.requestPushPermission();
-    } catch {
-      askedPushPermission = false;
-    }
-  }
-
   async function enableNotifications() {
     try {
       if (Capacitor.isNativePlatform()) {
@@ -138,7 +125,6 @@ export function useAppointmentAlerts() {
       }
     };
     window.setTimeout(() => {
-      void maybeRequestPush();
       void registerNativePushToken();
       void syncWebPushSubscription();
     }, 2500);

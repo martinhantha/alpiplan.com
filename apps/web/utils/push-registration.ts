@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { AlpiplanDevice } from "@alpiplan/capacitor-call-hints";
+import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 
 let lastToken: string | null = null;
 let registering = false;
@@ -12,7 +13,9 @@ export async function registerNativePushToken(): Promise<void> {
   if (registering) return;
   registering = true;
   try {
-    await AlpiplanDevice.requestPermissions({ alias: "notifications" });
+    await queueNativePermissionRequest(() =>
+      AlpiplanDevice.requestPermissions({ alias: "notifications" }),
+    );
     const result = await AlpiplanDevice.getPushToken();
     const token = result.token?.trim();
     if (!token) return;

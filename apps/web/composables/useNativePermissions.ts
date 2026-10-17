@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import type { PermissionState } from "@capacitor/core";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toValue, type MaybeRefOrGetter } from "vue";
 import { AlpiplanDevice, type AlpiplanDevicePermissionStatus } from "@alpiplan/capacitor-call-hints";
+import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 
 const PROMPT_SESSION_KEY = "alpiplan.device.permissionsPrompted";
 
@@ -78,9 +79,11 @@ export function useNativePermissions(options?: {
     requesting.value = true;
     lastError.value = "";
     try {
-      const result = needMicrophone.value
-        ? await AlpiplanDevice.requestAllPermissions()
-        : await AlpiplanDevice.requestPermissions({ alias: "contacts" });
+      const result = await queueNativePermissionRequest(() =>
+        needMicrophone.value
+          ? AlpiplanDevice.requestAllPermissions()
+          : AlpiplanDevice.requestPermissions({ alias: "contacts" }),
+      );
       status.value = normalizeStatus(result);
       await refreshStatus();
       if (allGranted.value) open.value = false;

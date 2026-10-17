@@ -12,6 +12,7 @@ import {
   type PickedContact,
 } from "@alpiplan/device-capabilities";
 import { AlpiplanDevice, CallHints } from "@alpiplan/capacitor-call-hints";
+import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 
 function nativePlatform(): DevicePlatform {
   return Capacitor.getPlatform() === "ios" ? "ios" : "android";
@@ -63,7 +64,9 @@ export class CapacitorDeviceCapabilities extends WebDeviceCapabilities implement
 
   override async requestPushPermission(): Promise<NotificationPermission | "unsupported"> {
     try {
-      const status = await AlpiplanDevice.requestPermissions({ alias: "notifications" });
+      const status = await queueNativePermissionRequest(() =>
+        AlpiplanDevice.requestPermissions({ alias: "notifications" }),
+      );
       // WKWebView has no Web Notification API, so the native answer is final on iOS.
       if (this.platform === "ios") {
         if (status.notifications === "granted") return "granted";
@@ -77,7 +80,7 @@ export class CapacitorDeviceCapabilities extends WebDeviceCapabilities implement
 
   override async requestMicrophonePermission(): Promise<boolean> {
     try {
-      const status = await AlpiplanDevice.requestMicrophone();
+      const status = await queueNativePermissionRequest(() => AlpiplanDevice.requestMicrophone());
       if (!permissionGranted(status.microphone)) return false;
     } catch {
       return false;
