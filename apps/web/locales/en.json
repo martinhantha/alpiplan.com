@@ -7,7 +7,8 @@
     "lessonTypes": "Appointment types",
     "conflicts": "Conflicts",
     "trash": "Trash",
-    "tenants": "Tenants"
+    "tenants": "Tenants",
+    "appointmentData": "Appointment data"
   },
   "layout": {
     "dashboard": "Dashboard",
@@ -31,7 +32,29 @@
     "password": "Password",
     "emailPlaceholder": "name{'@'}example.com",
     "submit": "Sign in",
-    "failed": "Sign-in failed"
+    "failed": "Sign-in failed",
+    "forgot": "Forgot password?"
+  },
+  "password": {
+    "forgotTitle": "Forgot password",
+    "forgotHint": "Enter your email address. We'll send you a link to choose a new password.",
+    "forgotSubmit": "Send link",
+    "forgotSent": "If an account with this address exists, an email is on its way. Please also check your spam folder.",
+    "forgotFailed": "Request failed",
+    "backToLogin": "Back to sign in",
+    "resetTitle": "Choose a new password",
+    "setupTitle": "Set your password",
+    "resetHint": "Account: {email}",
+    "newPassword": "New password",
+    "confirmPassword": "Repeat password",
+    "minLength": "At least {min} characters",
+    "mismatch": "The passwords don't match",
+    "submit": "Save password",
+    "failed": "Password could not be saved",
+    "checking": "Checking link …",
+    "invalidTitle": "Link invalid or expired",
+    "invalidHint": "Request a new link or contact your administrator.",
+    "requestNew": "Request new link"
   },
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",

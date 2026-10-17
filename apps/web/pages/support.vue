@@ -63,7 +63,10 @@ useSeoMeta({
             Organisation</strong> — nicht der App-Anbieter.
           </p>
           <ul>
-            <li>Passwort vergessen → Administrator oder IT deiner Organisation</li>
+            <li>
+              Passwort vergessen → auf der Anmeldeseite „Passwort vergessen?“ wählen oder
+              Administrator deiner Organisation um einen Passwort-Link bitten
+            </li>
             <li>Kein Mandant sichtbar → Administrator um Einladung bitten</li>
             <li>Neue Organisation / Vertrag → über den Ansprechpartner deines Teams oder {{ supportEmail }}</li>
           </ul>

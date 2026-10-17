@@ -137,6 +137,30 @@ model User {
   appointmentsCreated  Appointment[] @relation("AppointmentCreatedBy")
   pushTokens           DevicePushToken[]
   briefingPushes       NextDayBriefingPush[]
+  passwordTokens       PasswordToken[]
+}
+
+enum PasswordTokenPurpose {
+  /// self-service "Passwort vergessen"
+  reset
+  /// admin invite / admin-triggered link: user sets own password
+  setup
+}
+
+/// one-time link token for password reset/setup; only the sha256 hash is stored
+model PasswordToken {
+  id              String               @id @default(uuid()) @db.Uuid
+  userId          String               @db.Uuid
+  purpose         PasswordTokenPurpose
+  tokenHash       String               @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdByUserId String?              @db.Uuid
+  createdAt       DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model DevicePushToken {

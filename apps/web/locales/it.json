@@ -7,7 +7,8 @@
     "lessonTypes": "Tipi di appuntamento",
     "conflicts": "Conflitti",
     "trash": "Cestino",
-    "tenants": "Tenant"
+    "tenants": "Tenant",
+    "appointmentData": "Dati appuntamenti"
   },
   "layout": {
     "dashboard": "Dashboard",
@@ -31,7 +32,29 @@
     "password": "Password",
     "emailPlaceholder": "nome{'@'}esempio.it",
     "submit": "Accedi",
-    "failed": "Accesso non riuscito"
+    "failed": "Accesso non riuscito",
+    "forgot": "Password dimenticata?"
+  },
+  "password": {
+    "forgotTitle": "Password dimenticata",
+    "forgotHint": "Inserisci il tuo indirizzo e-mail. Ti invieremo un link per scegliere una nuova password.",
+    "forgotSubmit": "Invia link",
+    "forgotSent": "Se esiste un account con questo indirizzo, ti abbiamo inviato un'e-mail. Controlla anche la cartella spam.",
+    "forgotFailed": "Richiesta non riuscita",
+    "backToLogin": "Torna all'accesso",
+    "resetTitle": "Scegli una nuova password",
+    "setupTitle": "Imposta la password",
+    "resetHint": "Account: {email}",
+    "newPassword": "Nuova password",
+    "confirmPassword": "Ripeti password",
+    "minLength": "Almeno {min} caratteri",
+    "mismatch": "Le password non coincidono",
+    "submit": "Salva password",
+    "failed": "Impossibile salvare la password",
+    "checking": "Verifica del link …",
+    "invalidTitle": "Link non valido o scaduto",
+    "invalidHint": "Richiedi un nuovo link o contatta il tuo amministratore.",
+    "requestNew": "Richiedi nuovo link"
   },
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",

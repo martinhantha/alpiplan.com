@@ -165,6 +165,7 @@ export async function addTenantMember(tenantId: string, rawBody: unknown) {
   const role = normalizeRole(body.role);
   const name = normalizeName(body.name);
   const passwordRaw = typeof body.password === "string" ? body.password : "";
+  const sendInvite = body.sendInvite === true;
 
   let user = await prisma.user.findFirst({
     where: { email, deletedAt: null },
@@ -172,10 +173,10 @@ export async function addTenantMember(tenantId: string, rawBody: unknown) {
   });
 
   if (!user) {
-    if (passwordRaw.length < 6) {
+    if (!(sendInvite && !passwordRaw) && passwordRaw.length < 6) {
       throwValidation("Passwort muss mindestens 6 Zeichen haben", { field: "password" });
     }
-    const passwordHash = await bcrypt.hash(passwordRaw, 10);
+    const passwordHash = passwordRaw ? await bcrypt.hash(passwordRaw, 10) : null;
     user = await prisma.user.create({
       data: { email, name, passwordHash, isSuperadmin: false },
       select: { ...userPublicSelect, passwordHash: true },

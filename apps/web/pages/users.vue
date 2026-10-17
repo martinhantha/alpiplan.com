@@ -83,6 +83,7 @@ const addForm = reactive({
   email: "",
   name: "",
   password: "",
+  sendInvite: true,
   role: "STAFF" as TenantRole,
   isSuperadmin: false,
   tenantId: "",
@@ -135,7 +136,7 @@ const addEmailNormalized = computed(() => addForm.email.trim().toLowerCase());
 const addIsExistingUser = computed(
   () => addEmailNormalized.value.length > 0 && existingUserEmails.value.has(addEmailNormalized.value),
 );
-const addPasswordRequired = computed(() => !addIsExistingUser.value);
+const addPasswordRequired = computed(() => !addIsExistingUser.value && !addForm.sendInvite);
 const editEmailNormalized = computed(() => editForm.email.trim().toLowerCase());
 const editEmailTaken = computed(() => {
   if (!editingUser.value || !editEmailNormalized.value) return false;
@@ -193,6 +194,40 @@ function setError(message: string) {
 function apiMessage(e: unknown, fallback: string) {
   const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
   return err.data?.data?.message || err.data?.message || err.statusMessage || fallback;
+}
+
+interface PasswordLinkResult {
+  purpose: "reset" | "setup";
+  delivered: boolean;
+  actionUrl?: string;
+}
+
+function passwordLinkMessage(email: string, result: PasswordLinkResult) {
+  const kind = result.purpose === "setup" ? "Einladung" : "Link zum Zurücksetzen";
+  if (result.delivered) return `${kind} an ${email} gesendet`;
+  return result.actionUrl
+    ? `E-Mail-Versand nicht konfiguriert (SMTP) – Link: ${result.actionUrl}`
+    : "E-Mail-Versand nicht konfiguriert (SMTP) – es wurde keine E-Mail gesendet";
+}
+
+const sendingLinkId = ref("");
+
+async function sendPasswordLink(userItem: UserItem) {
+  const tenantId = primaryTenant.value?.tenantId;
+  const url =
+    userItem.roleInActive && tenantId
+      ? `/api/v1/tenants/${tenantId}/members/${userItem.id}/password-link`
+      : `/api/admin/users/${userItem.id}/password-link`;
+  sendingLinkId.value = userItem.id;
+  clearDialogMessages();
+  try {
+    const result = await $fetch<PasswordLinkResult>(url, { method: "POST", credentials: "include" });
+    setDialogInfo(passwordLinkMessage(userItem.email, result));
+  } catch (e: unknown) {
+    setDialogError(apiMessage(e, "Passwort-Link konnte nicht gesendet werden"));
+  } finally {
+    sendingLinkId.value = "";
+  }
 }
 
 function activeMembershipFor(memberships: MembershipInfo[]): MembershipInfo | null {
@@ -273,6 +308,7 @@ function openAdd() {
   addForm.email = "";
   addForm.name = "";
   addForm.password = "";
+  addForm.sendInvite = true;
   addForm.role = "STAFF";
   addForm.isSuperadmin = false;
   addForm.tenantId = primaryTenant.value?.tenantId ?? "";
@@ -296,13 +332,14 @@ async function submitAdd() {
   const willCreateNewUser = !isExisting;
   const willUseAdminEndpoint =
     isSuperadmin.value && (!addForm.tenantId || addForm.isSuperadmin);
+  const sendInvite = willCreateNewUser && addForm.sendInvite && !password;
 
-  if (willCreateNewUser && (willUseAdminEndpoint || password.length > 0) && password.length < 6) {
+  if (willCreateNewUser && password.length > 0 && password.length < 6) {
     setDialogError("Passwort muss mindestens 6 Zeichen haben");
     return;
   }
-  if (willCreateNewUser && !willUseAdminEndpoint && password.length < 6) {
-    setDialogError("Für einen neuen Benutzer ist ein Passwort mit mind. 6 Zeichen erforderlich");
+  if (willCreateNewUser && !sendInvite && password.length < 6) {
+    setDialogError("Für einen neuen Benutzer ist ein Passwort mit mind. 6 Zeichen oder eine Einladung per E-Mail erforderlich");
     return;
   }
   if (!isSuperadmin.value && !primaryTenant.value?.tenantId) {
@@ -312,14 +349,16 @@ async function submitAdd() {
 
   loading.value = true;
   try {
+    let created: { passwordLink?: PasswordLinkResult };
     if (willUseAdminEndpoint) {
-      await $fetch("/api/admin/users", {
+      created = await $fetch("/api/admin/users", {
         method: "POST",
         credentials: "include",
         body: {
           email,
           name: addForm.name || undefined,
-          password,
+          password: password || undefined,
+          sendInvite,
           isSuperadmin: addForm.isSuperadmin,
           tenantId: addForm.tenantId || undefined,
           role: addForm.tenantId ? addForm.role : undefined,
@@ -330,18 +369,23 @@ async function submitAdd() {
       if (!tenantId) {
         throw new Error("Kein Mandant ausgewählt");
       }
-      await $fetch(`/api/v1/tenants/${tenantId}/members`, {
+      created = await $fetch(`/api/v1/tenants/${tenantId}/members`, {
         method: "POST",
         credentials: "include",
         body: {
           email,
           name: addForm.name || undefined,
           password: password || undefined,
+          sendInvite,
           role: addForm.role,
         },
       });
     }
-    setInfo("Benutzer hinzugefügt");
+    setInfo(
+      created.passwordLink
+        ? `Benutzer hinzugefügt · ${passwordLinkMessage(email, created.passwordLink)}`
+        : "Benutzer hinzugefügt",
+    );
     addOpen.value = false;
     await loadUsers();
   } catch (e: unknown) {
@@ -916,6 +960,14 @@ watch(
       <template #body>
         <form class="space-y-4" @submit.prevent="submitEdit">
           <UAlert v-if="dialogError" color="error" variant="soft" icon="i-lucide-circle-alert" :title="dialogError" />
+          <UAlert
+            v-if="dialogInfo"
+            color="success"
+            variant="soft"
+            icon="i-lucide-circle-check"
+            :title="dialogInfo"
+            :ui="{ title: 'break-all' }"
+          />
           <UFormField label="E-Mail" required hint="muss eindeutig sein">
             <UInput v-model="editForm.email" type="email" autocomplete="off" />
           </UFormField>
@@ -932,6 +984,22 @@ watch(
           <UFormField label="Neues Passwort" hint="leer lassen, um nicht zu ändern">
             <UInput v-model="editForm.password" type="password" autocomplete="new-password" />
           </UFormField>
+          <div v-if="editingUser" class="flex items-center justify-between gap-3 flex-wrap -mt-1">
+            <p class="text-xs text-neutral-500">
+              Oder Link per E-Mail senden – der Benutzer legt sein Passwort selbst fest.
+            </p>
+            <UButton
+              size="xs"
+              variant="soft"
+              color="neutral"
+              icon="i-lucide-mail"
+              :loading="sendingLinkId === editingUser.id"
+              :disabled="Boolean(editingUser.disabledAt) || (editingUser.isSuperadmin && !isSuperadmin)"
+              @click="sendPasswordLink(editingUser)"
+            >
+              Passwort-Link senden
+            </UButton>
+          </div>
 
           <div
             v-if="editingUser?.roleInActive === 'ADMIN' || editingUser?.roleInActive === 'STAFF'"
@@ -1110,9 +1178,21 @@ watch(
           <UFormField label="Name (optional)">
             <UInput v-model="addForm.name" />
           </UFormField>
+          <UCheckbox
+            v-if="!addIsExistingUser"
+            v-model="addForm.sendInvite"
+            label="Einladung per E-Mail senden"
+            description="Der Benutzer erhält einen Link und legt sein Passwort selbst fest (Link 7 Tage gültig)."
+          />
           <UFormField
             :label="addPasswordRequired ? 'Passwort' : 'Passwort (optional)'"
-            :hint="addPasswordRequired ? 'Pflicht bei neuem Benutzer · mind. 6 Zeichen' : 'wird ignoriert, Benutzer existiert bereits'"
+            :hint="
+              addIsExistingUser
+                ? 'wird ignoriert, Benutzer existiert bereits'
+                : addPasswordRequired
+                  ? 'Pflicht bei neuem Benutzer · mind. 6 Zeichen'
+                  : 'leer lassen, wenn der Benutzer es selbst festlegt'
+            "
             :required="addPasswordRequired"
           >
             <UInput

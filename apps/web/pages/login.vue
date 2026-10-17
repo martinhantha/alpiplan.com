@@ -8,7 +8,7 @@ const config = useRuntimeConfig().public;
 const { login } = useAuth();
 const { t } = useI18n();
 
-const email = ref();
+const email = ref("");
 const password = ref("");
 const pending = ref(false);
 const errorMsg = ref("");
@@ -86,6 +86,14 @@ async function onSubmit() {
               size="lg"
               class="w-full"
             />
+            <template #hint>
+              <NuxtLink
+                :to="{ path: '/forgot-password', query: email ? { email: email.trim() } : undefined }"
+                class="text-xs underline underline-offset-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+              >
+                {{ $t("login.forgot") }}
+              </NuxtLink>
+            </template>
           </UFormField>
           <UButton type="submit" block size="lg" :loading="pending" :disabled="pending">
             {{ $t("login.submit") }}

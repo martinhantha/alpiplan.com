@@ -15,6 +15,7 @@ const links = computed(() => {
       { to: "/lesson-types", label: t("nav.lessonTypes"), icon: "i-lucide-list-checks" },
       { to: "/conflicts", label: t("nav.conflicts"), icon: "i-lucide-git-merge" },
       { to: "/trash", label: t("nav.trash"), icon: "i-lucide-trash-2" },
+      { to: "/appointment-data", label: t("nav.appointmentData"), icon: "i-lucide-database" },
     );
   }
   if (user.value?.isSuperadmin) {

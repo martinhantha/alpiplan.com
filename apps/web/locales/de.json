@@ -7,7 +7,8 @@
     "lessonTypes": "Termintypen",
     "conflicts": "Konflikte",
     "trash": "Papierkorb",
-    "tenants": "Mandanten"
+    "tenants": "Mandanten",
+    "appointmentData": "Termin-Daten"
   },
   "layout": {
     "dashboard": "Dashboard",
@@ -31,7 +32,29 @@
     "password": "Passwort",
     "emailPlaceholder": "name{'@'}beispiel.de",
     "submit": "Anmelden",
-    "failed": "Anmeldung fehlgeschlagen"
+    "failed": "Anmeldung fehlgeschlagen",
+    "forgot": "Passwort vergessen?"
+  },
+  "password": {
+    "forgotTitle": "Passwort vergessen",
+    "forgotHint": "Gib deine E-Mail-Adresse ein. Wir senden dir einen Link, mit dem du ein neues Passwort festlegen kannst.",
+    "forgotSubmit": "Link senden",
+    "forgotSent": "Falls ein Konto mit dieser Adresse existiert, ist eine E-Mail unterwegs. Bitte prüfe auch den Spam-Ordner.",
+    "forgotFailed": "Anfrage fehlgeschlagen",
+    "backToLogin": "Zurück zur Anmeldung",
+    "resetTitle": "Neues Passwort festlegen",
+    "setupTitle": "Passwort festlegen",
+    "resetHint": "Konto: {email}",
+    "newPassword": "Neues Passwort",
+    "confirmPassword": "Passwort wiederholen",
+    "minLength": "Mindestens {min} Zeichen",
+    "mismatch": "Die Passwörter stimmen nicht überein",
+    "submit": "Passwort speichern",
+    "failed": "Passwort konnte nicht gespeichert werden",
+    "checking": "Link wird geprüft …",
+    "invalidTitle": "Link ungültig oder abgelaufen",
+    "invalidHint": "Fordere einen neuen Link an oder wende dich an deinen Administrator.",
+    "requestNew": "Neuen Link anfordern"
   },
   "home": {
     "breadcrumb": "Alpiplan · Dashboard",

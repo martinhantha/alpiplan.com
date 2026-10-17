@@ -1,0 +1,25 @@
+-- CreateEnum
+CREATE TYPE "PasswordTokenPurpose" AS ENUM ('reset', 'setup');
+
+-- CreateTable
+CREATE TABLE "PasswordToken" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "purpose" "PasswordTokenPurpose" NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdByUserId" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PasswordToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PasswordToken_tokenHash_key" ON "PasswordToken"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "PasswordToken_userId_createdAt_idx" ON "PasswordToken"("userId", "createdAt");
+
+-- AddForeignKey
+ALTER TABLE "PasswordToken" ADD CONSTRAINT "PasswordToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
