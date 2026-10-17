@@ -7,7 +7,17 @@ export function useAuth() {
 
   const user = computed(() => session.value?.user ?? null);
   const memberships = computed(() => session.value?.memberships ?? []);
-  const primaryTenant = computed(() => memberships.value[0] ?? null);
+  const selectedTenantId = useCookie<string | null>("alpiplan_tenant", {
+    default: () => null,
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+  });
+  const primaryTenant = computed(
+    () =>
+      memberships.value.find((m) => m.tenantId === selectedTenantId.value) ??
+      memberships.value[0] ??
+      null,
+  );
   const teacherLabel = computed(() => primaryTenant.value?.teacherLabel?.trim() || "Lehrer");
   const resourcesEnabled = computed(() => primaryTenant.value?.resourcesEnabled ?? true);
   const speechRecognitionEnabled = computed(
@@ -52,6 +62,14 @@ export function useAuth() {
     return session.value;
   }
 
+  async function selectTenant(tenantId: string) {
+    if (tenantId === primaryTenant.value?.tenantId) return;
+    if (!memberships.value.some((m) => m.tenantId === tenantId)) return;
+    selectedTenantId.value = tenantId;
+    await nextTick();
+    reloadNuxtApp({ force: true });
+  }
+
   async function logout() {
     await unregisterNativePushToken();
     await disableWebPush({ unsubscribe: false });
@@ -65,6 +83,7 @@ export function useAuth() {
     user,
     memberships,
     primaryTenant,
+    selectTenant,
     teacherLabel,
     resourcesEnabled,
     speechRecognitionEnabled,

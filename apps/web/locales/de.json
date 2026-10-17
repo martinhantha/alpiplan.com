@@ -14,6 +14,8 @@
     "dashboard": "Dashboard",
     "account": "Account",
     "noActiveTenant": "Kein Mandant aktiv",
+    "tenant": "Mandant",
+    "searchTenant": "Mandant suchen…",
     "settings": "Einstellungen",
     "logout": "Abmelden"
   },

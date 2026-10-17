@@ -1,7 +1,17 @@
 <script setup lang="ts">
 const route = useRoute();
-const { user, primaryTenant, logout, canManageTenant } = useAuth();
+const { user, memberships, primaryTenant, selectTenant, logout, canManageTenant } = useAuth();
 const { t } = useI18n();
+
+const tenantItems = computed(() =>
+  memberships.value.map((m) => ({ label: m.tenantName, value: m.tenantId })),
+);
+const tenantModel = computed({
+  get: () => primaryTenant.value?.tenantId,
+  set: (tenantId) => {
+    if (tenantId) selectTenant(tenantId);
+  },
+});
 
 const links = computed(() => {
   const base = [
@@ -65,11 +75,22 @@ function navClass(to: string) {
             </span>
             <div class="min-w-0">
               <p class="text-sm font-semibold truncate">{{ user?.name || user?.email || $t("layout.account") }}</p>
-              <p class="text-xs text-neutral-500 truncate">
+              <p v-if="tenantItems.length <= 1" class="text-xs text-neutral-500 truncate">
                 {{ primaryTenant?.tenantName || $t("layout.noActiveTenant") }}
               </p>
             </div>
           </div>
+          <USelectMenu
+            v-if="tenantItems.length > 1"
+            v-model="tenantModel"
+            :items="tenantItems"
+            value-key="value"
+            size="sm"
+            icon="i-lucide-building-2"
+            :search-input="tenantItems.length > 6 ? { placeholder: $t('layout.searchTenant') } : false"
+            :aria-label="$t('layout.tenant')"
+            class="mt-3 w-full"
+          />
           <ThemeSwitcher class="mt-4" />
           <div class="mt-2 grid grid-cols-2 gap-2">
             <UButton to="/settings" size="sm" variant="soft" color="neutral" icon="i-lucide-settings-2" block>

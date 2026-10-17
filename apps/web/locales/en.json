@@ -14,6 +14,8 @@
     "dashboard": "Dashboard",
     "account": "Account",
     "noActiveTenant": "No active tenant",
+    "tenant": "Tenant",
+    "searchTenant": "Search tenant…",
     "settings": "Settings",
     "logout": "Log out"
   },

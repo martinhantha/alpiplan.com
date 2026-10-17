@@ -1,7 +1,7 @@
 import { createError, readBody } from "h3";
 import { restoreCookieSession } from "~/server/utils/auth-cookies";
 import { prisma } from "~/server/utils/prisma";
-import { loadUserWithMemberships, toAuthSession } from "~/server/utils/session";
+import { loadUserWithMemberships, toAuthSession, withSuperadminTenants } from "~/server/utils/session";
 import { throwValidation } from "~/server/utils/api-errors";
 
 export default defineEventHandler(async (event) => {
@@ -60,5 +60,5 @@ export default defineEventHandler(async (event) => {
   if (!user) {
     throw createError({ statusCode: 401, statusMessage: "Nicht angemeldet" });
   }
-  return toAuthSession(user);
+  return withSuperadminTenants(toAuthSession(user));
 });

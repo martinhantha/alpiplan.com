@@ -1,5 +1,6 @@
 import { setAuthCookies } from "~/server/utils/auth-cookies";
 import { authSessionFromAccessToken, loginWithEmailPassword } from "~/server/utils/auth-service";
+import { withSuperadminTenants } from "~/server/utils/session";
 
 function loginErrorMessage(code: "VALIDATION_ERROR" | "UNAUTHORIZED" | "DISABLED") {
   if (code === "VALIDATION_ERROR") return "E-Mail und Passwort sind erforderlich";
@@ -28,5 +29,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: "Sitzung konnte nicht erstellt werden" });
   }
 
-  return session;
+  return withSuperadminTenants(session);
 });

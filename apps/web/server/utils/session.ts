@@ -56,3 +56,44 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
     })),
   };
 }
+
+/** Superadmins can act in every tenant; expose the ones without a real membership as virtual admin entries. */
+export async function withSuperadminTenants(session: AuthSession): Promise<AuthSession> {
+  if (!session.user.isSuperadmin) return session;
+  const ownTenantIds = session.memberships.map((m) => m.tenantId);
+  const tenants = await prisma.tenant.findMany({
+    where: { deletedAt: null, id: { notIn: ownTenantIds } },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      useDefaultDuration: true,
+      teacherLabel: true,
+      resourcesEnabled: true,
+      speechRecognitionEnabled: true,
+      autoCompleteAppointments: true,
+      autoCompleteAfterMinutes: true,
+    },
+  });
+  return {
+    ...session,
+    memberships: [
+      ...session.memberships,
+      ...tenants.map((tenant) => ({
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        tenantSlug: tenant.slug,
+        role: "ADMIN" as const,
+        useDefaultDuration: tenant.useDefaultDuration,
+        teacherLabel: tenant.teacherLabel?.trim() || "Lehrer",
+        resourcesEnabled: tenant.resourcesEnabled,
+        speechRecognitionEnabled: tenant.speechRecognitionEnabled,
+        autoCompleteAppointments: tenant.autoCompleteAppointments,
+        autoCompleteAfterMinutes: tenant.autoCompleteAfterMinutes,
+        teacherProfileId: null,
+        performsAppointments: false,
+      })),
+    ],
+  };
+}
