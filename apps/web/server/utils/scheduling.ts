@@ -2620,6 +2620,142 @@ export async function getTeacherAvailability(
   };
 }
 
+export type UnavailabilityKind = "vacation" | "sick" | "block" | "unavailable";
+
+const UNAVAILABILITY_MAX_DAYS = 62;
+const DAY_MINUTES = 24 * 60;
+
+function mergeIntervals(intervals: [number, number][]): [number, number][] {
+  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [start, end] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
+}
+
+/** Minutes of the day blocked by the weekly rules, mirroring `appointmentHitsUnavailable` / `appointmentFitsAvailable`. */
+function ruleBlockedIntervals(rules: AvailabilityMatchRule[], weekday: number): [number, number][] {
+  const blocked: [number, number][] = [];
+  for (const rule of rules) {
+    if (rule.kind !== AvailabilityRuleKind.unavailable || !ruleCoversWeekday(rule, weekday)) continue;
+    if (rule.allDay) return [[0, DAY_MINUTES]];
+    blocked.push([parseMinutes(rule.startTime), parseMinutes(rule.endTime)]);
+  }
+  const available = rules.filter((rule) => rule.kind !== AvailabilityRuleKind.unavailable);
+  if (available.length) {
+    const today = available.filter((rule) => ruleCoversWeekday(rule, weekday));
+    if (!today.some((rule) => rule.allDay)) {
+      let cursor = 0;
+      for (const [start, end] of mergeIntervals(
+        today.map((rule) => [parseMinutes(rule.startTime), parseMinutes(rule.endTime)]),
+      )) {
+        if (start > cursor) blocked.push([cursor, start]);
+        cursor = Math.max(cursor, end);
+      }
+      if (cursor < DAY_MINUTES) blocked.push([cursor, DAY_MINUTES]);
+    }
+  }
+  return mergeIntervals(blocked.filter(([start, end]) => end > start));
+}
+
+function businessMinuteToDate(date: string, minutes: number) {
+  return minutes >= DAY_MINUTES
+    ? fromBusinessDateTime(addDaysToDateString(date, 1), "00:00")
+    : fromBusinessDateTime(date, formatMinutes(minutes));
+}
+
+/** Per teacher and business day: the time ranges in which they cannot be booked, and why. */
+export async function listTeacherUnavailability(
+  tenantId: string,
+  query: { from?: string; to?: string; teacherId?: string | null },
+) {
+  const from = dateOnlyString(parseDateOnly(query.from, "from"));
+  const to = dateOnlyString(parseDateOnly(query.to, "to"));
+  if (to < from) {
+    throwValidation("Ende muss nach dem Start liegen", { from, to });
+  }
+  const dates: string[] = [];
+  for (let date = from; date <= to; date = addDaysToDateString(date, 1)) {
+    dates.push(date);
+    if (dates.length > UNAVAILABILITY_MAX_DAYS) {
+      throwValidation(`Zeitraum darf höchstens ${UNAVAILABILITY_MAX_DAYS} Tage umfassen`, { from, to });
+    }
+  }
+  const teacherFilter = query.teacherId ? { teacherId: query.teacherId } : {};
+
+  const [rules, exceptions] = await Promise.all([
+    prisma.availabilityRule.findMany({
+      where: { tenantId, deletedAt: null, ...teacherFilter },
+      select: { teacherId: true, weekday: true, weekdays: true, startTime: true, endTime: true, kind: true, allDay: true },
+    }),
+    prisma.availabilityException.findMany({
+      where: {
+        tenantId,
+        deletedAt: null,
+        ...teacherFilter,
+        startsOn: { lte: new Date(`${to}T00:00:00.000Z`) },
+        endsOn: { gte: new Date(`${from}T00:00:00.000Z`) },
+      },
+      select: { teacherId: true, type: true, startsOn: true, endsOn: true, startTime: true, endTime: true, reason: true },
+    }),
+  ]);
+
+  const teacherIds = new Set([...rules.map((rule) => rule.teacherId), ...exceptions.map((item) => item.teacherId)]);
+  const data: {
+    teacherId: string;
+    date: string;
+    kind: UnavailabilityKind;
+    allDay: boolean;
+    startsAt: string;
+    endsAt: string;
+    reason: string | null;
+  }[] = [];
+
+  for (const teacherId of teacherIds) {
+    const teacherRules: AvailabilityMatchRule[] = rules
+      .filter((rule) => rule.teacherId === teacherId)
+      .map((rule) => ({ ...rule, weekdays: rule.weekdays.length ? rule.weekdays : [rule.weekday] }));
+    const teacherExceptions = exceptions.filter((item) => item.teacherId === teacherId);
+
+    for (const date of dates) {
+      const push = (kind: UnavailabilityKind, start: number, end: number, reason: string | null = null) => {
+        data.push({
+          teacherId,
+          date,
+          kind,
+          allDay: start <= 0 && end >= DAY_MINUTES,
+          startsAt: businessMinuteToDate(date, start).toISOString(),
+          endsAt: businessMinuteToDate(date, end).toISOString(),
+          reason,
+        });
+      };
+
+      const dayExceptions = exceptionsForDay(teacherExceptions, date) as typeof teacherExceptions;
+      const absences = dayExceptions.filter((item) => blockingExceptionTypes.includes(item.type));
+      const wholeDay = absences.find((item) => !item.startTime || !item.endTime);
+      if (wholeDay) {
+        push(wholeDay.type as UnavailabilityKind, 0, DAY_MINUTES, wholeDay.reason);
+        continue;
+      }
+      for (const absence of absences) {
+        push(absence.type as UnavailabilityKind, parseMinutes(absence.startTime!), parseMinutes(absence.endTime!), absence.reason);
+      }
+
+      if (dayExceptions.some((item) => item.type === AvailabilityExceptionType.extra_open)) continue;
+      const weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+      for (const [start, end] of ruleBlockedIntervals(teacherRules, weekday)) {
+        push("unavailable", start, end);
+      }
+    }
+  }
+
+  data.sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.teacherId.localeCompare(b.teacherId));
+  return { data, range: { from, to } };
+}
+
 export async function suggestAppointmentAlternatives(
   tenantId: string,
   appointmentIdInput: string | undefined,

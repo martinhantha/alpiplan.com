@@ -213,9 +213,7 @@
     "tabs": {
       "account": "Account",
       "lessonTypes": "Appointment types",
-      "availability": "Default hours",
-      "absences": "Time off",
-      "users": "Users"
+      "absences": "Time off"
     },
     "roles": {
       "superadmin": "Superadmin",

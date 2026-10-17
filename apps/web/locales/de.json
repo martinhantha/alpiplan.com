@@ -213,9 +213,7 @@
     "tabs": {
       "account": "Account",
       "lessonTypes": "Termintypen",
-      "availability": "Standard-Uhrzeiten",
-      "absences": "Urlaub & Freizeiten",
-      "users": "Benutzer"
+      "absences": "Urlaub & Freizeiten"
     },
     "roles": {
       "superadmin": "Superadmin",

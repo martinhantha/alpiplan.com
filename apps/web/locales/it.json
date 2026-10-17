@@ -213,9 +213,7 @@
     "tabs": {
       "account": "Account",
       "lessonTypes": "Tipi di appuntamento",
-      "availability": "Orari predefiniti",
-      "absences": "Ferie e permessi",
-      "users": "Utenti"
+      "absences": "Ferie e permessi"
     },
     "roles": {
       "superadmin": "Superadmin",

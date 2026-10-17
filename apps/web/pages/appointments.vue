@@ -5,7 +5,14 @@ import { CalendarDate, type DateValue } from "@internationalized/date";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { formatTeachersCaption } from "../utils/appointment-contact";
 import { avatarColor, avatarInitials } from "../utils/avatar";
-import type { TimelineCreate, TimelineMove } from "../components/AppointmentTimeline.vue";
+import {
+  TIMELINE_BLOCK_COLORS,
+  TIMELINE_BLOCK_LABELS,
+  type TimelineBlock,
+  type TimelineBlockKind,
+  type TimelineCreate,
+  type TimelineMove,
+} from "../components/AppointmentTimeline.vue";
 
 interface AppointmentListItem {
   id: string;
@@ -38,6 +45,16 @@ interface Pagination {
 interface SchedulingOptions {
   teachers: { id: string; displayName: string; color?: string | null }[];
   lessonTypes: { id: string; name: string }[];
+}
+
+interface UnavailabilityItem {
+  teacherId: string;
+  date: string;
+  kind: TimelineBlockKind;
+  allDay: boolean;
+  startsAt: string;
+  endsAt: string;
+  reason: string | null;
 }
 
 const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canPlanAllAppointments, canAccessWorkspace } = useAuth();
@@ -323,12 +340,87 @@ async function loadAppointments() {
     );
     appointments.value = response.data;
     pagination.value = response.pagination;
+    void loadUnavailability();
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value = err.data?.data?.message || err.data?.message || err.statusMessage || "Termine konnten nicht geladen werden";
   } finally {
     loading.value = false;
   }
+}
+
+const unavailability = ref<UnavailabilityItem[]>([]);
+let unavailabilityRequest = 0;
+
+function showsUnavailability() {
+  return view.value === "calendar" && (calendarMode.value === "timeline" || isWeekMode(calendarMode.value));
+}
+
+async function loadUnavailability() {
+  const tenantId = primaryTenant.value?.tenantId;
+  const request = ++unavailabilityRequest;
+  if (!tenantId || !showsUnavailability()) {
+    unavailability.value = [];
+    return;
+  }
+  const { from, to } = calendarRange.value;
+  try {
+    const response = await $fetch<{ data: UnavailabilityItem[] }>(
+      `/api/v1/tenants/${tenantId}/scheduling/unavailability`,
+      {
+        credentials: "include",
+        query: { from: toDateKey(from), to: toDateKey(addDays(to, -1)) },
+      },
+    );
+    if (request === unavailabilityRequest) unavailability.value = response.data;
+  } catch {
+    if (request === unavailabilityRequest) unavailability.value = [];
+  }
+}
+
+function blocksFor(teacherId: string, key: string): TimelineBlock[] {
+  return unavailability.value
+    .filter((item) => item.teacherId === teacherId && item.date === key)
+    .map((item) => ({
+      id: `${item.teacherId}:${item.startsAt}:${item.kind}`,
+      kind: item.kind,
+      startsAt: item.startsAt,
+      endsAt: item.endsAt,
+      allDay: item.allDay,
+      reason: item.reason,
+    }));
+}
+
+/** Absences plus whole days off; partial "outside hours" ranges only clutter the week views. */
+function noticesFor(teacherId: string, key: string): TimelineBlock[] {
+  return blocksFor(teacherId, key).filter((block) => block.kind !== "unavailable" || block.allDay);
+}
+
+function noticeLabel(block: TimelineBlock) {
+  const label = TIMELINE_BLOCK_LABELS[block.kind];
+  return block.allDay ? label : `${label} ${formatTime(block.startsAt)}–${formatTime(block.endsAt)}`;
+}
+
+function noticeStyle(kind: TimelineBlockKind) {
+  const color = TIMELINE_BLOCK_COLORS[kind];
+  return {
+    color,
+    backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
+  };
+}
+
+const visibleTeachers = computed(() => {
+  const ownTeacherId = canPlanAllAppointments.value ? null : (primaryTenant.value?.teacherProfileId ?? "");
+  return (options.value?.teachers ?? [])
+    .filter((teacher) => ownTeacherId === null || teacher.id === ownTeacherId)
+    .filter((teacher) => !filters.teacherId || teacher.id === filters.teacherId);
+});
+
+function weekDayNotices(key: string) {
+  return visibleTeachers.value.flatMap((teacher) =>
+    noticesFor(teacher.id, key).map((block) => ({ teacher, block })),
+  );
 }
 
 const calendarRange = computed(() => {
@@ -416,23 +508,22 @@ const dayColumns = computed(() => {
 /** Like `dayColumns`, but every person gets a row, even without appointments that day. */
 const timelineRows = computed(() => {
   const withAppointments = new Map(dayColumns.value.map((column) => [column.id, column]));
-  const ownTeacherId = canPlanAllAppointments.value ? null : (primaryTenant.value?.teacherProfileId ?? "");
-  const rows = (options.value?.teachers ?? [])
-    .filter((teacher) => ownTeacherId === null || teacher.id === ownTeacherId)
-    .filter((teacher) => !filters.teacherId || teacher.id === filters.teacherId)
-    .map(
-      (teacher) =>
-        withAppointments.get(teacher.id) ?? {
-          id: teacher.id,
-          name: teacher.displayName,
-          color: teacher.color ?? null,
-          appointments: [] as AppointmentListItem[],
-        },
-    );
+  const rows = visibleTeachers.value.map(
+    (teacher) =>
+      withAppointments.get(teacher.id) ?? {
+        id: teacher.id,
+        name: teacher.displayName,
+        color: teacher.color ?? null,
+        appointments: [] as AppointmentListItem[],
+      },
+  );
   const known = new Set(rows.map((row) => row.id));
   const extra = dayColumns.value.filter((column) => !known.has(column.id) && column.id !== UNASSIGNED_ROW_ID);
   const unassigned = withAppointments.get(UNASSIGNED_ROW_ID);
-  const visible = [...rows, ...extra].filter((row) => !timeline.auto || row.appointments.length > 0);
+  const key = toDateKey(dayAnchor.value);
+  const visible = [...rows, ...extra]
+    .filter((row) => !timeline.auto || row.appointments.length > 0)
+    .map((row) => ({ ...row, blocks: blocksFor(row.id, key) }));
   return [
     ...visible.sort((a, b) => a.name.localeCompare(b.name, intlLocale.value)),
     ...(unassigned ? [unassigned] : []),
@@ -1674,6 +1765,17 @@ watch(
                 class="border-b border-l border-neutral-100 p-1 dark:border-neutral-900"
                 :class="isToday(day.date) ? 'bg-primary-50/40 dark:bg-primary-500/5' : ''"
               >
+                <div v-if="noticesFor(row.id, day.key).length" class="mb-1 flex flex-col gap-0.5">
+                  <span
+                    v-for="block in noticesFor(row.id, day.key)"
+                    :key="block.id"
+                    class="truncate rounded border px-1.5 py-0.5 text-[11px] font-medium"
+                    :style="noticeStyle(block.kind)"
+                    :title="block.reason ? `${noticeLabel(block)} · ${block.reason}` : noticeLabel(block)"
+                  >
+                    {{ noticeLabel(block) }}
+                  </span>
+                </div>
                 <div v-if="row.byDay.get(day.key)?.length" class="flex flex-col gap-1">
                   <CalendarChip
                     v-for="appointment in row.byDay.get(day.key)!.slice(0, TEAM_CELL_VISIBLE)"
@@ -1727,6 +1829,17 @@ watch(
               {{ appointmentsByDay(day.key).length }}
             </span>
           </button>
+          <div v-if="weekDayNotices(day.key).length" class="flex flex-col gap-0.5">
+            <span
+              v-for="notice in weekDayNotices(day.key)"
+              :key="notice.block.id"
+              class="truncate rounded border px-1.5 py-0.5 text-[11px] font-medium"
+              :style="noticeStyle(notice.block.kind)"
+              :title="[notice.teacher.displayName, noticeLabel(notice.block), notice.block.reason].filter(Boolean).join(' · ')"
+            >
+              <template v-if="canPlanAllAppointments">{{ notice.teacher.displayName }} · </template>{{ noticeLabel(notice.block) }}
+            </span>
+          </div>
           <CalendarChip
             v-for="appointment in appointmentsByDay(day.key).slice(0, WEEK_DAY_VISIBLE)"
             :key="appointment.id"

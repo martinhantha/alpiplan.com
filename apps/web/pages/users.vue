@@ -58,11 +58,59 @@ interface SuperadminOverview {
 }
 
 const { user, primaryTenant } = useAuth();
+const route = useRoute();
+const router = useRouter();
 
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 const isTenantAdmin = computed(() => primaryTenant.value?.role === "ADMIN");
 const canEdit = computed(() => isSuperadmin.value || isTenantAdmin.value);
 const teacherLabel = computed(() => primaryTenant.value?.teacherLabel || "Lehrer");
+
+type UsersTab = "users" | "absences" | "availability";
+const USERS_TABS: { id: UsersTab; label: string; icon: string }[] = [
+  { id: "users", label: "Benutzer", icon: "i-lucide-users" },
+  { id: "absences", label: "Urlaub & Freizeiten", icon: "i-lucide-calendar-off" },
+  { id: "availability", label: "Standard-Uhrzeiten", icon: "i-lucide-clock" },
+];
+
+const activeTab = computed<UsersTab>({
+  get: () => {
+    const tab = route.query.tab;
+    return USERS_TABS.some((item) => item.id === tab) ? (tab as UsersTab) : "users";
+  },
+  set: (tab) => {
+    void router.replace({ query: { ...route.query, tab: tab === "users" ? undefined : tab } });
+  },
+});
+
+const scheduleTeachers = ref<{ id: string; displayName: string }[]>([]);
+const scheduleTeacherId = ref("");
+const scheduleTeacherName = computed(
+  () => scheduleTeachers.value.find((teacher) => teacher.id === scheduleTeacherId.value)?.displayName ?? "",
+);
+
+async function loadScheduleTeachers() {
+  const tenantId = primaryTenant.value?.tenantId;
+  if (!tenantId) {
+    scheduleTeachers.value = [];
+    scheduleTeacherId.value = "";
+    return;
+  }
+  try {
+    const response = await $fetch<{ teachers: { id: string; displayName: string }[] }>(
+      `/api/v1/tenants/${tenantId}/scheduling/options`,
+      { credentials: "include" },
+    );
+    scheduleTeachers.value = response.teachers;
+    if (!scheduleTeachers.value.some((teacher) => teacher.id === scheduleTeacherId.value)) {
+      const own = primaryTenant.value?.teacherProfileId;
+      scheduleTeacherId.value =
+        (own && scheduleTeachers.value.some((teacher) => teacher.id === own) ? own : scheduleTeachers.value[0]?.id) ?? "";
+    }
+  } catch (e: unknown) {
+    setError(apiMessage(e, `${teacherLabel.value} konnten nicht geladen werden`));
+  }
+}
 
 const users = ref<UserItem[]>([]);
 const tenants = ref<SuperadminTenant[]>([]);
@@ -742,6 +790,16 @@ watch(
     loadUsers();
   },
 );
+
+watch(
+  () => [activeTab.value, primaryTenant.value?.tenantId] as const,
+  ([tab]) => {
+    info.value = "";
+    error.value = "";
+    if (tab !== "users") void loadScheduleTeachers();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -766,7 +824,7 @@ watch(
           </template>
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div v-if="activeTab === 'users'" class="flex items-center gap-2">
         <UButton
           variant="outline"
           color="neutral"
@@ -793,9 +851,68 @@ watch(
       </div>
     </div>
 
+    <div class="flex flex-wrap gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+      <UButton
+        v-for="tab in USERS_TABS"
+        :key="tab.id"
+        size="sm"
+        :variant="activeTab === tab.id ? 'soft' : 'ghost'"
+        :color="activeTab === tab.id ? 'primary' : 'neutral'"
+        :icon="tab.icon"
+        @click="activeTab = tab.id"
+      >
+        {{ tab.label }}
+      </UButton>
+    </div>
+
     <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :title="error" />
     <UAlert v-if="info" color="success" variant="soft" icon="i-lucide-circle-check" :title="info" />
 
+    <section v-if="activeTab !== 'users'" class="space-y-4">
+      <div
+        v-if="!primaryTenant"
+        class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
+      >
+        Wähle zuerst einen Mandanten aus.
+      </div>
+      <div
+        v-else-if="!scheduleTeachers.length"
+        class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
+      >
+        Noch keine {{ teacherLabel }} in diesem Mandanten.
+      </div>
+      <template v-else>
+        <UCard>
+          <template #header><h2 class="font-medium">{{ teacherLabel }} wählen</h2></template>
+          <select
+            v-model="scheduleTeacherId"
+            class="w-full max-w-md rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+          >
+            <option v-for="t in scheduleTeachers" :key="t.id" :value="t.id">
+              {{ t.displayName }}{{ t.id === primaryTenant.teacherProfileId ? " (ich)" : "" }}
+            </option>
+          </select>
+        </UCard>
+        <TeacherAbsencesPanel
+          v-if="activeTab === 'absences'"
+          :tenant-id="primaryTenant.tenantId"
+          :teacher-id="scheduleTeacherId"
+          :teacher-name="scheduleTeacherName"
+          @info="setInfo"
+          @error="setError"
+        />
+        <TeacherAvailabilityRulesPanel
+          v-else
+          :tenant-id="primaryTenant.tenantId"
+          :teacher-id="scheduleTeacherId"
+          :teacher-label="teacherLabel"
+          @info="setInfo"
+          @error="setError"
+        />
+      </template>
+    </section>
+
+    <template v-else>
     <UCard v-if="filterOpen">
       <template #header>
         <div class="flex items-center justify-between gap-3">
@@ -945,6 +1062,7 @@ watch(
         </div>
       </UCard>
     </div>
+    </template>
 
     <UModal v-model:open="editOpen" :ui="{ content: 'max-w-lg' }">
       <template #header>

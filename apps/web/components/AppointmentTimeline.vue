@@ -8,11 +8,38 @@ export interface TimelineAppointment {
   resource: { id: string; name: string } | null;
 }
 
+export type TimelineBlockKind = "vacation" | "sick" | "block" | "unavailable";
+
+/** A range in which the row's person cannot be booked (absence or outside their hours). */
+export interface TimelineBlock {
+  id: string;
+  kind: TimelineBlockKind;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  reason?: string | null;
+}
+
+export const TIMELINE_BLOCK_LABELS: Record<TimelineBlockKind, string> = {
+  vacation: "Urlaub",
+  sick: "Krank",
+  block: "Frei",
+  unavailable: "Nicht verfügbar",
+};
+
+export const TIMELINE_BLOCK_COLORS: Record<TimelineBlockKind, string> = {
+  vacation: "#0ea5e9",
+  sick: "#f43f5e",
+  block: "#f59e0b",
+  unavailable: "#737373",
+};
+
 export interface TimelineRowInput<T extends TimelineAppointment = TimelineAppointment> {
   id: string;
   name: string;
   color?: string | null;
   appointments: T[];
+  blocks?: TimelineBlock[];
 }
 
 export interface TimelineMove<T extends TimelineAppointment = TimelineAppointment> {
@@ -96,9 +123,33 @@ const layout = computed(() =>
       items.push({ appointment, start, end, lane });
     }
     const lanes = Math.max(1, laneEnds.length);
-    return { ...row, items, lanes, height: lanes * LANE_HEIGHT + ROW_PADDING };
+    const blockItems = (row.blocks ?? [])
+      .map((block) => ({
+        block,
+        start: Math.max(rangeStart.value, minutesIntoDay(block.startsAt)),
+        end: Math.min(rangeEnd.value, minutesIntoDay(block.endsAt)),
+      }))
+      .filter((item) => item.end > item.start);
+    const absence = (row.blocks ?? []).find((block) => block.allDay) ?? null;
+    return { ...row, items, blockItems, absence, lanes, height: lanes * LANE_HEIGHT + ROW_PADDING };
   }),
 );
+
+function blockStyle(kind: TimelineBlockKind, emphasized: boolean) {
+  const color = TIMELINE_BLOCK_COLORS[kind];
+  const strong = kind === "unavailable" ? (emphasized ? 16 : 9) : emphasized ? 26 : 15;
+  const weak = kind === "unavailable" ? 3 : 6;
+  return {
+    backgroundImage: `repeating-linear-gradient(135deg, color-mix(in srgb, ${color} ${strong}%, transparent) 0 6px, color-mix(in srgb, ${color} ${weak}%, transparent) 6px 12px)`,
+    borderColor: `color-mix(in srgb, ${color} ${emphasized ? 55 : 30}%, transparent)`,
+  };
+}
+
+function blockTitle(block: TimelineBlock) {
+  const label = TIMELINE_BLOCK_LABELS[block.kind];
+  const window = block.allDay ? "ganztägig" : `${props.formatTime(block.startsAt)}–${props.formatTime(block.endsAt)}`;
+  return [`${label} (${window})`, block.reason].filter(Boolean).join(" · ");
+}
 
 const now = ref(new Date());
 let nowTimer: ReturnType<typeof setInterval> | undefined;
@@ -395,12 +446,31 @@ function chipTitle(appointment: T) {
                 <p class="text-xs text-neutral-500 tabular-nums">
                   {{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}
                 </p>
+                <p
+                  v-for="block in row.blocks ?? []"
+                  :key="block.id"
+                  class="mt-1 text-xs font-medium"
+                  :style="{ color: TIMELINE_BLOCK_COLORS[block.kind] }"
+                >
+                  {{ blockTitle(block) }}
+                </p>
               </template>
             </UPopover>
             <div class="hidden min-w-0 sm:block">
               <p class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</p>
-              <p class="text-[11px] text-neutral-500 tabular-nums">
-                {{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}
+              <p class="flex items-center gap-1.5 text-[11px] text-neutral-500 tabular-nums">
+                <span>{{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}</span>
+                <span
+                  v-if="row.absence"
+                  class="truncate rounded px-1 font-medium"
+                  :style="{
+                    color: TIMELINE_BLOCK_COLORS[row.absence.kind],
+                    backgroundColor: `color-mix(in srgb, ${TIMELINE_BLOCK_COLORS[row.absence.kind]} 12%, transparent)`,
+                  }"
+                  :title="blockTitle(row.absence)"
+                >
+                  {{ TIMELINE_BLOCK_LABELS[row.absence.kind] }}
+                </span>
               </p>
             </div>
           </div>
@@ -461,6 +531,25 @@ function chipTitle(appointment: T) {
               @pointerleave="hoverSlot = null"
               @click="onRowClick($event, row.id)"
             >
+              <div
+                v-for="item in row.blockItems"
+                :key="item.block.id"
+                class="absolute inset-y-0 overflow-hidden border-x transition-[background-image]"
+                :class="canCreate ? 'cursor-not-allowed' : ''"
+                :style="{
+                  ...blockStyle(item.block.kind, ghostTargetRow === row.id),
+                  left: `${percentOf(item.start)}%`,
+                  width: `${percentOf(item.end) - percentOf(item.start)}%`,
+                }"
+                :title="blockTitle(item.block)"
+              >
+                <span
+                  class="absolute bottom-0.5 left-1 max-w-[calc(100%-0.5rem)] truncate text-[10px] font-semibold uppercase tracking-wide"
+                  :style="{ color: TIMELINE_BLOCK_COLORS[item.block.kind] }"
+                >
+                  {{ TIMELINE_BLOCK_LABELS[item.block.kind] }}
+                </span>
+              </div>
               <div
                 v-if="hoverSlot?.rowId === row.id && !drag?.active"
                 class="pointer-events-none absolute flex items-center gap-1 rounded-lg border border-dashed border-primary-400 bg-primary-50/60 px-2 text-[11px] font-medium tabular-nums text-primary-700 dark:border-primary-500/60 dark:bg-primary-500/10 dark:text-primary-200"
