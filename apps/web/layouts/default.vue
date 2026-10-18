@@ -53,6 +53,20 @@ function navClass(to: string) {
           </NuxtLink>
         </div>
 
+        <div v-if="tenantItems.length > 1" class="shrink-0 px-1">
+          <p class="eyebrow px-2 pb-1.5">{{ $t("layout.tenant") }}</p>
+          <USelectMenu
+            v-model="tenantModel"
+            :items="tenantItems"
+            value-key="value"
+            icon="i-lucide-building-2"
+            :search-input="tenantItems.length > 6 ? { placeholder: $t('layout.searchTenant') } : false"
+            :aria-label="$t('layout.tenant')"
+            class="w-full"
+            :ui="{ base: 'font-semibold' }"
+          />
+        </div>
+
         <nav class="flex-1 min-h-0 space-y-1 overflow-y-auto pr-1">
           <p class="eyebrow px-3 pb-1">{{ $t("layout.dashboard") }}</p>
           <NuxtLink
@@ -80,17 +94,6 @@ function navClass(to: string) {
               </p>
             </div>
           </div>
-          <USelectMenu
-            v-if="tenantItems.length > 1"
-            v-model="tenantModel"
-            :items="tenantItems"
-            value-key="value"
-            size="sm"
-            icon="i-lucide-building-2"
-            :search-input="tenantItems.length > 6 ? { placeholder: $t('layout.searchTenant') } : false"
-            :aria-label="$t('layout.tenant')"
-            class="mt-3 w-full"
-          />
           <ThemeSwitcher class="mt-4" />
           <div class="mt-2 grid grid-cols-2 gap-2">
             <UButton to="/settings" size="sm" variant="soft" color="neutral" icon="i-lucide-settings-2" block>
@@ -119,6 +122,18 @@ function navClass(to: string) {
               <UButton to="/settings" size="sm" variant="ghost" color="neutral" icon="i-lucide-settings-2" />
               <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-log-out" @click="logout()" />
             </div>
+          </div>
+          <div v-if="tenantItems.length > 1" class="px-4 pb-2">
+            <USelectMenu
+              v-model="tenantModel"
+              :items="tenantItems"
+              value-key="value"
+              icon="i-lucide-building-2"
+              :search-input="tenantItems.length > 6 ? { placeholder: $t('layout.searchTenant') } : false"
+              :aria-label="$t('layout.tenant')"
+              class="w-full"
+              :ui="{ base: 'font-semibold' }"
+            />
           </div>
           <nav class="px-3 pb-3 flex gap-1 overflow-x-auto">
             <NuxtLink

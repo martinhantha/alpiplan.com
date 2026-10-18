@@ -22,7 +22,7 @@ const { user, primaryTenant, logout } = useAuth();
       <div class="flex items-center gap-2 shrink-0">
         <UButton
           v-if="user?.isSuperadmin"
-          to="/#superadmin"
+          to="/tenants"
           color="secondary"
           variant="soft"
           size="sm"
