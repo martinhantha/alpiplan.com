@@ -31,8 +31,8 @@ const serverUrl = process.env.CAPACITOR_SERVER_URL?.replace(/\/+$/, "");
 
 /** Store version: bump versionCode on every Play/App Store upload. */
 export const nativeAppVersion = {
-  versionCode: 8,
-  versionName: "1.0.7",
+  versionCode: 9,
+  versionName: "1.0.8",
 } as const;
 
 const config: CapacitorConfig = {
