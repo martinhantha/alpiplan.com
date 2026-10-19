@@ -2,7 +2,7 @@
   "name": "@alpiplan/capacitor-call-hints",
   "version": "0.0.1",
   "private": true,
-  "description": "Android recent-call hints for Alpiplan. Raw call logs never leave the device.",
+  "description": "Android caller ID hints for Alpiplan. Numbers never leave the device.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

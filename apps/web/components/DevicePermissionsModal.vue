@@ -10,7 +10,7 @@ const {
   microphoneGranted,
   contactsGranted,
   callHintsSupported,
-  callLogGranted,
+  callerIdGranted,
   notificationsSupported,
   notificationsGranted,
   anyAskable,
@@ -30,7 +30,7 @@ const {
         Alpiplan braucht
         <template v-if="speechRecognitionEnabled">Mikrofon (Spracheingabe) und </template>
         Kontakte (Adressbuch)<template v-if="callHintsSupported">,
-        Anrufliste und Telefon (Nummer des letzten Anrufs als Vorschlag)</template>
+        Anrufer-ID (Nummer des letzten Anrufs als Vorschlag, optional)</template>
         sowie Benachrichtigungen für neue und verschobene Termine. Die Systemabfragen erscheinen nacheinander.
       </p>
       <ul class="mt-4 space-y-2 text-sm">
@@ -47,9 +47,9 @@ const {
           </UBadge>
         </li>
         <li v-if="callHintsSupported" class="flex items-center justify-between gap-3">
-          <span>Anrufliste &amp; Telefon</span>
-          <UBadge :color="callLogGranted ? 'success' : 'neutral'" variant="subtle">
-            {{ permissionLabel(callLogGranted) }}
+          <span>Anrufer-ID</span>
+          <UBadge :color="callerIdGranted ? 'success' : 'neutral'" variant="subtle">
+            {{ permissionLabel(callerIdGranted) }}
           </UBadge>
         </li>
         <li v-if="notificationsSupported" class="flex items-center justify-between gap-3">

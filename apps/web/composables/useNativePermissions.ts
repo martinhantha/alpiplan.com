@@ -13,7 +13,7 @@ import { queueNativePermissionRequest } from "~/utils/native-permission-queue";
 let autoPrompted = false;
 
 type NativePermissionStatus = AlpiplanDevicePermissionStatus & {
-  callLog?: PermissionState;
+  callerId?: PermissionState;
 };
 
 const emptyStatus: NativePermissionStatus = {
@@ -40,7 +40,7 @@ function normalizeStatus(
     microphone: normalizeState(raw?.microphone),
     contacts: normalizeState(raw?.contacts),
     notifications: raw?.notifications ? normalizeState(raw.notifications) : undefined,
-    callLog: callHints?.callLog ? normalizeState(callHints.callLog) : undefined,
+    callerId: callHints?.callerId ? normalizeState(callHints.callerId) : undefined,
   };
 }
 
@@ -88,17 +88,17 @@ export function useNativePermissions(options?: {
 
   const microphoneGranted = computed(() => isGranted(status.value.microphone));
   const contactsGranted = computed(() => isGranted(status.value.contacts));
-  const callLogGranted = computed(() => isGranted(status.value.callLog));
+  const callerIdGranted = computed(() => isGranted(status.value.callerId));
   const notificationsSupported = computed(() => isNative.value && status.value.notifications !== undefined);
   const notificationsGranted = computed(() => isGranted(status.value.notifications));
   const deviceAskable = computed(
     () =>
       isAskable(status.value.contacts) || (needMicrophone.value && isAskable(status.value.microphone)),
   );
-  const callLogAskable = computed(() => callHintsSupported.value && isAskable(status.value.callLog));
+  const callerIdAskable = computed(() => callHintsSupported.value && isAskable(status.value.callerId));
   const notificationsAskable = computed(() => isAskable(status.value.notifications));
   const anyAskable = computed(
-    () => deviceAskable.value || callLogAskable.value || notificationsAskable.value,
+    () => deviceAskable.value || callerIdAskable.value || notificationsAskable.value,
   );
   const allGranted = computed(
     () => contactsGranted.value && (!needMicrophone.value || microphoneGranted.value),
@@ -107,7 +107,6 @@ export function useNativePermissions(options?: {
     () =>
       status.value.contacts === "denied" ||
       (needMicrophone.value && status.value.microphone === "denied") ||
-      (callHintsSupported.value && status.value.callLog === "denied") ||
       status.value.notifications === "denied",
   );
 
@@ -125,9 +124,9 @@ export function useNativePermissions(options?: {
   }
 
   async function requestCallHints() {
-    if (!callLogAskable.value) return;
+    if (!callerIdAskable.value) return;
     const result = await queueNativePermissionRequest(() => CallHints.requestPermissions());
-    if (isGranted(result.callLog)) {
+    if (isGranted(result.callerId)) {
       persistCallHintsOptIn(true);
       await refreshDevice();
     }
@@ -205,7 +204,7 @@ export function useNativePermissions(options?: {
     microphoneGranted,
     contactsGranted,
     callHintsSupported,
-    callLogGranted,
+    callerIdGranted,
     notificationsSupported,
     notificationsGranted,
     anyAskable,

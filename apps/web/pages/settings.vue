@@ -371,11 +371,11 @@ async function toggleCallHints(enabled: boolean) {
     setInfo(
       callHintsEnabled.value
         ? "Letzte Anrufe werden nur lokal als Vorschlag genutzt — nicht an den Server gesendet."
-        : "Vorschläge aus der Anrufliste sind deaktiviert.",
+        : "Anruf-Vorschläge sind deaktiviert.",
     );
   } catch (e: unknown) {
     callHintsEnabled.value = false;
-    setError(e instanceof Error ? e.message : "Anrufliste konnte nicht aktiviert werden");
+    setError(e instanceof Error ? e.message : "Anruf-Vorschläge konnten nicht aktiviert werden");
   } finally {
     callHintsSaving.value = false;
   }
@@ -646,9 +646,10 @@ onBeforeUnmount(() => {
             <div>
               <p class="font-medium">Letzte Anrufe als Telefon-Vorschlag</p>
               <p class="text-xs text-neutral-500 mt-1">
-                Nur in der Android-App, nur nach Opt-in. Zeigt auch die Nummer des Anrufs, der gerade läuft.
-                Nummern bleiben auf dem Gerät und werden nicht an den Server geschickt. Unter iOS und im Browser
-                nicht verfügbar.
+                Nur in der Android-App (ab Android 10), nur nach Opt-in. Dafür wird Alpiplan als
+                „Anrufer-ID- &amp; Spam-App“ eingestellt; Anrufe werden nicht blockiert. Vorgeschlagen werden
+                Anrufe ab dann, auch der Anruf, der gerade läuft. Nummern bleiben auf dem Gerät und werden nicht
+                an den Server geschickt. Unter iOS und im Browser nicht verfügbar.
               </p>
             </div>
             <label class="relative inline-flex items-center shrink-0 mt-1" :class="device.features.callHints ? 'cursor-pointer' : 'opacity-50'">

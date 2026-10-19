@@ -4,8 +4,6 @@
 
     <uses-sdk android:minSdkVersion="24" />
 
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -24,13 +22,14 @@
     </queries>
 
     <application>
-        <receiver
-            android:name="at.alpiplan.plugins.callhints.CallStateReceiver"
-            android:exported="true" >
+        <service
+            android:name="at.alpiplan.plugins.callhints.CallerIdService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE" >
             <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
+                <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
-        </receiver>
+        </service>
     </application>
 
 </manifest>

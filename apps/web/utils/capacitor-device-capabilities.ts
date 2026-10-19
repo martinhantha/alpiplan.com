@@ -160,5 +160,5 @@ export class CapacitorDeviceCapabilities extends WebDeviceCapabilities implement
 export async function requestCallHintsPermission(): Promise<boolean> {
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return false;
   const status = await queueNativePermissionRequest(() => CallHints.requestPermissions());
-  return status.callLog === "granted";
+  return status.callerId === "granted";
 }

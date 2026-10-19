@@ -49,7 +49,9 @@ export function useDeviceCapabilities() {
       if (!granted) {
         persistCallHintsOptIn(false);
         await refresh();
-        throw new Error("Berechtigung für die Anrufliste wurde nicht erteilt.");
+        throw new Error(
+          "Alpiplan ist nicht als Anrufer-ID-App eingestellt. Bitte unter Einstellungen → Apps → Standard-Apps → „Anrufer-ID- & Spam-App“ Alpiplan auswählen.",
+        );
       }
     }
     await refresh();

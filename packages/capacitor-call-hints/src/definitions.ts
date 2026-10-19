@@ -2,15 +2,16 @@ import type { CallHint } from "@alpiplan/device-capabilities";
 import type { PermissionState, PluginListenerHandle } from "@capacitor/core";
 
 export interface CallHintsPermissionStatus {
-  callLog: PermissionState;
-  /** Android: needed to see the number while the call is still ringing or running. */
-  phoneState?: PermissionState;
+  /** Android 10+: Alpiplan holds the "caller ID & spam" role and sees calls from then on. */
+  callerId: PermissionState;
 }
 
 export interface CallHintsPlugin {
   getRecentCallHints(options?: { limit?: number }): Promise<{ hints: CallHint[] }>;
   checkPermissions(): Promise<CallHintsPermissionStatus>;
   requestPermissions(): Promise<CallHintsPermissionStatus>;
+  /** Opens the system "default apps" screen, for when the role dialog is no longer shown. */
+  openCallerIdSettings(): Promise<void>;
   addListener(eventName: "callStateChanged", listenerFunc: () => void): Promise<PluginListenerHandle>;
 }
 

@@ -19,13 +19,13 @@ public class CallHintsPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc override public func checkPermissions(_ call: CAPPluginCall) {
         call.resolve([
-            "callLog": "denied"
+            "callerId": "denied"
         ])
     }
 
     @objc override public func requestPermissions(_ call: CAPPluginCall) {
         call.resolve([
-            "callLog": "denied"
+            "callerId": "denied"
         ])
     }
 }

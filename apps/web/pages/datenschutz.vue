@@ -123,9 +123,10 @@ useSeoMeta({
               gesondert aktivierst.
             </li>
             <li>
-              <strong>Android-Anrufhinweise (optional):</strong> Standardmäßig aus; bei Opt-in
-              erfolgt Verarbeitung bevorzugt nur auf dem Gerät, ohne serverseitige Speicherung von
-              Anrufprotokollen.
+              <strong>Android-Anrufhinweise (optional):</strong> Standardmäßig aus; bei Opt-in wird
+              Alpiplan als Anrufer-ID-App eingestellt und merkt sich die Telefonnummern der letzten
+              Anrufe ausschließlich auf dem Gerät. Das Anrufprotokoll des Geräts wird nicht gelesen, und
+              es werden keine Anrufdaten an unsere Server übertragen.
             </li>
           </ul>
         </section>

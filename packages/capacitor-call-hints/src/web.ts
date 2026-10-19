@@ -13,11 +13,15 @@ export class CallHintsWeb extends WebPlugin implements CallHintsPlugin {
   }
 
   async checkPermissions(): Promise<CallHintsPermissionStatus> {
-    return { callLog: "denied" };
+    return { callerId: "denied" };
   }
 
   async requestPermissions(): Promise<CallHintsPermissionStatus> {
-    return { callLog: "denied" };
+    return { callerId: "denied" };
+  }
+
+  async openCallerIdSettings(): Promise<void> {
+    // Browser: nothing to open.
   }
 }
 
