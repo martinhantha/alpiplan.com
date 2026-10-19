@@ -49,12 +49,18 @@ importers:
       '@capacitor/android':
         specifier: ^7.4.3
         version: 7.6.8(@capacitor/core@7.6.8)
+      '@capacitor/app':
+        specifier: ^7.1.2
+        version: 7.1.2(@capacitor/core@7.6.8)
       '@capacitor/core':
         specifier: ^7.4.3
         version: 7.6.8
       '@capacitor/ios':
         specifier: ^7.4.3
         version: 7.6.8(@capacitor/core@7.6.8)
+      '@capawesome/capacitor-app-update':
+        specifier: ^7.2.0
+        version: 7.2.0(@capacitor/core@7.6.8)
     devDependencies:
       '@capacitor/cli':
         specifier: ^7.4.3
@@ -74,9 +80,15 @@ importers:
       '@capacitor-community/contacts':
         specifier: ^7.0.0
         version: 7.2.0(@capacitor/core@7.6.8)
+      '@capacitor/app':
+        specifier: ^7.1.2
+        version: 7.1.2(@capacitor/core@7.6.8)
       '@capacitor/core':
         specifier: ^7.4.3
         version: 7.6.8
+      '@capawesome/capacitor-app-update':
+        specifier: ^7.2.0
+        version: 7.2.0(@capacitor/core@7.6.8)
       '@internationalized/date':
         specifier: ^3.12.1
         version: 3.12.1
@@ -310,6 +322,11 @@ packages:
     peerDependencies:
       '@capacitor/core': ^7.6.0
 
+  '@capacitor/app@7.1.2':
+    resolution: {integrity: sha512-d4I/oF/PRu4megL7/IGKYfe5j7yzSON1FRFgq6kH+m5kH6g7V+wyjHRLauCzGNjdRx4S+nWOumINds0qcRBtKg==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
   '@capacitor/cli@7.6.8':
     resolution: {integrity: sha512-sJYLoSS1wVHjDPwRc0grtNZcQZnkQc7TJKoVZdHL2HI5TPCq+27WBrMAo0mXvQQSH2axPYCz5cyRrcqqakOvxQ==}
     engines: {node: '>=20.0.0'}
@@ -322,6 +339,11 @@ packages:
     resolution: {integrity: sha512-TAM1FdI1Cfl8e/wLBo7x5m61V/J1fMEpyxU2psZzHzsa436k2pwEME6CQoBRYdw6Q6gud0jZSPwOVrNn+MI7Ag==}
     peerDependencies:
       '@capacitor/core': ^7.6.0
+
+  '@capawesome/capacitor-app-update@7.2.0':
+    resolution: {integrity: sha512-fwPxR9tV5qecn3FSgwS5wBwlHDV9JND5dnY1iqIYnqRG2s/Oq0h32u4hV6+/zpDARJFMZycb3pddEfwLwhglEg==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
 
   '@capsizecss/metrics@3.7.0':
     resolution: {integrity: sha512-NHdEMrl/zd2XgiSv2xHRF/FxGc2OTBKjhPzr9SgbHzqmoTVn8BbRK88Dtq0m65idX/RMD7ptyVdbGHFcvlErSw==}
@@ -5236,6 +5258,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 7.6.8
 
+  '@capacitor/app@7.1.2(@capacitor/core@7.6.8)':
+    dependencies:
+      '@capacitor/core': 7.6.8
+
   '@capacitor/cli@7.6.8':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8
@@ -5263,6 +5289,10 @@ snapshots:
       tslib: 2.8.1
 
   '@capacitor/ios@7.6.8(@capacitor/core@7.6.8)':
+    dependencies:
+      '@capacitor/core': 7.6.8
+
+  '@capawesome/capacitor-app-update@7.2.0(@capacitor/core@7.6.8)':
     dependencies:
       '@capacitor/core': 7.6.8
 

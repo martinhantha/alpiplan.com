@@ -71,11 +71,19 @@ Store-Builds: Android Studio / Xcode. `READ_CALL_LOG` ist bei Google Play eine *
 
 Ohne `keystore.properties` baut Gradle ein **unsigniertes** Release-Bundle; die Play Console lehnt das ab.
 
+### Updates
+
+- **Web-Deploy:** Die Hülle lädt die gehostete App, Änderungen kommen ohne Store-Update an. Nuxt erkennt einen neuen Build (alle 5 Minuten und beim Zurückkehren in die App), zeigt „Neue Version verfügbar – Neu laden“ und lädt beim nächsten Seitenwechsel automatisch neu.
+- **Native Hülle (Store):** Ist im Store eine neuere Version live, zeigt die App automatisch „Update verfügbar“ (keine Konfiguration nötig). Android installiert über Play In-App-Update direkt in der App, iOS öffnet den App Store.
+- **Update erzwingen:** Nur bei Bedarf `NUXT_APP_UPDATE_{ANDROID,IOS}_MIN_VERSION_CODE` am Server setzen, sobald die Version im Store live ist (siehe `.env.example`). Shells ohne `@capacitor/app` (bis `versionCode` 8) gelten als Version 0 und können den Store-Hinweis nicht selbst abfragen — sie erreicht man nur über `MIN`.
+
 ## Plugins
 
 | Plugin | Zweck |
 |--------|--------|
 | `@capacitor-community/contacts` | Kontakt wählen; Fallback beim Schreiben |
 | `@alpiplan/capacitor-call-hints` | Android: letzte Nummern, Mikrofon-Permission, lokale Alpiplan-Kontakte |
+| `@capacitor/app` | Installierte `versionCode` für den Update-Abgleich |
+| `@capawesome/capacitor-app-update` | Android In-App-Update, App Store / Play Store öffnen |
 
 iOS liefert für Call-Hints immer eine leere Liste (OS-Limit).

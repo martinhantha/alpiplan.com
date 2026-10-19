@@ -23,9 +23,26 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
   devtools: { enabled: true },
   compatibilityDate: "2025-04-01",
+  experimental: {
+    /** Neuer Web-Deploy → `app:manifest:update` (Hinweis + Reload beim nächsten Seitenwechsel). */
+    checkOutdatedBuildInterval: 5 * 60 * 1000,
+  },
   runtimeConfig: {
     /** HttpOnly-Session-Cookie (nur Server) */
     authCookie: process.env.AUTH_COOKIE_NAME ?? "alpiplan_at",
+    /**
+     * Update-Hinweis kommt automatisch aus Play Store / App Store.
+     * Min-`versionCode` (apps/mobile-shell/capacitor.config.ts) erzwingt das Update, 0 = aus.
+     * Override per Env, z. B. NUXT_APP_UPDATE_ANDROID_MIN_VERSION_CODE=9.
+     */
+    appUpdate: {
+      androidMinVersionCode: 0,
+      iosMinVersionCode: 0,
+      /** Apple-ID der App (Zahl aus https://apps.apple.com/app/id…) */
+      iosAppStoreId: "",
+      /** App-Store-Land für die Versionsabfrage (ISO-2, z. B. "it") */
+      iosCountry: "",
+    },
     public: {
       demoEmail: process.env.NUXT_PUBLIC_DEMO_EMAIL ?? "demo@alpiplan.local",
       /** Öffentliche Datenschutzseite / App-Store-URL */
@@ -46,6 +63,9 @@ export default defineNuxtConfig({
       "/support": {
         headers: { "cache-control": "public, max-age=3600" },
       },
+      "/api/app-version": {
+        headers: { "cache-control": "no-store" },
+      },
       "/sw.js": {
         headers: { "cache-control": "no-cache", "service-worker-allowed": "/" },
       },
@@ -59,7 +79,13 @@ export default defineNuxtConfig({
   },
   vite: {
     optimizeDeps: {
-      include: ["@capacitor/core", "@capacitor-community/contacts", "@alpiplan/capacitor-call-hints"],
+      include: [
+        "@capacitor/core",
+        "@capacitor/app",
+        "@capawesome/capacitor-app-update",
+        "@capacitor-community/contacts",
+        "@alpiplan/capacitor-call-hints",
+      ],
     },
     resolve: {
       dedupe: [

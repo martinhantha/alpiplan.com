@@ -17,8 +17,10 @@
     "@alpiplan/capacitor-call-hints": "workspace:*",
     "@capacitor-community/contacts": "^7.0.0",
     "@capacitor/android": "^7.4.3",
+    "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.4.3",
-    "@capacitor/ios": "^7.4.3"
+    "@capacitor/ios": "^7.4.3",
+    "@capawesome/capacitor-app-update": "^7.2.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",

@@ -220,6 +220,17 @@
       "admin": "Admin"
     }
   },
+  "appUpdate": {
+    "webTitle": "Neue Version verfügbar",
+    "webBody": "Lade neu, um die aktuelle Version zu verwenden.",
+    "reload": "Neu laden",
+    "requiredTitle": "Update erforderlich",
+    "requiredBody": "Diese Version von Alpiplan wird nicht mehr unterstützt. Bitte installiere das Update, um weiterzumachen.",
+    "optionalTitle": "Update verfügbar",
+    "optionalBody": "Eine neue Version von Alpiplan ist verfügbar.",
+    "install": "Jetzt aktualisieren",
+    "later": "Später"
+  },
   "languages": {
     "de": "Deutsch",
     "en": "English",

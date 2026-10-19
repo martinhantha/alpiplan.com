@@ -17,5 +17,6 @@ const uiLocale = computed(() => ({ de, en, it })[locale.value as "de" | "en" | "
     <AppointmentCreatedAlert />
     <AppointmentReminderAlert />
     <AppointmentBriefingAlert />
+    <AppUpdatePrompt />
   </UApp>
 </template>
