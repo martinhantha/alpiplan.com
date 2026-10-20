@@ -4,66 +4,62 @@
 4
 5    <uses-sdk android:minSdkVersion="24" />
 6
-7    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:2:5-72
-7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:2:22-69
-8    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-8-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:3:5-75
-8-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:3:22-72
-9    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-9-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:4:5-71
-9-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:4:22-68
-10    <uses-permission android:name="android.permission.INTERNET" />
-10-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:5:5-67
-10-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:5:22-64
-11    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-11-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:6:5-79
-11-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:6:22-76
-12    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-12-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:7:5-80
-12-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:7:22-77
-13    <uses-permission android:name="android.permission.READ_CONTACTS" />
-13-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:8:5-72
-13-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:8:22-69
-14    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
-14-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:9:5-73
-14-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:9:22-70
-15    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-15-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:10:5-77
-15-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:10:22-74
-16
-17    <queries>
-17-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:12:5-18:15
-18        <intent>
-18-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:13:9-15:18
-19            <action android:name="android.speech.RecognitionService" />
-19-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:14:13-72
-19-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:14:21-69
-20        </intent>
-21
-22        <package android:name="com.whatsapp" />
-22-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:16:9-48
-22-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:16:18-45
-23        <package android:name="com.whatsapp.w4b" />
-23-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:17:9-52
-23-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:17:18-49
-24    </queries>
-25
-26    <application>
-26-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:20:5-28:19
-27        <receiver
-27-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:21:9-27:20
-28            android:name="at.alpiplan.plugins.callhints.CallStateReceiver"
+7    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:2:5-71
+7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:2:22-68
+8    <uses-permission android:name="android.permission.INTERNET" />
+8-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:3:5-67
+8-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:3:22-64
+9    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+9-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:4:5-79
+9-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:4:22-76
+10    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+10-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:5:5-80
+10-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:5:22-77
+11    <uses-permission android:name="android.permission.READ_CONTACTS" />
+11-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:6:5-72
+11-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:6:22-69
+12    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+12-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:7:5-73
+12-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:7:22-70
+13    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+13-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:8:5-77
+13-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:8:22-74
+14
+15    <queries>
+15-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:10:5-16:15
+16        <intent>
+16-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:11:9-13:18
+17            <action android:name="android.speech.RecognitionService" />
+17-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:12:13-72
+17-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:12:21-69
+18        </intent>
+19
+20        <package android:name="com.whatsapp" />
+20-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:14:9-48
+20-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:14:18-45
+21        <package android:name="com.whatsapp.w4b" />
+21-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:15:9-52
+21-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:15:18-49
+22    </queries>
+23
+24    <application>
+24-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:18:5-27:19
+25        <service
+25-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:19:9-26:19
+26            android:name="at.alpiplan.plugins.callhints.CallerIdService"
+26-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:20:13-73
+27            android:exported="true"
+27-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:21:13-36
+28            android:permission="android.permission.BIND_SCREENING_SERVICE" >
 28-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:22:13-75
-29            android:exported="true" >
-29-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:23:13-36
-30            <intent-filter>
-30-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:24:13-26:29
-31                <action android:name="android.intent.action.PHONE_STATE" />
-31-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:25:17-76
-31-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:25:25-73
-32            </intent-filter>
-33        </receiver>
-34    </application>
-35
-36</manifest>
+29            <intent-filter>
+29-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:23:13-25:29
+30                <action android:name="android.telecom.CallScreeningService" />
+30-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:24:17-79
+30-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-call-hints/android/src/main/AndroidManifest.xml:24:25-76
+31            </intent-filter>
+32        </service>
+33    </application>
+34
+35</manifest>
