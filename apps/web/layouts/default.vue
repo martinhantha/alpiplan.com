@@ -44,9 +44,9 @@ function navClass(to: string) {
 <template>
   <div class="min-h-dvh text-neutral-900 dark:text-neutral-50 pb-[var(--app-safe-bottom)]">
     <aside
-      class="hidden lg:flex fixed inset-y-0 left-0 z-20 w-72 xl:w-80 border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 pt-[var(--app-safe-top)]"
+      class="hidden lg:flex fixed inset-y-0 left-0 z-20 w-72 xl:w-80 border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 pt-[var(--app-safe-top)] pb-[var(--app-safe-bottom)]"
     >
-      <div class="flex w-full h-dvh max-h-dvh flex-col p-4 gap-5 overflow-hidden">
+      <div class="flex w-full h-full min-h-0 flex-col p-4 gap-5 overflow-hidden">
         <div class="px-2 pt-3 shrink-0">
           <NuxtLink to="/" class="inline-flex max-w-full items-center" aria-label="Alpiplan">
             <AppLogo size="md" />

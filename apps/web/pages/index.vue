@@ -366,8 +366,8 @@ async function deleteAppointment(appointment: AppointmentListItem) {
       :title="appointmentsError"
     />
 
-    <section class="grid gap-4 lg:grid-cols-3">
-      <UCard class="lg:col-span-2">
+    <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <UCard class="min-w-0">
         <template #header>
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-lg font-semibold">{{ $t("home.appointmentsOnDay") }}</h2>
@@ -458,7 +458,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
               class="justify-between"
               @click="selectedDateKey = day.key"
             >
-              <span>{{ day.label }}</span>
+              <span class="whitespace-nowrap">{{ day.label }}</span>
               <UBadge :color="day.count ? 'primary' : 'neutral'" variant="subtle">{{ day.count }}</UBadge>
             </UButton>
           </div>
