@@ -168,9 +168,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         #if canImport(FirebaseMessaging)
         guard FirebaseApp.app() != nil else { return }
         Messaging.messaging().apnsToken = deviceToken
-        Messaging.messaging().token { token, _ in
-            if let token { Self.publishPushToken(token) }
-        }
+        // FCM token is delivered via MessagingDelegate; register replaces deprecated token(completion:).
+        Messaging.messaging().register { _ in }
         #endif
     }
 

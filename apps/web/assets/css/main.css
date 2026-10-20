@@ -83,6 +83,13 @@ html.capacitor-ios {
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* iPad / large WebKit views: env() is sometimes 0 in landscape; keep chrome off the home indicator. */
+@media (min-width: 1024px) {
+  html.capacitor-ios {
+    --app-safe-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  }
+}
+
 @layer base {
   html {
     background-color: var(--color-neutral-50);

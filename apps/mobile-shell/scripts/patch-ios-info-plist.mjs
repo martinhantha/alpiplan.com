@@ -107,6 +107,11 @@ if (existsSync(pbxprojPath)) {
       `CURRENT_PROJECT_VERSION = ${versionCode};`,
     );
   }
+  // CocoaPods [CP] Embed Pods Frameworks must read Pods-App-frameworks.sh (blocked when sandboxing is on).
+  pbxproj = pbxproj.replace(
+    /ENABLE_USER_SCRIPT_SANDBOXING = YES;/g,
+    "ENABLE_USER_SCRIPT_SANDBOXING = NO;",
+  );
   writeFileSync(pbxprojPath, pbxproj);
 }
 
