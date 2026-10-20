@@ -203,7 +203,8 @@
   "settings": {
     "version": {
       "app": "App",
-      "web": "Web"
+      "web": "Web",
+      "legacyApp": "obsoleta – aggiorna"
     },
     "breadcrumb": "Alpiplan · Impostazioni",
     "title": "Impostazioni",

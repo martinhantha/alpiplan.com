@@ -25,13 +25,16 @@ onMounted(async () => {
   } catch {
     // ignore
   }
-  if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("App")) {
-    try {
-      const { version, build } = await App.getInfo();
-      nativeVersion.value = `${version} (${build})`;
-    } catch {
-      // ignore
-    }
+  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isPluginAvailable("App")) {
+    nativeVersion.value = t("settings.version.legacyApp");
+    return;
+  }
+  try {
+    const { version, build } = await App.getInfo();
+    nativeVersion.value = `${version} (${build})`;
+  } catch {
+    nativeVersion.value = t("settings.version.legacyApp");
   }
 });
 </script>
