@@ -85,6 +85,7 @@ export default defineNuxtConfig({
         "@capawesome/capacitor-app-update",
         "@capacitor-community/contacts",
         "@alpiplan/capacitor-call-hints",
+        "@internationalized/date",
       ],
     },
     resolve: {

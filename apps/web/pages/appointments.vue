@@ -477,12 +477,16 @@ const dayColumns = computed(() => {
     { id: string; name: string; color: string | null; appointments: AppointmentListItem[] }
   >();
   const unassigned: AppointmentListItem[] = [];
+  const ownTeacherId = canPlanAllAppointments.value ? null : (primaryTenant.value?.teacherProfileId ?? null);
   for (const appointment of dayAppointments.value) {
-    const teachers = appointment.teachers?.length
+    const assigned = appointment.teachers?.length
       ? appointment.teachers
       : appointment.teacher
         ? [appointment.teacher]
         : [];
+    // Co-teachers are listed on the detail page; non-planners only get their own row.
+    const own = ownTeacherId ? assigned.filter((teacher) => teacher.id === ownTeacherId) : [];
+    const teachers = ownTeacherId && own.length ? own : assigned;
     if (!teachers.length) {
       unassigned.push(appointment);
       continue;
