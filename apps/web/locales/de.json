@@ -201,6 +201,10 @@
     "save": "Speichern"
   },
   "settings": {
+    "version": {
+      "app": "App",
+      "web": "Web"
+    },
     "breadcrumb": "Alpiplan · Settings",
     "title": "Einstellungen",
     "subtitleAccount": "Account und Gerät",

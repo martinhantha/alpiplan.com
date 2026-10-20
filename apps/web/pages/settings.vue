@@ -918,5 +918,7 @@ onBeforeUnmount(() => {
         @error="setError"
       />
     </section>
+
+    <AppVersionInfo />
   </UContainer>
 </template>

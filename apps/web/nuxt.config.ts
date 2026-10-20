@@ -1,3 +1,14 @@
+import { execSync } from "node:child_process";
+
+/** Im Docker-Build fehlt `.git`; dort liefert SOURCE_COMMIT (Coolify / deploy:local) zur Laufzeit den Commit. */
+function gitCommit() {
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
 export default defineNuxtConfig({
   modules: ["@nuxt/ui", "@nuxtjs/i18n"],
   i18n: {
@@ -42,6 +53,10 @@ export default defineNuxtConfig({
       iosAppStoreId: "",
       /** App-Store-Land für die Versionsabfrage (ISO-2, z. B. "it") */
       iosCountry: "",
+    },
+    build: {
+      commit: process.env.SOURCE_COMMIT || gitCommit(),
+      builtAt: new Date().toISOString(),
     },
     public: {
       demoEmail: process.env.NUXT_PUBLIC_DEMO_EMAIL ?? "demo@alpiplan.local",

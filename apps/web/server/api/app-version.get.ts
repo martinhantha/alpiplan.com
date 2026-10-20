@@ -4,8 +4,12 @@ function toVersionCode(value: unknown) {
 }
 
 export default defineEventHandler(() => {
-  const { appUpdate } = useRuntimeConfig();
+  const { appUpdate, build } = useRuntimeConfig();
   return {
+    web: {
+      commit: String(process.env.SOURCE_COMMIT || build.commit || ""),
+      builtAt: String(build.builtAt ?? ""),
+    },
     android: {
       minVersionCode: toVersionCode(appUpdate.androidMinVersionCode),
     },
