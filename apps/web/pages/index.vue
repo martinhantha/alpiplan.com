@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 import { useAuth } from "../composables/useAuth";
 import { formatTeachersCaption } from "../utils/appointment-contact";
+import { toQuickCaptureDuplicateSeed } from "../utils/appointment-duplicate";
+import { quickCaptureModalUi } from "../utils/quick-capture-modal-ui";
 
 interface AppointmentListItem {
   id: string;
@@ -52,6 +54,11 @@ const quickOpen = ref(false);
 const quickInitialContact = ref("");
 const quickStartVoice = ref(false);
 const editingAppointment = ref<AppointmentListItem | null>(null);
+const quickDuplicateSeed = ref<(AppointmentListItem & { id: "" }) | null>(null);
+
+const quickCaptureAppointment = computed(
+  () => editingAppointment.value ?? quickDuplicateSeed.value,
+);
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(intlLocale.value, {
@@ -219,6 +226,7 @@ watch(selectedDateKey, (key) => {
 
 function openAssistant() {
   editingAppointment.value = null;
+  quickDuplicateSeed.value = null;
   quickInitialContact.value = "";
   quickStartVoice.value = speechRecognitionEnabled.value;
   quickOpen.value = true;
@@ -226,6 +234,15 @@ function openAssistant() {
 
 function openEditAppointment(appointment: AppointmentListItem) {
   editingAppointment.value = appointment;
+  quickDuplicateSeed.value = null;
+  quickInitialContact.value = "";
+  quickStartVoice.value = false;
+  quickOpen.value = true;
+}
+
+function openDuplicateAppointment(appointment: AppointmentListItem) {
+  editingAppointment.value = null;
+  quickDuplicateSeed.value = toQuickCaptureDuplicateSeed(appointment);
   quickInitialContact.value = "";
   quickStartVoice.value = false;
   quickOpen.value = true;
@@ -234,6 +251,7 @@ function openEditAppointment(appointment: AppointmentListItem) {
 function closeQuickCapture() {
   quickOpen.value = false;
   editingAppointment.value = null;
+  quickDuplicateSeed.value = null;
   quickStartVoice.value = false;
 }
 
@@ -328,10 +346,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 
     <div class="grid gap-3 sm:grid-cols-2">
       <UButton to="/appointments" block size="xl" variant="soft" color="primary" icon="i-lucide-calendar-days">
-        {{ $t("nav.appointments") }}
+        <span class="hidden md:inline">{{ $t("nav.appointments") }}</span>
+        <span class="sr-only md:hidden">{{ $t("nav.appointments") }}</span>
       </UButton>
       <UButton to="/archive" block size="xl" variant="outline" color="neutral" icon="i-lucide-archive">
-        {{ $t("nav.archive") }}
+        <span class="hidden md:inline">{{ $t("nav.archive") }}</span>
+        <span class="sr-only md:hidden">{{ $t("nav.archive") }}</span>
       </UButton>
       <UButton
         v-if="canAccessWorkspace"
@@ -341,7 +361,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         icon="i-lucide-zap"
         @click="openAssistant"
       >
-        {{ speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture") }}
+        <span class="hidden md:inline">{{
+          speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture")
+        }}</span>
+        <span class="sr-only md:hidden">{{
+          speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture")
+        }}</span>
       </UButton>
       <UButton
         v-if="canManageTenant"
@@ -351,10 +376,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         variant="outline"
         icon="i-lucide-git-merge"
       >
-        {{ $t("nav.conflicts") }}
+        <span class="hidden md:inline">{{ $t("nav.conflicts") }}</span>
+        <span class="sr-only md:hidden">{{ $t("nav.conflicts") }}</span>
       </UButton>
       <UButton size="xl" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="appointmentsLoading" @click="loadAppointments">
-        {{ $t("home.reloadAppointments") }}
+        <span class="hidden md:inline">{{ $t("home.reloadAppointments") }}</span>
+        <span class="sr-only md:hidden">{{ $t("home.reloadAppointments") }}</span>
       </UButton>
     </div>
 
@@ -416,9 +443,11 @@ async function deleteAppointment(appointment: AppointmentListItem) {
                 :appointment="appointment"
                 :loading="savingId === appointment.id"
                 :show-edit="canAccessWorkspace"
+                :show-duplicate="canAccessWorkspace"
                 :show-complete="canAccessWorkspace"
                 :show-delete="canManageTenant"
                 @edit="openEditAppointment(appointment)"
+                @duplicate="openDuplicateAppointment(appointment)"
                 @complete="markCompleted(appointment)"
                 @delete="deleteAppointment(appointment)"
               />
@@ -466,15 +495,22 @@ async function deleteAppointment(appointment: AppointmentListItem) {
       </UCard>
     </section>
 
-    <UModal v-model:open="quickOpen" :ui="{ content: 'max-w-2xl' }">
+    <UModal v-model:open="quickOpen" :ui="quickCaptureModalUi">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="min-w-0 flex items-center gap-1">
             <h2 class="font-medium truncate">
-              {{ editingAppointment ? $t("home.editAppointment") : $t("home.newQuickCapture") }}
+              {{
+                editingAppointment
+                  ? $t("home.editAppointment")
+                  : quickDuplicateSeed
+                    ? $t("home.duplicateAppointment")
+                    : $t("home.newQuickCapture")
+              }}
             </h2>
             <FieldInfoPopover :aria-label="$t('home.modalHintAria')">
               <template v-if="editingAppointment">{{ $t("home.editHint") }}</template>
+              <template v-else-if="quickDuplicateSeed">{{ $t("home.duplicateHint") }}</template>
               <template v-else>
                 {{
                   $t(speechRecognitionEnabled ? "home.captureHintVoice" : "home.captureHintText", {
@@ -490,8 +526,13 @@ async function deleteAppointment(appointment: AppointmentListItem) {
       </template>
       <template #body>
         <QuickCaptureForm
-          :key="editingAppointment?.id ?? `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}`"
-          :appointment="editingAppointment"
+          :key="
+            editingAppointment?.id ??
+            (quickDuplicateSeed
+              ? `dup-${quickDuplicateSeed.startsAt}-${quickDuplicateSeed.endsAt}`
+              : `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}`)
+          "
+          :appointment="quickCaptureAppointment"
           :initial-contact-text="quickInitialContact"
           :start-with-voice="quickStartVoice"
           @saved="onAppointmentSaved"

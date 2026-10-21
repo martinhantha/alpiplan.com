@@ -1250,7 +1250,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-4 sm:space-y-5">
     <UAlert
       v-if="!primaryTenant"
       color="warning"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Capacitor } from "@capacitor/core";
 import { AlpiplanDevice } from "@alpiplan/capacitor-call-hints";
-import { computed, ref } from "vue";
+import type { DropdownMenuItem } from "@nuxt/ui";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useAuth } from "../composables/useAuth";
 import { useDeviceCapabilities } from "../composables/useDeviceCapabilities";
 import { useDeviceContactLookup } from "../composables/useDeviceContactLookup";
@@ -23,6 +24,7 @@ const props = withDefaults(
     showComplete?: boolean;
     showDelete?: boolean;
     showEdit?: boolean;
+    showDuplicate?: boolean;
   }>(),
   {
     loading: false,
@@ -30,6 +32,7 @@ const props = withDefaults(
     showComplete: true,
     showDelete: true,
     showEdit: true,
+    showDuplicate: false,
   },
 );
 
@@ -37,6 +40,7 @@ const emit = defineEmits<{
   complete: [];
   delete: [];
   edit: [];
+  duplicate: [];
 }>();
 
 const { device } = useDeviceCapabilities();
@@ -46,12 +50,34 @@ const savingContact = ref(false);
 const removingContact = ref(false);
 const contactSaveState = ref<"idle" | "saved" | "error" | "removed">("idle");
 
+/** Ab 1500px: alle Buttons sichtbar; darunter Telefon/WhatsApp/Erledigt + ⋮-Menü. */
+const isWideLayout = ref(true);
+let wideMedia: MediaQueryList | null = null;
+
+function syncWideLayout() {
+  isWideLayout.value = wideMedia?.matches ?? true;
+}
+
+onMounted(() => {
+  wideMedia = window.matchMedia("(min-width: 1500px)");
+  syncWideLayout();
+  wideMedia.addEventListener("change", syncWideLayout);
+});
+
+onUnmounted(() => {
+  wideMedia?.removeEventListener("change", syncWideLayout);
+});
+
 const phone = computed(() => resolveAppointmentPhone(props.appointment));
 const { lookup, checking: checkingContact, canDelete: canDeleteDeviceContact, savedOnDevice, refresh: refreshContact } =
   useDeviceContactLookup(phone);
 const telHref = computed(() => (phone.value ? toTelHref(phone.value) : null));
 const whatsappHref = computed(() => (phone.value ? toWhatsAppHref(phone.value) : null));
 const whatsappLabel = computed(() => whatsappAppLabel(whatsappApp.value));
+
+const btnSize = computed(() => (props.compact ? "xs" : "sm"));
+const iconOnlyPrimary = computed(() => props.compact || !isWideLayout.value);
+const showLabels = computed(() => !props.compact && isWideLayout.value);
 
 async function onWhatsAppClick(event: Event) {
   if (whatsappApp.value !== "business" || !Capacitor.isNativePlatform()) return;
@@ -78,6 +104,42 @@ const canComplete = computed(
 );
 const canDelete = computed(() => props.showDelete);
 const canEdit = computed(() => props.showEdit);
+const canDuplicate = computed(() => props.showDuplicate);
+
+const overflowItems = computed((): DropdownMenuItem[][] => {
+  const items: DropdownMenuItem[] = [];
+  if (canSaveContact.value) {
+    items.push({
+      label: "Kontakt speichern",
+      icon: "i-lucide-user-plus",
+      onSelect: () => void saveDeviceContact(),
+    });
+  } else if (canRemoveContact.value) {
+    items.push({
+      label: lookup.value.match?.googleSynced ? "Aus Google Kontakte entfernen" : "Kontakt entfernen",
+      icon: "i-lucide-user-minus",
+      onSelect: () => void removeDeviceContact(),
+    });
+  }
+  if (canEdit.value) {
+    items.push({ label: "Bearbeiten", icon: "i-lucide-pencil", onSelect: () => emit("edit") });
+  }
+  if (canDuplicate.value) {
+    items.push({ label: "Duplizieren", icon: "i-lucide-copy-plus", onSelect: () => emit("duplicate") });
+  }
+  if (canDelete.value) {
+    items.push({
+      label: "Löschen",
+      icon: "i-lucide-trash-2",
+      color: "error",
+      onSelect: () => emit("delete"),
+    });
+  }
+  return items.length ? [items] : [];
+});
+
+const showOverflowMenu = computed(() => !isWideLayout.value && overflowItems.value.length > 0);
+
 const hasActions = computed(
   () =>
     Boolean(
@@ -86,6 +148,7 @@ const hasActions = computed(
         canSaveContact.value ||
         canRemoveContact.value ||
         canEdit.value ||
+        canDuplicate.value ||
         canComplete.value ||
         canDelete.value,
     ),
@@ -135,39 +198,43 @@ async function removeDeviceContact() {
 </script>
 
 <template>
-  <div v-if="hasActions" class="flex flex-wrap items-center justify-end gap-1.5">
+  <div
+    v-if="hasActions"
+    class="ml-auto flex shrink-0 items-center justify-end gap-1.5"
+    :class="isWideLayout ? 'flex-wrap' : 'flex-nowrap'"
+  >
     <UButton
       v-if="telHref"
       :href="telHref"
-      :size="compact ? 'xs' : 'sm'"
+      :size="btnSize"
       color="neutral"
       variant="soft"
       icon="i-lucide-phone"
-      :square="compact"
+      :square="iconOnlyPrimary"
       aria-label="Anrufen"
       title="Anrufen"
     >
-      <span v-if="!compact" class="hidden sm:inline">Anrufen</span>
+      <span v-if="showLabels">Anrufen</span>
     </UButton>
     <UButton
       v-if="whatsappHref"
       :href="whatsappHref"
       target="_blank"
       rel="noopener noreferrer"
-      :size="compact ? 'xs' : 'sm'"
+      :size="btnSize"
       color="success"
       variant="soft"
       icon="i-lucide-message-circle"
-      :square="compact"
+      :square="iconOnlyPrimary"
       :aria-label="`${whatsappLabel} öffnen`"
       :title="whatsappLabel"
       @click="onWhatsAppClick"
     >
-      <span v-if="!compact" class="hidden sm:inline">{{ whatsappLabel }}</span>
+      <span v-if="showLabels">{{ whatsappLabel }}</span>
     </UButton>
     <UButton
-      v-if="canSaveContact"
-      :size="compact ? 'xs' : 'sm'"
+      v-if="canSaveContact && isWideLayout"
+      :size="btnSize"
       color="neutral"
       variant="soft"
       icon="i-lucide-user-plus"
@@ -177,13 +244,11 @@ async function removeDeviceContact() {
       title="Kontakt aufs Telefon speichern"
       @click="saveDeviceContact"
     >
-      <span v-if="!compact" class="hidden sm:inline">
-        {{ contactSaveState === "error" ? "Fehler" : "Kontakt" }}
-      </span>
+      <span v-if="showLabels">{{ contactSaveState === "error" ? "Fehler" : "Kontakt" }}</span>
     </UButton>
     <UButton
-      v-else-if="canRemoveContact"
-      :size="compact ? 'xs' : 'sm'"
+      v-else-if="canRemoveContact && isWideLayout"
+      :size="btnSize"
       color="neutral"
       variant="soft"
       icon="i-lucide-user-minus"
@@ -199,13 +264,11 @@ async function removeDeviceContact() {
       "
       @click="removeDeviceContact"
     >
-      <span v-if="!compact" class="hidden sm:inline">
-        {{ contactSaveState === "error" ? "Fehler" : "Entfernen" }}
-      </span>
+      <span v-if="showLabels">{{ contactSaveState === "error" ? "Fehler" : "Entfernen" }}</span>
     </UButton>
     <UButton
-      v-if="canEdit"
-      :size="compact ? 'xs' : 'sm'"
+      v-if="canEdit && isWideLayout"
+      :size="btnSize"
       color="neutral"
       variant="soft"
       icon="i-lucide-pencil"
@@ -214,25 +277,38 @@ async function removeDeviceContact() {
       title="Bearbeiten"
       @click="emit('edit')"
     >
-      <span v-if="!compact" class="hidden sm:inline">Bearbeiten</span>
+      <span v-if="showLabels">Bearbeiten</span>
+    </UButton>
+    <UButton
+      v-if="canDuplicate && isWideLayout"
+      :size="btnSize"
+      color="neutral"
+      variant="soft"
+      icon="i-lucide-copy-plus"
+      :square="compact"
+      aria-label="Termin duplizieren"
+      title="Duplizieren"
+      @click="emit('duplicate')"
+    >
+      <span v-if="showLabels">Duplizieren</span>
     </UButton>
     <UButton
       v-if="canComplete"
-      :size="compact ? 'xs' : 'sm'"
+      :size="btnSize"
       color="success"
       :variant="compact ? 'ghost' : 'soft'"
       icon="i-lucide-check"
       :loading="loading"
-      :square="compact"
+      :square="iconOnlyPrimary"
       aria-label="Als erledigt markieren"
       title="Erledigt"
       @click="emit('complete')"
     >
-      <span v-if="!compact" class="hidden sm:inline">Erledigt</span>
+      <span v-if="showLabels">Erledigt</span>
     </UButton>
     <UButton
-      v-if="canDelete"
-      :size="compact ? 'xs' : 'sm'"
+      v-if="canDelete && isWideLayout"
+      :size="btnSize"
       color="error"
       :variant="compact ? 'ghost' : 'soft'"
       icon="i-lucide-trash-2"
@@ -242,7 +318,18 @@ async function removeDeviceContact() {
       title="Löschen"
       @click="emit('delete')"
     >
-      <span v-if="!compact" class="hidden sm:inline">Löschen</span>
+      <span v-if="showLabels">Löschen</span>
     </UButton>
+    <UDropdownMenu v-if="showOverflowMenu" :items="overflowItems" :content="{ align: 'end' }">
+      <UButton
+        :size="btnSize"
+        color="neutral"
+        variant="soft"
+        icon="i-lucide-ellipsis-vertical"
+        square
+        aria-label="Weitere Aktionen"
+        title="Weitere Aktionen"
+      />
+    </UDropdownMenu>
   </div>
 </template>

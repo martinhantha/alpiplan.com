@@ -83,6 +83,8 @@
     "deleteFailed": "Impossibile eliminare l’appuntamento",
     "noContact": "Appuntamento senza contatto",
     "editAppointment": "Modifica appuntamento",
+    "duplicateAppointment": "Duplica appuntamento",
+    "duplicateHint": "Copia con stesso orario e stessi dati – un nuovo appuntamento viene creato solo al salvataggio.",
     "newQuickCapture": "Nuovo appuntamento · inserimento rapido",
     "editHint": "Modifica data, contatto e assegnazioni, poi salva.",
     "captureHintVoice": "Inserisci a voce o per testo, assegna {teacher}{resource}, poi salva.",

@@ -83,6 +83,8 @@
     "deleteFailed": "Termin konnte nicht gelöscht werden",
     "noContact": "Termin ohne Kontakt",
     "editAppointment": "Termin bearbeiten",
+    "duplicateAppointment": "Termin duplizieren",
+    "duplicateHint": "Kopie mit gleicher Uhrzeit und gleichen Angaben – erst nach Speichern wird ein neuer Termin angelegt.",
     "newQuickCapture": "Neuer Termin · Schnellerfassung",
     "editHint": "Datum, Kontakt und Zuordnung anpassen und speichern.",
     "captureHintVoice": "Per Sprache oder Text erfassen, {teacher}{resource} zuordnen, speichern.",

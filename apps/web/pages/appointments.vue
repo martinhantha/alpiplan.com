@@ -4,6 +4,8 @@ import { $fetch } from "ofetch";
 import { CalendarDate, type DateValue } from "@internationalized/date";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { formatTeachersCaption } from "../utils/appointment-contact";
+import { toQuickCaptureDuplicateSeed } from "../utils/appointment-duplicate";
+import { quickCaptureModalUi } from "../utils/quick-capture-modal-ui";
 import { avatarColor, avatarInitials } from "../utils/avatar";
 import {
   TIMELINE_BLOCK_COLORS,
@@ -74,6 +76,11 @@ const quickInitialContact = ref("");
 const quickInitialStartsAt = ref("");
 const quickInitialTeacherId = ref("");
 const editingAppointment = ref<AppointmentListItem | null>(null);
+const quickDuplicateSeed = ref<(AppointmentListItem & { id: "" }) | null>(null);
+
+const quickCaptureAppointment = computed(
+  () => editingAppointment.value ?? quickDuplicateSeed.value,
+);
 type AppointmentsView = "list" | "calendar";
 type CalendarMode = "day" | "timeline" | "week" | "team" | "month";
 
@@ -856,6 +863,7 @@ async function loadOptions() {
 
 function openQuickCapture() {
   editingAppointment.value = null;
+  quickDuplicateSeed.value = null;
   quickInitialContact.value = "";
   quickInitialStartsAt.value = "";
   quickInitialTeacherId.value = "";
@@ -877,6 +885,9 @@ function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[]
   const groups: DropdownMenuItem[][] = [
     [
       { label: "Bearbeiten", icon: "i-lucide-pencil", onSelect: () => openEditAppointment(appointment) },
+      ...(canAccessWorkspace.value
+        ? [{ label: "Duplizieren", icon: "i-lucide-copy-plus", onSelect: () => openDuplicateAppointment(appointment) }]
+        : []),
       ...(canCompleteAppointment(appointment)
         ? [{ label: "Als erledigt markieren", icon: "i-lucide-check", onSelect: () => markCompleted(appointment) }]
         : []),
@@ -1024,6 +1035,7 @@ function jumpToDate(value: DateValue | DateValue[] | undefined | null) {
 
 function openAssistant() {
   editingAppointment.value = null;
+  quickDuplicateSeed.value = null;
   quickInitialContact.value = "";
   quickInitialStartsAt.value = "";
   quickInitialTeacherId.value = "";
@@ -1033,6 +1045,17 @@ function openAssistant() {
 
 function openEditAppointment(appointment: AppointmentListItem) {
   editingAppointment.value = appointment;
+  quickDuplicateSeed.value = null;
+  quickInitialContact.value = "";
+  quickInitialStartsAt.value = "";
+  quickInitialTeacherId.value = "";
+  quickStartVoice.value = false;
+  quickOpen.value = true;
+}
+
+function openDuplicateAppointment(appointment: AppointmentListItem) {
+  editingAppointment.value = null;
+  quickDuplicateSeed.value = toQuickCaptureDuplicateSeed(appointment);
   quickInitialContact.value = "";
   quickInitialStartsAt.value = "";
   quickInitialTeacherId.value = "";
@@ -1043,6 +1066,7 @@ function openEditAppointment(appointment: AppointmentListItem) {
 function closeQuickCapture() {
   quickOpen.value = false;
   editingAppointment.value = null;
+  quickDuplicateSeed.value = null;
   quickStartVoice.value = false;
 }
 
@@ -1423,13 +1447,14 @@ watch(
               </div>
             </div>
             <AppointmentQuickActions
-              class="ml-auto shrink-0"
               :appointment="appointment"
               :loading="savingId === appointment.id"
               :show-edit="canAccessWorkspace"
+              :show-duplicate="canAccessWorkspace"
               :show-complete="canAccessWorkspace"
               :show-delete="canManageTenant"
               @edit="openEditAppointment(appointment)"
+              @duplicate="openDuplicateAppointment(appointment)"
               @complete="markCompleted(appointment)"
               @delete="deleteAppointment(appointment)"
             />
@@ -1706,14 +1731,15 @@ watch(
                     </div>
                   </div>
                   <AppointmentQuickActions
-                    class="shrink-0"
                     compact
                     :appointment="appointment"
                     :loading="savingId === appointment.id"
                     :show-edit="canAccessWorkspace"
+                    :show-duplicate="canAccessWorkspace"
                     :show-complete="canAccessWorkspace"
                     :show-delete="canManageTenant"
                     @edit="openEditAppointment(appointment)"
+                    @duplicate="openDuplicateAppointment(appointment)"
                     @complete="markCompleted(appointment)"
                     @delete="deleteAppointment(appointment)"
                   />
@@ -1937,15 +1963,22 @@ watch(
       </div>
     </template>
 
-    <UModal v-model:open="quickOpen" :ui="{ content: 'max-w-2xl' }">
+    <UModal v-model:open="quickOpen" :ui="quickCaptureModalUi">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="min-w-0 flex items-center gap-1">
             <h2 class="font-medium truncate">
-              {{ editingAppointment ? $t("home.editAppointment") : $t("home.newQuickCapture") }}
+              {{
+                editingAppointment
+                  ? $t("home.editAppointment")
+                  : quickDuplicateSeed
+                    ? $t("home.duplicateAppointment")
+                    : $t("home.newQuickCapture")
+              }}
             </h2>
             <FieldInfoPopover :aria-label="$t('home.modalHintAria')">
               <template v-if="editingAppointment">{{ $t("home.editHint") }}</template>
+              <template v-else-if="quickDuplicateSeed">{{ $t("home.duplicateHint") }}</template>
               <template v-else>
                 {{
                   $t(speechRecognitionEnabled ? "home.captureHintVoice" : "home.captureHintText", {
@@ -1963,9 +1996,11 @@ watch(
         <QuickCaptureForm
           :key="
             editingAppointment?.id ??
-            `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}-${quickInitialStartsAt}-${quickInitialTeacherId}`
+            (quickDuplicateSeed
+              ? `dup-${quickDuplicateSeed.startsAt}-${quickDuplicateSeed.endsAt}`
+              : `${quickStartVoice ? 'voice' : 'type'}-${quickInitialContact || 'empty'}-${quickInitialStartsAt}-${quickInitialTeacherId}`)
           "
-          :appointment="editingAppointment"
+          :appointment="quickCaptureAppointment"
           :initial-contact-text="quickInitialContact"
           :initial-starts-at="quickInitialStartsAt || undefined"
           :initial-teacher-id="quickInitialTeacherId || undefined"

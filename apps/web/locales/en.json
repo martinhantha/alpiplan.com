@@ -83,6 +83,8 @@
     "deleteFailed": "Could not delete appointment",
     "noContact": "Appointment without contact",
     "editAppointment": "Edit appointment",
+    "duplicateAppointment": "Duplicate appointment",
+    "duplicateHint": "Copy with the same time and details – a new appointment is created only when you save.",
     "newQuickCapture": "New appointment · quick capture",
     "editHint": "Adjust date, contact, and assignments, then save.",
     "captureHintVoice": "Capture by voice or text, assign {teacher}{resource}, then save.",
