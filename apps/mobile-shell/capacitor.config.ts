@@ -44,9 +44,11 @@ const config: CapacitorConfig = {
         url: serverUrl,
         cleartext: serverUrl.startsWith("http://"),
         androidScheme: "https",
+        errorPath: "offline.html",
       }
     : {
         androidScheme: "https",
+        errorPath: "offline.html",
       },
   android: {
     allowMixedContent: Boolean(serverUrl?.startsWith("http://")),

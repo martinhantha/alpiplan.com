@@ -85,33 +85,47 @@
     <script>
       const copy = {
         de: {
-          message: "Wir sind gleich wieder da. Die App wird gerade aktualisiert.",
+          offline: "Kein Internet. Bitte WLAN oder mobile Daten einschalten und danach erneut versuchen.",
+          down: "Wir sind gleich wieder da. Die App wird gerade aktualisiert.",
           retry: "Erneut versuchen",
         },
         en: {
-          message: "We’ll be back soon. The app is being updated.",
+          offline: "No internet. Please turn on Wi‑Fi or mobile data, then try again.",
+          down: "We’ll be back soon. The app is being updated.",
           retry: "Try again",
         },
         it: {
-          message: "Torniamo subito. L’app si sta aggiornando.",
+          offline: "Nessuna connessione. Attiva il Wi‑Fi o i dati mobili e riprova.",
+          down: "Torniamo subito. L’app si sta aggiornando.",
           retry: "Riprova",
         },
       };
       const lang = (navigator.language || "de").slice(0, 2);
       const text = copy[lang] || copy.de;
       document.documentElement.lang = copy[lang] ? lang : "de";
-      document.getElementById("message").textContent = text.message;
+      const message = document.getElementById("message");
+      function showMessage() {
+        message.textContent = navigator.onLine ? text.down : text.offline;
+      }
+      showMessage();
+      window.addEventListener("online", showMessage);
+      window.addEventListener("offline", showMessage);
       const button = document.getElementById("retry");
       button.textContent = text.retry;
 
       function targetUrl() {
         const hash = location.hash.slice(1);
-        if (!hash) return location.origin + "/";
-        try {
-          return decodeURIComponent(hash);
-        } catch {
-          return location.origin + "/";
+        if (hash) {
+          try {
+            return decodeURIComponent(hash);
+          } catch {
+            // Fall through to the app address.
+          }
         }
+        if (location.hostname === "localhost" || location.protocol === "file:") {
+          return "https://app.alpiplan.com/";
+        }
+        return location.origin + "/";
       }
 
       button.addEventListener("click", () => {
