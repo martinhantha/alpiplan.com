@@ -11,8 +11,12 @@ import org.json.JSONObject;
 final class WidgetUiBinder {
     private WidgetUiBinder() {}
 
-    static void bindRows(Context context, RemoteViews views, int appWidgetId, JSONArray appointments) {
-        int count = Math.min(appointments.length(), WidgetConfig.VISIBLE_ROWS);
+    static void bindRows(
+        Context context, RemoteViews views, int appWidgetId, JSONArray appointments, WidgetSizeProfile size) {
+        int maxRows = Math.min(size.visibleRows, WidgetConfig.VISIBLE_ROWS);
+        int count = Math.min(appointments.length(), maxRows);
+        String callLabel =
+            size.compactLabels ? context.getString(R.string.widget_call_compact) : context.getString(R.string.widget_call);
         for (int index = 0; index < WidgetRowIds.ROWS.length; index++) {
             WidgetRowIds ids = WidgetRowIds.ROWS[index];
             if (index >= count) {
@@ -27,6 +31,7 @@ final class WidgetUiBinder {
             views.setViewVisibility(ids.row, View.VISIBLE);
             views.setTextViewText(ids.time, item.optString("timeLabel", ""));
             views.setTextViewText(ids.title, item.optString("title", "Termin"));
+            views.setTextViewText(ids.call, callLabel);
 
             String appointmentId = item.optString("id");
             String phone = item.optString("phone", "").trim();

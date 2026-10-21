@@ -37,11 +37,13 @@ id widget_title
 layout widget_appointment_item
 layout widget_appointments
 string widget_call
+string widget_call_compact
 string widget_done
 string widget_empty
 string widget_login
 string widget_name
 string widget_refresh
+string widget_refresh_compact
 string widget_title
 string widget_whatsapp
 xml widget_appointments_info

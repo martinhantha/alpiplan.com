@@ -36,11 +36,13 @@ int id widget_title 0x0
 int layout widget_appointment_item 0x0
 int layout widget_appointments 0x0
 int string widget_call 0x0
+int string widget_call_compact 0x0
 int string widget_done 0x0
 int string widget_empty 0x0
 int string widget_login 0x0
 int string widget_name 0x0
 int string widget_refresh 0x0
+int string widget_refresh_compact 0x0
 int string widget_title 0x0
 int string widget_whatsapp 0x0
 int xml widget_appointments_info 0x0

@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.view.View;
 import android.widget.RemoteViews;
 import org.json.JSONArray;
@@ -23,6 +24,11 @@ public class AppointmentsWidgetProvider extends AppWidgetProvider {
         intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
         intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
         context.sendBroadcast(intent);
+    }
+
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int appWidgetId, Bundle newOptions) {
+        updateWidget(context, manager, appWidgetId);
     }
 
     @Override
@@ -45,7 +51,15 @@ public class AppointmentsWidgetProvider extends AppWidgetProvider {
 
     static void updateWidget(Context context, AppWidgetManager manager, int appWidgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_appointments);
+        WidgetSizeProfile size = WidgetSizeProfile.forWidget(context, manager, appWidgetId);
         WidgetTheme.apply(context, views);
+        size.applyTextSizes(views);
+        size.applyRootPadding(context, views);
+        if (size.compactLabels) {
+            views.setTextViewText(R.id.widget_refresh, context.getString(R.string.widget_refresh_compact));
+        } else {
+            views.setTextViewText(R.id.widget_refresh, context.getString(R.string.widget_refresh));
+        }
         JSONArray appointments = WidgetStore.appointments(context);
         boolean configured = WidgetStore.isConfigured(context);
 
@@ -60,7 +74,7 @@ public class AppointmentsWidgetProvider extends AppWidgetProvider {
         } else {
             views.setViewVisibility(R.id.widget_empty, View.GONE);
             views.setViewVisibility(R.id.widget_rows, View.VISIBLE);
-            WidgetUiBinder.bindRows(context, views, appWidgetId, appointments);
+            WidgetUiBinder.bindRows(context, views, appWidgetId, appointments, size);
         }
 
         PendingIntent refreshPendingIntent =
