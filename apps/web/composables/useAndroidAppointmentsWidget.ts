@@ -3,11 +3,12 @@ import { AppointmentsWidget, type WidgetAppointmentPayload } from "@alpiplan/cap
 import { $fetch } from "ofetch";
 import { APPOINTMENT_LIVE_EVENT } from "~/types/live-events";
 import { resolveAppointmentDisplayName, resolveAppointmentPhone } from "~/utils/appointment-contact";
+import { readWhatsAppApp } from "~/utils/whatsapp";
 
 /** Must cover far-future bookings (e.g. 3+ weeks). */
 const LOOKAHEAD_MS = 120 * 24 * 60 * 60 * 1000;
 const POLL_MS = 5 * 60_000;
-const MAX_WIDGET_ITEMS = 8;
+const MAX_WIDGET_ITEMS = 3;
 
 interface AppointmentListItem {
   id: string;
@@ -51,9 +52,14 @@ function toWidgetPayload(item: AppointmentListItem, tenantName?: string | null):
 
 export function useAndroidAppointmentsWidget() {
   const { user, primaryTenant } = useAuth();
+  const colorMode = useColorMode();
 
   const enabled = computed(
-    () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android" && Boolean(user.value),
+    () =>
+      Capacitor.isNativePlatform() &&
+      Capacitor.getPlatform() === "android" &&
+      Boolean(user.value) &&
+      Capacitor.isPluginAvailable("AppointmentsWidget"),
   );
 
   let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -91,6 +97,8 @@ export function useAndroidAppointmentsWidget() {
         tenantId,
         apiBaseUrl: window.location.origin,
         appointments: items,
+        darkMode: colorMode.value === "dark",
+        whatsAppApp: readWhatsAppApp(),
       });
     } catch {
       // Keep last widget snapshot if refresh fails offline.
@@ -99,6 +107,7 @@ export function useAndroidAppointmentsWidget() {
 
   async function clearWidget() {
     if (!import.meta.client || Capacitor.getPlatform() !== "android") return;
+    if (!Capacitor.isPluginAvailable("AppointmentsWidget")) return;
     await AppointmentsWidget.clear().catch(() => {});
   }
 
@@ -111,7 +120,7 @@ export function useAndroidAppointmentsWidget() {
   }
 
   watch(
-    () => [user.value?.id, primaryTenant.value?.tenantId] as const,
+    () => [user.value?.id, primaryTenant.value?.tenantId, colorMode.value] as const,
     () => {
       if (!user.value) void clearWidget();
       else void syncWidget();

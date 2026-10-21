@@ -6,5 +6,6 @@
     <string name="widget_login">Alpiplan öffnen und anmelden</string>
     <string name="widget_refresh">Aktualisieren</string>
     <string name="widget_call">Anrufen</string>
-    <string name="widget_done">Erledigt</string>
+    <string name="widget_done">✓</string>
+    <string name="widget_whatsapp">WA</string>
 </resources>

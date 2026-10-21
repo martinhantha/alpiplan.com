@@ -11,6 +11,8 @@ final class WidgetStore {
     private static final String KEY_BASE = "apiBaseUrl";
     private static final String KEY_COOKIES = "cookies";
     private static final String KEY_APPOINTMENTS = "appointments";
+    private static final String KEY_DARK_MODE = "darkMode";
+    private static final String KEY_WHATSAPP_APP = "whatsAppApp";
 
     private WidgetStore() {}
 
@@ -18,14 +20,35 @@ final class WidgetStore {
         return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    static void save(Context context, String tenantId, String apiBaseUrl, String cookies, String appointmentsJson) {
+    static void save(
+        Context context,
+        String tenantId,
+        String apiBaseUrl,
+        String cookies,
+        String appointmentsJson,
+        boolean darkMode,
+        String whatsAppApp) {
         prefs(context)
             .edit()
             .putString(KEY_TENANT, tenantId)
             .putString(KEY_BASE, apiBaseUrl)
             .putString(KEY_COOKIES, cookies == null ? "" : cookies)
             .putString(KEY_APPOINTMENTS, trimAppointmentsJson(appointmentsJson))
+            .putBoolean(KEY_DARK_MODE, darkMode)
+            .putString(KEY_WHATSAPP_APP, "business".equals(whatsAppApp) ? "business" : "whatsapp")
             .apply();
+    }
+
+    static boolean hasDarkModePreference(Context context) {
+        return prefs(context).contains(KEY_DARK_MODE);
+    }
+
+    static boolean darkMode(Context context) {
+        return prefs(context).getBoolean(KEY_DARK_MODE, false);
+    }
+
+    static String whatsAppApp(Context context) {
+        return prefs(context).getString(KEY_WHATSAPP_APP, "whatsapp");
     }
 
     private static String trimAppointmentsJson(String appointmentsJson) {

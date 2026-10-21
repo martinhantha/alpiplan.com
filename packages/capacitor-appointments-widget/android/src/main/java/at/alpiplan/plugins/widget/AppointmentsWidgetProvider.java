@@ -45,6 +45,7 @@ public class AppointmentsWidgetProvider extends AppWidgetProvider {
 
     static void updateWidget(Context context, AppWidgetManager manager, int appWidgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_appointments);
+        WidgetTheme.apply(context, views);
         JSONArray appointments = WidgetStore.appointments(context);
         boolean configured = WidgetStore.isConfigured(context);
 

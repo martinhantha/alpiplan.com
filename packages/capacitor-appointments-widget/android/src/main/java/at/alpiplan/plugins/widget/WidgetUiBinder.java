@@ -12,7 +12,7 @@ final class WidgetUiBinder {
     private WidgetUiBinder() {}
 
     static void bindRows(Context context, RemoteViews views, int appWidgetId, JSONArray appointments) {
-        int count = appointments.length();
+        int count = Math.min(appointments.length(), WidgetConfig.VISIBLE_ROWS);
         for (int index = 0; index < WidgetRowIds.ROWS.length; index++) {
             WidgetRowIds ids = WidgetRowIds.ROWS[index];
             if (index >= count) {
@@ -31,21 +31,25 @@ final class WidgetUiBinder {
             String appointmentId = item.optString("id");
             String phone = item.optString("phone", "").trim();
             String status = item.optString("status", "");
-            boolean canCall = !phone.isEmpty();
+            boolean hasPhone = !phone.isEmpty();
             boolean canComplete = !"completed".equals(status) && !"cancelled".equals(status);
 
-            views.setViewVisibility(ids.call, canCall ? View.VISIBLE : View.GONE);
+            views.setViewVisibility(ids.call, hasPhone ? View.VISIBLE : View.GONE);
+            views.setViewVisibility(ids.whatsapp, hasPhone ? View.VISIBLE : View.GONE);
             views.setViewVisibility(ids.complete, canComplete ? View.VISIBLE : View.GONE);
 
-            if (canCall) {
+            if (hasPhone) {
                 views.setOnClickPendingIntent(
                     ids.call,
-                    actionPendingIntent(context, appWidgetId, appointmentId, WidgetActionReceiver.ACTION_CALL, index * 2));
+                    actionPendingIntent(context, appWidgetId, appointmentId, WidgetActionReceiver.ACTION_CALL, index * 3));
+                views.setOnClickPendingIntent(
+                    ids.whatsapp,
+                    actionPendingIntent(context, appWidgetId, appointmentId, WidgetActionReceiver.ACTION_WHATSAPP, index * 3 + 1));
             }
             if (canComplete) {
                 views.setOnClickPendingIntent(
                     ids.complete,
-                    actionPendingIntent(context, appWidgetId, appointmentId, WidgetActionReceiver.ACTION_COMPLETE, index * 2 + 1));
+                    actionPendingIntent(context, appWidgetId, appointmentId, WidgetActionReceiver.ACTION_COMPLETE, index * 3 + 2));
             }
         }
     }

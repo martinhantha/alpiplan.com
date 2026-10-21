@@ -9,11 +9,17 @@ export interface WidgetAppointmentPayload {
   timeLabel: string;
 }
 
+export type WidgetWhatsAppApp = "whatsapp" | "business";
+
 export interface AppointmentsWidgetSyncOptions {
   tenantId: string;
   /** Origin, e.g. https://app.alpiplan.com */
   apiBaseUrl: string;
   appointments: WidgetAppointmentPayload[];
+  /** Resolved app theme (light/dark), matches Nuxt color mode. */
+  darkMode: boolean;
+  /** Same preference as in app settings (WhatsApp vs Business). */
+  whatsAppApp?: WidgetWhatsAppApp;
 }
 
 export interface AppointmentsWidgetPlugin {

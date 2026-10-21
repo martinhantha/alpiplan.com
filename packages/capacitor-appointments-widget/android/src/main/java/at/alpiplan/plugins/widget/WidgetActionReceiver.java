@@ -16,6 +16,7 @@ public class WidgetActionReceiver extends BroadcastReceiver {
     static final String EXTRA_ACTION = "widgetAction";
     static final String ACTION_CALL = "call";
     static final String ACTION_COMPLETE = "complete";
+    static final String ACTION_WHATSAPP = "whatsapp";
 
     static Intent refreshIntent(Context context) {
         Intent intent = new Intent(context, WidgetActionReceiver.class);
@@ -45,9 +46,25 @@ public class WidgetActionReceiver extends BroadcastReceiver {
             handleCall(context, appointmentId);
             return;
         }
+        if (ACTION_WHATSAPP.equals(widgetAction)) {
+            handleWhatsApp(context, appointmentId);
+            return;
+        }
         if (ACTION_COMPLETE.equals(widgetAction)) {
             completeAsync(context, appointmentId);
         }
+    }
+
+    private void handleWhatsApp(Context context, String appointmentId) {
+        JSONObject item = WidgetStore.appointmentById(context, appointmentId);
+        if (item == null) {
+            return;
+        }
+        String phone = item.optString("phone", "").trim();
+        if (phone.isEmpty()) {
+            return;
+        }
+        WhatsAppIntents.open(context.getApplicationContext(), phone, WidgetStore.whatsAppApp(context));
     }
 
     private void handleCall(Context context, String appointmentId) {

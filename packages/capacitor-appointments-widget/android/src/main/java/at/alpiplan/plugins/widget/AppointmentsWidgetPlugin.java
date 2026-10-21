@@ -27,7 +27,9 @@ public class AppointmentsWidgetPlugin extends Plugin {
         for (int i = 0; i < appointments.length(); i++) {
             serialized.put(appointments.opt(i));
         }
-        WidgetStore.save(getContext(), tenantId, base, cookies, serialized.toString());
+        boolean darkMode = call.getBoolean("darkMode", false);
+        String whatsAppApp = call.getString("whatsAppApp", "whatsapp");
+        WidgetStore.save(getContext(), tenantId, base, cookies, serialized.toString(), darkMode, whatsAppApp);
         AppointmentsWidgetProvider.requestUpdateAll(getContext());
         call.resolve();
     }
