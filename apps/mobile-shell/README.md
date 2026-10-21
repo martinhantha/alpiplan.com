@@ -83,6 +83,7 @@ Ohne `keystore.properties` baut Gradle ein **unsigniertes** Release-Bundle; die 
 |--------|--------|
 | `@capacitor-community/contacts` | Kontakt wählen; Fallback beim Schreiben |
 | `@alpiplan/capacitor-call-hints` | Android: letzte Nummern, Mikrofon-Permission, lokale Alpiplan-Kontakte |
+| `@alpiplan/capacitor-appointments-widget` | Android: Home-Screen-Widget mit nächsten Terminen (Anrufen, erledigt) |
 | `@capacitor/app` | Installierte `versionCode` für den Update-Abgleich |
 | `@capawesome/capacitor-app-update` | Android In-App-Update, App Store / Play Store öffnen |
 

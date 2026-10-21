@@ -1,0 +1,45 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="at.alpiplan.plugins.widget" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+5-->INJECTED
+5-->INJECTED
+6
+7    <uses-permission android:name="android.permission.INTERNET" />
+7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:2:5-67
+7-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:2:22-64
+8
+9    <application>
+9-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:4:5-20:19
+10        <receiver
+10-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:5:9-15:20
+11            android:name="at.alpiplan.plugins.widget.AppointmentsWidgetProvider"
+11-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:6:13-81
+12            android:exported="true"
+12-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:7:13-36
+13            android:label="@string/widget_name" >
+13-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:8:13-48
+14            <intent-filter>
+14-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:9:13-11:29
+15                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+15-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:10:17-84
+15-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:10:25-81
+16            </intent-filter>
+17
+18            <meta-data
+18-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:12:13-14:68
+19                android:name="android.appwidget.provider"
+19-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:13:17-58
+20                android:resource="@xml/widget_appointments_info" />
+20-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:14:17-65
+21        </receiver>
+22        <receiver
+22-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:17:9-19:40
+23            android:name="at.alpiplan.plugins.widget.WidgetActionReceiver"
+23-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:18:13-75
+24            android:exported="false" />
+24-->/Users/martin.stofner/WSN/alpiplan/apps/mobile-shell/node_modules/@alpiplan/capacitor-appointments-widget/android/src/main/AndroidManifest.xml:19:13-37
+25    </application>
+26
+27</manifest>

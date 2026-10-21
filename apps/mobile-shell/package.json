@@ -14,6 +14,7 @@
     "android:bundle-release": "node scripts/apply-android-identity.mjs && node scripts/patch-android-release-signing.mjs && node scripts/check-android-release.mjs && cd android && ./gradlew clean bundleRelease"
   },
   "dependencies": {
+    "@alpiplan/capacitor-appointments-widget": "workspace:*",
     "@alpiplan/capacitor-call-hints": "workspace:*",
     "@capacitor-community/contacts": "^7.0.0",
     "@capacitor/android": "^7.4.3",

@@ -1,0 +1,33 @@
+{
+  "name": "@alpiplan/capacitor-appointments-widget",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Android home screen widget for upcoming Alpiplan appointments",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "src/"
+  ],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^7.4.3",
+    "typescript": "~5.7.0"
+  }
+}

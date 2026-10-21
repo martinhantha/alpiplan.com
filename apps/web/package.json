@@ -9,6 +9,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@alpiplan/capacitor-appointments-widget": "workspace:*",
     "@alpiplan/capacitor-call-hints": "workspace:*",
     "@alpiplan/device-capabilities": "workspace:*",
     "@capacitor-community/contacts": "^7.0.0",

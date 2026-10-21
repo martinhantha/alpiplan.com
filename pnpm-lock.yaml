@@ -40,6 +40,9 @@ importers:
 
   apps/mobile-shell:
     dependencies:
+      '@alpiplan/capacitor-appointments-widget':
+        specifier: workspace:*
+        version: link:../../packages/capacitor-appointments-widget
       '@alpiplan/capacitor-call-hints':
         specifier: workspace:*
         version: link:../../packages/capacitor-call-hints
@@ -71,6 +74,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@alpiplan/capacitor-appointments-widget':
+        specifier: workspace:*
+        version: link:../../packages/capacitor-appointments-widget
       '@alpiplan/capacitor-call-hints':
         specifier: workspace:*
         version: link:../../packages/capacitor-call-hints
@@ -141,6 +147,15 @@ importers:
     devDependencies:
       typescript:
         specifier: ~5.7.3
+        version: 5.7.3
+
+  packages/capacitor-appointments-widget:
+    devDependencies:
+      '@capacitor/core':
+        specifier: ^7.4.3
+        version: 7.6.8
+      typescript:
+        specifier: ~5.7.0
         version: 5.7.3
 
   packages/capacitor-call-hints:

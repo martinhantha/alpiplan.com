@@ -1,0 +1,101 @@
+package at.alpiplan.plugins.widget;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+final class WidgetStore {
+    private static final String PREFS = "alpiplan_appointments_widget";
+    private static final String KEY_TENANT = "tenantId";
+    private static final String KEY_BASE = "apiBaseUrl";
+    private static final String KEY_COOKIES = "cookies";
+    private static final String KEY_APPOINTMENTS = "appointments";
+
+    private WidgetStore() {}
+
+    static SharedPreferences prefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+
+    static void save(Context context, String tenantId, String apiBaseUrl, String cookies, String appointmentsJson) {
+        prefs(context)
+            .edit()
+            .putString(KEY_TENANT, tenantId)
+            .putString(KEY_BASE, apiBaseUrl)
+            .putString(KEY_COOKIES, cookies == null ? "" : cookies)
+            .putString(KEY_APPOINTMENTS, trimAppointmentsJson(appointmentsJson))
+            .apply();
+    }
+
+    private static String trimAppointmentsJson(String appointmentsJson) {
+        try {
+            JSONArray list = new JSONArray(appointmentsJson);
+            JSONArray trimmed = new JSONArray();
+            for (int i = 0; i < list.length() && trimmed.length() < WidgetConfig.MAX_APPOINTMENTS; i++) {
+                trimmed.put(list.get(i));
+            }
+            return trimmed.toString();
+        } catch (Exception ignored) {
+            return "[]";
+        }
+    }
+
+    static void clear(Context context) {
+        prefs(context).edit().clear().apply();
+    }
+
+    static boolean isConfigured(Context context) {
+        String tenant = prefs(context).getString(KEY_TENANT, "");
+        String base = prefs(context).getString(KEY_BASE, "");
+        return tenant != null && !tenant.isEmpty() && base != null && !base.isEmpty();
+    }
+
+    static String tenantId(Context context) {
+        return prefs(context).getString(KEY_TENANT, "");
+    }
+
+    static String apiBaseUrl(Context context) {
+        return prefs(context).getString(KEY_BASE, "");
+    }
+
+    static String cookies(Context context) {
+        return prefs(context).getString(KEY_COOKIES, "");
+    }
+
+    static JSONArray appointments(Context context) {
+        try {
+            return new JSONArray(prefs(context).getString(KEY_APPOINTMENTS, "[]"));
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    static JSONObject appointmentById(Context context, String id) {
+        JSONArray list = appointments(context);
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject item = list.optJSONObject(i);
+            if (item != null && id.equals(item.optString("id"))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    static void removeAppointment(Context context, String id) {
+        JSONArray list = appointments(context);
+        JSONArray next = new JSONArray();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject item = list.optJSONObject(i);
+            if (item == null || id.equals(item.optString("id"))) {
+                continue;
+            }
+            next.put(item);
+        }
+        prefs(context).edit().putString(KEY_APPOINTMENTS, next.toString()).apply();
+    }
+
+    static void replaceAppointments(Context context, JSONArray appointments) {
+        prefs(context).edit().putString(KEY_APPOINTMENTS, appointments.toString()).apply();
+    }
+}
