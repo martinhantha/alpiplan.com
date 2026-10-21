@@ -15,7 +15,12 @@ run_migrations() {
 
   echo "docker-entrypoint: applying pending prisma migrations (if any)..."
   cd /app
-  ./node_modules/.bin/prisma migrate deploy
+  if ! ./node_modules/.bin/prisma migrate deploy; then
+    # P3009: a previous start recorded this migration as failed, so deploy refuses to continue.
+    echo "docker-entrypoint: migrate deploy failed, retrying uiScale migration once..."
+    ./node_modules/.bin/prisma migrate resolve --rolled-back 20261021120000_user_ui_scale || true
+    ./node_modules/.bin/prisma migrate deploy
+  fi
 }
 
 run_migrations
