@@ -69,15 +69,22 @@
 :root {
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* Sticky mobile header (logo + tabs) — Schnellerfassung endet darunter. */
-  --app-mobile-chrome-top: calc(var(--app-safe-top) + 8.75rem);
   --ui-radius: 0.375rem;
 }
 
-@media (min-width: 1024px) {
-  :root {
-    --app-mobile-chrome-top: 0px;
-  }
+/* Account setting uiScale — rem-based UI (text, buttons, spacing) scales with root size. */
+html {
+  font-size: 15px;
+}
+
+html[data-ui-scale="medium"] {
+  font-size: 17px;
+  --ui-radius: 0.4375rem;
+}
+
+html[data-ui-scale="large"] {
+  font-size: 19px;
+  --ui-radius: 0.5rem;
 }
 
 /* Android WebView often reports 0 for safe-area; keep content below the status bar. */

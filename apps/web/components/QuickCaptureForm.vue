@@ -14,7 +14,7 @@ import {
 } from "../utils/appointment-contact";
 import { commitUtterance, withLiveInterim } from "../utils/speech-transcript";
 import { isNativeAndroidSpeech, startNativeSpeech } from "../utils/native-speech";
-import type { AppointmentStatus } from "../utils/appointment-status";
+import { appointmentStatusColor, type AppointmentStatus } from "../utils/appointment-status";
 import { CALL_STATE_EVENT } from "../utils/call-state";
 
 type WebSpeechRecognitionEventResult = {
@@ -130,6 +130,28 @@ const intlLocales: Record<string, string> = { de: "de-DE", en: "en-GB", it: "it-
 const intlLocale = computed(() => intlLocales[locale.value] ?? "de-DE");
 
 const statusOptions: AppointmentStatus[] = ["draft", "confirmed", "completed", "cancelled"];
+
+function statusIsMuted(status: AppointmentStatus) {
+  return status === "draft" || status === "completed";
+}
+
+function statusButtonColor(status: AppointmentStatus) {
+  if (statusIsMuted(status) && form.status !== status) return "neutral" as const;
+  return appointmentStatusColor(status);
+}
+
+function statusButtonVariant(status: AppointmentStatus): "solid" | "soft" | "outline" {
+  if (form.status !== status) return "outline";
+  return statusIsMuted(status) ? "soft" : "solid";
+}
+
+function statusButtonClass(status: AppointmentStatus) {
+  if (form.status === status || !statusIsMuted(status)) return "";
+  if (status === "draft") {
+    return "hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800 dark:hover:border-amber-700 dark:hover:bg-amber-950/30 dark:hover:text-amber-200";
+  }
+  return "hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-200";
+}
 
 const teacherLabel = computed(
   () => options.value?.teacherLabel || primaryTenant.value?.teacherLabel || t("quickCapture.teacherFallback"),
@@ -1529,11 +1551,19 @@ onMounted(() => {
     </div>
 
     <UFormField v-if="isEditing" :label="t('quickCapture.status')">
-      <select v-model="form.status" :class="captureSelectClass">
-        <option v-for="status in statusOptions" :key="status" :value="status">
+      <div class="flex flex-wrap gap-1.5">
+        <UButton
+          v-for="status in statusOptions"
+          :key="status"
+          size="sm"
+          :color="statusButtonColor(status)"
+          :variant="statusButtonVariant(status)"
+          :class="statusButtonClass(status)"
+          @click="form.status = status"
+        >
           {{ t(`appointment.status.${status}`) }}
-        </option>
-      </select>
+        </UButton>
+      </div>
     </UFormField>
 
     <div v-if="!useTypeDuration" class="space-y-1.5">
@@ -1702,9 +1732,9 @@ onMounted(() => {
     </UFormField>
 
     <div class="flex items-center justify-end gap-2 pt-1">
-      <UButton size="sm" variant="ghost" color="neutral" @click="emit('cancel')">{{ t("quickCapture.close") }}</UButton>
+      <UButton size="md" variant="ghost" color="neutral" @click="emit('cancel')">{{ t("quickCapture.close") }}</UButton>
       <UButton
-        size="sm"
+        size="md"
         color="primary"
         :disabled="!canSave || loading"
         :loading="saving"

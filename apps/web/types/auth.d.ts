@@ -10,6 +10,8 @@ export interface AuthUser {
   appointmentMovedAlertsEnabled: boolean;
   /** Reminder 15 minutes before own appointments */
   appointmentReminderEnabled: boolean;
+  /** small | medium | large */
+  uiScale: "small" | "medium" | "large";
 }
 
 export interface AuthMembership {

@@ -20,6 +20,8 @@ export interface AppointmentsWidgetSyncOptions {
   darkMode: boolean;
   /** Same preference as in app settings (WhatsApp vs Business). */
   whatsAppApp?: WidgetWhatsAppApp;
+  /** Account display size — scales widget type (small | medium | large). */
+  uiScale?: "small" | "medium" | "large";
 }
 
 export interface AppointmentsWidgetPlugin {

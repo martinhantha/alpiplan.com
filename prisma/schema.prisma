@@ -130,6 +130,8 @@ model User {
   appointmentMovedAlertsEnabled Boolean @default(true)
   /// push + in-app reminder 15 minutes before own appointments; default on
   appointmentReminderEnabled Boolean @default(true)
+  /// UI density: small (default), medium, large — scales type and controls via root font-size
+  uiScale String @default("small")
 
   memberships          Membership[]
   assistantPreferences UserAssistantPreference[]

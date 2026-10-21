@@ -1,0 +1,1 @@
+ALTER TABLE "User" ADD COLUMN "uiScale" TEXT NOT NULL DEFAULT 'small';

@@ -346,12 +346,10 @@ async function deleteAppointment(appointment: AppointmentListItem) {
 
     <div class="grid gap-3 sm:grid-cols-2">
       <UButton to="/appointments" block size="xl" variant="soft" color="primary" icon="i-lucide-calendar-days">
-        <span class="hidden md:inline">{{ $t("nav.appointments") }}</span>
-        <span class="sr-only md:hidden">{{ $t("nav.appointments") }}</span>
+        {{ $t("nav.appointments") }}
       </UButton>
       <UButton to="/archive" block size="xl" variant="outline" color="neutral" icon="i-lucide-archive">
-        <span class="hidden md:inline">{{ $t("nav.archive") }}</span>
-        <span class="sr-only md:hidden">{{ $t("nav.archive") }}</span>
+        {{ $t("nav.archive") }}
       </UButton>
       <UButton
         v-if="canAccessWorkspace"
@@ -361,12 +359,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         icon="i-lucide-zap"
         @click="openAssistant"
       >
-        <span class="hidden md:inline">{{
-          speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture")
-        }}</span>
-        <span class="sr-only md:hidden">{{
-          speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture")
-        }}</span>
+        {{ speechRecognitionEnabled ? $t("home.quickCaptureWithAssistant") : $t("home.quickCapture") }}
       </UButton>
       <UButton
         v-if="canManageTenant"
@@ -376,12 +369,10 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         variant="outline"
         icon="i-lucide-git-merge"
       >
-        <span class="hidden md:inline">{{ $t("nav.conflicts") }}</span>
-        <span class="sr-only md:hidden">{{ $t("nav.conflicts") }}</span>
+        {{ $t("nav.conflicts") }}
       </UButton>
       <UButton size="xl" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="appointmentsLoading" @click="loadAppointments">
-        <span class="hidden md:inline">{{ $t("home.reloadAppointments") }}</span>
-        <span class="sr-only md:hidden">{{ $t("home.reloadAppointments") }}</span>
+        {{ $t("home.reloadAppointments") }}
       </UButton>
     </div>
 

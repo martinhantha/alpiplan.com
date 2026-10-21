@@ -26,6 +26,14 @@
     "light": "Chiaro",
     "dark": "Scuro"
   },
+  "uiScale": {
+    "title": "Dimensione testo",
+    "description": "Testo e controlli nell’app e nel widget Android. Vale per il tuo account su tutti i dispositivi.",
+    "small": "Piccola",
+    "medium": "Media",
+    "large": "Grande",
+    "saved": "Dimensione salvata."
+  },
   "login": {
     "title": "Accedi",
     "subtitle": "Pianifica, registra e coordina gli appuntamenti in team.",

@@ -39,6 +39,7 @@ export function toAuthSession(user: NonNullable<Awaited<ReturnType<typeof loadUs
       nextDayBriefingMinutes: user.nextDayBriefingMinutes,
       appointmentMovedAlertsEnabled: user.appointmentMovedAlertsEnabled,
       appointmentReminderEnabled: user.appointmentReminderEnabled,
+      uiScale: user.uiScale === "medium" || user.uiScale === "large" ? user.uiScale : "small",
     },
     memberships: user.memberships.map((m) => ({
       tenantId: m.tenantId,

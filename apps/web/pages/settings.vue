@@ -4,6 +4,7 @@ import { $fetch } from "ofetch";
 import { isCallHintsOptIn } from "@alpiplan/device-capabilities";
 import { useWhatsAppPreference } from "../composables/useWhatsAppPreference";
 import { DEFAULT_BRIEFING_MINUTES, formatBriefingTime, parseBriefingTime } from "../utils/rome-time";
+import { normalizeUiScale, type UiScale } from "../utils/ui-scale";
 import {
   disableWebPush,
   enableWebPush,
@@ -49,6 +50,15 @@ const movedAlertsEnabledLocal = ref(true);
 const movedAlertsSaving = ref(false);
 const reminderEnabledLocal = ref(true);
 const reminderSaving = ref(false);
+const uiScaleLocal = ref<UiScale>("small");
+const uiScaleSaving = ref(false);
+watch(
+  () => user.value?.uiScale,
+  (value) => {
+    uiScaleLocal.value = normalizeUiScale(value);
+  },
+  { immediate: true },
+);
 watch(
   () => user.value?.appointmentReminderEnabled,
   (value) => {
@@ -269,6 +279,24 @@ async function saveNextDayBriefing(enabled: boolean) {
     setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
   } finally {
     briefingSaving.value = false;
+  }
+}
+
+async function saveUiScale(scale: UiScale) {
+  uiScaleLocal.value = scale;
+  uiScaleSaving.value = true;
+  try {
+    session.value = await $fetch("/api/auth/me", {
+      method: "PATCH",
+      credentials: "include",
+      body: { uiScale: scale },
+    });
+    setInfo(t("uiScale.saved"));
+  } catch (e: unknown) {
+    uiScaleLocal.value = normalizeUiScale(user.value?.uiScale);
+    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+  } finally {
+    uiScaleSaving.value = false;
   }
 }
 
@@ -506,6 +534,17 @@ onBeforeUnmount(() => {
         <div class="space-y-2 text-sm">
           <p class="text-xs text-neutral-500">{{ $t("theme.description") }}</p>
           <ThemeSwitcher class="max-w-md" />
+        </div>
+      </UCard>
+      <UCard class="lg:col-span-2">
+        <template #header><h2 class="font-medium">{{ $t("uiScale.title") }}</h2></template>
+        <div class="space-y-2 text-sm">
+          <p class="text-xs text-neutral-500">{{ $t("uiScale.description") }}</p>
+          <UiScaleSwitcher
+            :model-value="uiScaleLocal"
+            :disabled="uiScaleSaving"
+            @update:model-value="saveUiScale"
+          />
         </div>
       </UCard>
       <UCard class="lg:col-span-2">

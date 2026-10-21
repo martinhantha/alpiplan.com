@@ -4,6 +4,7 @@ import { $fetch } from "ofetch";
 import { APPOINTMENT_LIVE_EVENT } from "~/types/live-events";
 import { resolveAppointmentDisplayName, resolveAppointmentPhone } from "~/utils/appointment-contact";
 import { readWhatsAppApp } from "~/utils/whatsapp";
+import { normalizeUiScale } from "~/utils/ui-scale";
 
 /** Must cover far-future bookings (e.g. 3+ weeks). */
 const LOOKAHEAD_MS = 120 * 24 * 60 * 60 * 1000;
@@ -99,6 +100,7 @@ export function useAndroidAppointmentsWidget() {
         appointments: items,
         darkMode: colorMode.value === "dark",
         whatsAppApp: readWhatsAppApp(),
+        uiScale: normalizeUiScale(user.value?.uiScale),
       });
     } catch {
       // Keep last widget snapshot if refresh fails offline.
@@ -120,7 +122,7 @@ export function useAndroidAppointmentsWidget() {
   }
 
   watch(
-    () => [user.value?.id, primaryTenant.value?.tenantId, colorMode.value] as const,
+    () => [user.value?.id, primaryTenant.value?.tenantId, user.value?.uiScale, colorMode.value] as const,
     () => {
       if (!user.value) void clearWidget();
       else void syncWidget();

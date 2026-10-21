@@ -26,6 +26,14 @@
     "light": "Light",
     "dark": "Dark"
   },
+  "uiScale": {
+    "title": "Display size",
+    "description": "Text and controls in the app and on the Android widget. Applies to your account on all devices.",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "saved": "Display size saved."
+  },
   "login": {
     "title": "Sign in",
     "subtitle": "Plan, capture and coordinate appointments as a team.",

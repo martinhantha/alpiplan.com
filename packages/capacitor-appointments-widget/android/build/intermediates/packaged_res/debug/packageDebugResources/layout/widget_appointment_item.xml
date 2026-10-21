@@ -48,8 +48,10 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"
         android:background="@drawable/widget_button_success"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="4dp"
+        android:gravity="center"
+        android:minWidth="28dp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="5dp"
         android:text="@string/widget_done"
         android:textColor="#166534"
         android:textSize="10sp" />

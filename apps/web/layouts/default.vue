@@ -118,9 +118,8 @@ function navClass(to: string) {
               <AppLogo size="sm" />
             </NuxtLink>
             <div class="flex items-center gap-1">
-              <ThemeSwitcher compact />
-              <UButton to="/settings" size="sm" variant="ghost" color="neutral" icon="i-lucide-settings-2" />
-              <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-log-out" @click="logout()" />
+              <UButton to="/settings" size="md" variant="ghost" color="neutral" icon="i-lucide-settings-2" />
+              <UButton size="md" variant="ghost" color="neutral" icon="i-lucide-log-out" @click="logout()" />
             </div>
           </div>
           <div v-if="tenantItems.length > 1" class="px-4 pb-2">

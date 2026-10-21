@@ -50,18 +50,48 @@ final class WidgetSizeProfile {
                 heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp);
             }
         }
-        return fromDimensions(widthDp, heightDp);
+        return fromDimensions(widthDp, heightDp, textScaleFactor(context));
     }
 
-    static WidgetSizeProfile fromDimensions(int widthDp, int heightDp) {
+    /** Matches web root font-size: 15 / 17 / 19 px. */
+    static float textScaleFactor(Context context) {
+        String scale = WidgetStore.uiScale(context);
+        if ("large".equals(scale)) {
+            return 19f / 15f;
+        }
+        if ("medium".equals(scale)) {
+            return 17f / 15f;
+        }
+        return 1f;
+    }
+
+    static WidgetSizeProfile fromDimensions(int widthDp, int heightDp, float textScale) {
+        WidgetSizeProfile base;
         // 3×2 on One UI ≈ 180×110 dp — one appointment row, smaller type.
         if (heightDp <= 125 || (widthDp <= 200 && heightDp <= 150)) {
-            return new WidgetSizeProfile(1, 12f, 10f, 11f, 9f, 11f, 9f, 6, true);
+            base = new WidgetSizeProfile(1, 12f, 10f, 11f, 9f, 11f, 9f, 6, true);
+        } else if (heightDp <= 195 || widthDp <= 220) {
+            base = new WidgetSizeProfile(2, 13f, 10f, 12f, 10f, 12f, 9f, 7, true);
+        } else {
+            base = new WidgetSizeProfile(WidgetConfig.VISIBLE_ROWS, 14f, 11f, 13f, 11f, 13f, 10f, 8, false);
         }
-        if (heightDp <= 195 || widthDp <= 220) {
-            return new WidgetSizeProfile(2, 13f, 10f, 12f, 10f, 12f, 9f, 7, true);
+        return base.scaled(textScale);
+    }
+
+    private WidgetSizeProfile scaled(float textScale) {
+        if (textScale <= 1f) {
+            return this;
         }
-        return new WidgetSizeProfile(WidgetConfig.VISIBLE_ROWS, 14f, 11f, 13f, 11f, 13f, 10f, 8, false);
+        return new WidgetSizeProfile(
+            visibleRows,
+            headerTitleSp * textScale,
+            refreshSp * textScale,
+            emptySp * textScale,
+            timeSp * textScale,
+            rowTitleSp * textScale,
+            buttonSp * textScale,
+            Math.round(rootPaddingDp * textScale),
+            compactLabels);
     }
 
     void applyTextSizes(RemoteViews views) {
@@ -73,7 +103,7 @@ final class WidgetSizeProfile {
             setSp(views, ids.title, rowTitleSp);
             setSp(views, ids.call, buttonSp);
             setSp(views, ids.whatsapp, buttonSp);
-            setSp(views, ids.complete, buttonSp);
+            setSp(views, ids.complete, buttonSp + 1.5f);
         }
     }
 

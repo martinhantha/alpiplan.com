@@ -13,6 +13,7 @@ final class WidgetStore {
     private static final String KEY_APPOINTMENTS = "appointments";
     private static final String KEY_DARK_MODE = "darkMode";
     private static final String KEY_WHATSAPP_APP = "whatsAppApp";
+    private static final String KEY_UI_SCALE = "uiScale";
 
     private WidgetStore() {}
 
@@ -27,7 +28,8 @@ final class WidgetStore {
         String cookies,
         String appointmentsJson,
         boolean darkMode,
-        String whatsAppApp) {
+        String whatsAppApp,
+        String uiScale) {
         prefs(context)
             .edit()
             .putString(KEY_TENANT, tenantId)
@@ -36,7 +38,19 @@ final class WidgetStore {
             .putString(KEY_APPOINTMENTS, trimAppointmentsJson(appointmentsJson))
             .putBoolean(KEY_DARK_MODE, darkMode)
             .putString(KEY_WHATSAPP_APP, "business".equals(whatsAppApp) ? "business" : "whatsapp")
+            .putString(KEY_UI_SCALE, normalizeUiScale(uiScale))
             .apply();
+    }
+
+    static String uiScale(Context context) {
+        return normalizeUiScale(prefs(context).getString(KEY_UI_SCALE, "small"));
+    }
+
+    private static String normalizeUiScale(String value) {
+        if ("medium".equals(value) || "large".equals(value)) {
+            return value;
+        }
+        return "small";
     }
 
     static boolean hasDarkModePreference(Context context) {

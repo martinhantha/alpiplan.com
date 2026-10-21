@@ -1,12 +1,11 @@
-/** Shared UModal `ui` for Schnellerfassung — bottom sheet on phone, centered on desktop. */
+/** Shared UModal `ui` for Schnellerfassung — centered; max height respects system bars only. */
 export const quickCaptureModalUi = {
   overlay: "bg-elevated/75",
   content:
     "max-w-2xl w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] flex flex-col overflow-hidden " +
-    "max-lg:top-auto max-lg:bottom-[var(--app-safe-bottom)] max-lg:left-1/2 max-lg:-translate-x-1/2 max-lg:translate-y-0 " +
-    "max-lg:max-h-[calc(100dvh-var(--app-mobile-chrome-top)-var(--app-safe-bottom)-0.25rem)] " +
-    "max-lg:rounded-t-xl max-lg:rounded-b-lg " +
-    "lg:max-h-[min(88dvh,42rem)]",
+    "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 " +
+    "max-h-[min(96dvh,calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-0.5rem))] " +
+    "rounded-xl shadow-lg ring ring-default",
   header: "px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 border-b border-neutral-200/80 dark:border-neutral-800/80",
   body:
     "flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3 " +

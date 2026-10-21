@@ -26,6 +26,14 @@
     "light": "Hell",
     "dark": "Dunkel"
   },
+  "uiScale": {
+    "title": "Anzeigegröße",
+    "description": "Schrift und Bedienelemente in der App und im Android-Widget. Gilt für dein Konto auf allen Geräten.",
+    "small": "Klein",
+    "medium": "Mittel",
+    "large": "Groß",
+    "saved": "Anzeigegröße gespeichert."
+  },
   "login": {
     "title": "Anmelden",
     "subtitle": "Termine planen, erfassen und im Team abstimmen.",

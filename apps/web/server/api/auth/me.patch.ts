@@ -15,12 +15,14 @@ export default defineEventHandler(async (event) => {
     nextDayBriefingMinutes?: unknown;
     appointmentMovedAlertsEnabled?: unknown;
     appointmentReminderEnabled?: unknown;
+    uiScale?: unknown;
   };
   const data: {
     nextDayBriefingEnabled?: boolean;
     nextDayBriefingMinutes?: number;
     appointmentMovedAlertsEnabled?: boolean;
     appointmentReminderEnabled?: boolean;
+    uiScale?: string;
   } = {};
   if (body.appointmentReminderEnabled !== undefined) {
     if (typeof body.appointmentReminderEnabled !== "boolean") {
@@ -33,6 +35,13 @@ export default defineEventHandler(async (event) => {
       throwValidation("Ungültiger Wert für die Verschiebe-Benachrichtigung");
     }
     data.appointmentMovedAlertsEnabled = body.appointmentMovedAlertsEnabled;
+  }
+  if (body.uiScale !== undefined) {
+    const scale = body.uiScale;
+    if (scale !== "small" && scale !== "medium" && scale !== "large") {
+      throwValidation("Ungültige Anzeigegröße");
+    }
+    data.uiScale = scale;
   }
   if (body.nextDayBriefingEnabled !== undefined) {
     if (typeof body.nextDayBriefingEnabled !== "boolean") {
