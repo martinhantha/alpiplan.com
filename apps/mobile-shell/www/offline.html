@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Alpiplan</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --dusk: #1f1347;
+        --glow: #ffb199;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(1.5rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #f4f1ff;
+        background:
+          radial-gradient(120% 80% at 50% 120%, #3a2278 0%, transparent 55%),
+          linear-gradient(180deg, #120b28 0%, var(--dusk) 45%, #0c0818 100%);
+      }
+      main {
+        width: min(26rem, 100%);
+        text-align: center;
+      }
+      .mark {
+        width: 4.5rem;
+        height: 4.5rem;
+        margin: 0 auto 1.25rem;
+        filter: drop-shadow(0 12px 24px rgb(0 0 0 / 35%));
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+      }
+      h1 span { color: var(--glow); }
+      p {
+        margin: 0.85rem 0 0;
+        color: #d4ccee;
+        line-height: 1.5;
+        font-size: 1.05rem;
+      }
+      button {
+        margin-top: 1.75rem;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1.25rem;
+        font: inherit;
+        font-weight: 650;
+        color: #1f1347;
+        background: #f4f1ff;
+        cursor: pointer;
+      }
+      button:active { transform: translateY(1px); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#6a4ae0" />
+            <stop offset="1" stop-color="#1a1040" />
+          </linearGradient>
+          <linearGradient id="rock" x1="0" y1="152" x2="0" y2="400" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#f3efff" />
+            <stop offset="1" stop-color="#d4cbf8" />
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="128" fill="url(#bg)" />
+        <path d="M64 400 216 152l80 124 48-64 104 188z" fill="url(#rock)" />
+        <path d="M216 152l44 68-18-8-14 16-16-18-18 14-20-4z" fill="#fff" />
+      </svg>
+      <h1>alpi<span>plan</span></h1>
+      <p id="message">Wir sind gleich wieder da. Die App wird gerade aktualisiert.</p>
+      <button id="retry" type="button">Erneut versuchen</button>
+    </main>
+    <script>
+      const copy = {
+        de: {
+          message: "Wir sind gleich wieder da. Die App wird gerade aktualisiert.",
+          retry: "Erneut versuchen",
+        },
+        en: {
+          message: "We’ll be back soon. The app is being updated.",
+          retry: "Try again",
+        },
+        it: {
+          message: "Torniamo subito. L’app si sta aggiornando.",
+          retry: "Riprova",
+        },
+      };
+      const lang = (navigator.language || "de").slice(0, 2);
+      const text = copy[lang] || copy.de;
+      document.documentElement.lang = copy[lang] ? lang : "de";
+      document.getElementById("message").textContent = text.message;
+      const button = document.getElementById("retry");
+      button.textContent = text.retry;
+
+      function targetUrl() {
+        const hash = location.hash.slice(1);
+        if (!hash) return location.origin + "/";
+        try {
+          return decodeURIComponent(hash);
+        } catch {
+          return location.origin + "/";
+        }
+      }
+
+      button.addEventListener("click", () => {
+        location.href = targetUrl();
+      });
+
+      async function probe() {
+        const target = new URL(targetUrl(), location.href);
+        try {
+          const response = await fetch(target.origin + "/api/health", { cache: "no-store" });
+          if (response.ok) location.href = target.href;
+        } catch {
+          // Still unreachable.
+        }
+      }
+      setInterval(probe, 8000);
+    </script>
+  </body>
+</html>
