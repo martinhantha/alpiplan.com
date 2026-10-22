@@ -5,13 +5,14 @@ definePageMeta({
 });
 
 const config = useRuntimeConfig().public;
+const { t } = useI18n();
 
 const providerName = config.legalName || "Alpiplan";
 const supportEmail = config.supportEmail || "support@alpiplan.com";
 
 useSeoMeta({
-  title: "Support — Alpiplan",
-  description: "Hilfe zur Alpiplan-App: Kontakt, häufige Fragen und Hinweise für Teams.",
+  title: () => t("supportPage.seoTitle"),
+  description: () => t("supportPage.seoDescription"),
   robots: "index, follow",
 });
 </script>
@@ -27,7 +28,7 @@ useSeoMeta({
           class="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
         >
           <UIcon name="i-lucide-arrow-left" class="size-4" />
-          Zur Anmeldung
+          {{ t("supportPage.back") }}
         </NuxtLink>
         <div class="flex items-center gap-3">
           <AppLogo size="sm" />
@@ -35,63 +36,46 @@ useSeoMeta({
         </div>
         <h1 class="font-display text-3xl sm:text-4xl leading-tight">Support</h1>
         <p class="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-          Alpiplan wird von {{ providerName }} betrieben. Hier findest du Ansprechpartner und
-          Antworten auf typische Fragen zur App und zum Web.
+          {{ t("supportPage.intro", { provider: providerName }) }}
         </p>
       </header>
 
       <article class="legal-prose space-y-8">
         <section>
-          <h2>Kontakt</h2>
-          <p>
-            Für technische Probleme, Fehlermeldungen oder Fragen zum Betrieb der Plattform:
-          </p>
+          <h2>{{ t("supportPage.contact") }}</h2>
+          <p>{{ t("supportPage.contactLead") }}</p>
           <p>
             <a :href="`mailto:${supportEmail}`">{{ supportEmail }}</a>
           </p>
-          <p>
-            Bitte gib möglichst an: Gerät (iPhone, Android, Browser), App-Version, Mandant
-            (Organisation) und eine kurze Beschreibung inkl. Screenshots, falls hilfreich.
-          </p>
+          <p>{{ t("supportPage.contactDetails") }}</p>
         </section>
 
         <section>
-          <h2>Zugang &amp; Konto</h2>
-          <p>
-            Alpiplan wird in der Regel über deine Organisation (Skischule, Team) bereitgestellt.
-            Login-Daten, Rollen und Mandantenzugang vergibt der <strong>Administrator deiner
-            Organisation</strong> — nicht der App-Anbieter.
-          </p>
+          <h2>{{ t("supportPage.access") }}</h2>
+          <p>{{ t("supportPage.accessLead") }}</p>
           <ul>
-            <li>
-              Passwort vergessen → auf der Anmeldeseite „Passwort vergessen?“ wählen oder
-              Administrator deiner Organisation um einen Passwort-Link bitten
-            </li>
-            <li>Kein Mandant sichtbar → Administrator um Einladung bitten</li>
-            <li>Neue Organisation / Vertrag → über den Ansprechpartner deines Teams oder {{ supportEmail }}</li>
+            <li>{{ t("supportPage.accessPassword") }}</li>
+            <li>{{ t("supportPage.accessTenant") }}</li>
+            <li>{{ t("supportPage.accessOrg", { email: supportEmail }) }}</li>
           </ul>
         </section>
 
         <section>
-          <h2>Push-Mitteilungen</h2>
+          <h2>{{ t("supportPage.push") }}</h2>
           <ul>
-            <li>In den <strong>Einstellungen</strong> der App Push aktivieren und Berechtigung erteilen</li>
-            <li>iOS: Systemeinstellungen → Mitteilungen → Alpiplan prüfen</li>
-            <li>Web: Browser-Benachrichtigungen erlauben; bei iPhone oft über „Zum Home-Bildschirm“</li>
+            <li>{{ t("supportPage.pushSettings") }}</li>
+            <li>{{ t("supportPage.pushIos") }}</li>
+            <li>{{ t("supportPage.pushWeb") }}</li>
           </ul>
-          <p>
-            Kommen weiterhin keine Mitteilungen an, schreib uns mit Gerätetyp und Uhrzeit eines
-            fehlenden Hinweises.
-          </p>
+          <p>{{ t("supportPage.pushMissing") }}</p>
         </section>
 
         <section>
-          <h2>Datenschutz</h2>
+          <h2>{{ t("supportPage.privacy") }}</h2>
           <p>
-            Informationen zur Datenverarbeitung:
-            <NuxtLink to="/datenschutz">Datenschutzerklärung</NuxtLink>.
-            Datenschutzanfragen zu Kund:innen- oder Termindaten richtest du primär an deine
-            Organisation; der Anbieter unterstützt Mandanten bei technischen Anfragen.
+            {{ t("supportPage.privacyLead") }}
+            <NuxtLink to="/datenschutz">{{ t("supportPage.privacyLink") }}</NuxtLink>.
+            {{ t("supportPage.privacyRest") }}
           </p>
         </section>
       </article>
@@ -99,8 +83,8 @@ useSeoMeta({
       <footer
         class="border-t border-neutral-200 pt-6 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400 flex flex-wrap gap-x-4 gap-y-1"
       >
-        <NuxtLink to="/datenschutz" class="underline underline-offset-2">Datenschutz</NuxtLink>
-        <NuxtLink to="/login" class="underline underline-offset-2">Anmelden</NuxtLink>
+        <NuxtLink to="/datenschutz" class="underline underline-offset-2">{{ t("supportPage.footerPrivacy") }}</NuxtLink>
+        <NuxtLink to="/login" class="underline underline-offset-2">{{ t("supportPage.footerLogin") }}</NuxtLink>
       </footer>
     </div>
   </div>

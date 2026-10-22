@@ -2,10 +2,11 @@
 import type { AppointmentLiveEvent } from "~/types/live-events";
 
 const { alert, dismiss, canAskNotifications, enableNotifications } = useAppointmentAlerts();
+const { t, intlLocale } = useAppLocale();
 
 function formatWhen(value: string | null | undefined) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -22,9 +23,9 @@ const previousWhen = computed(() =>
 );
 
 const headline = computed(() => {
-  if (alert.value?.type === "appointment.moved") return "Termin verschoben";
-  if (alert.value?.type === "appointment.deleted") return "Termin gelöscht";
-  return "Neuer Termin";
+  if (alert.value?.type === "appointment.moved") return t("alerts.moved");
+  if (alert.value?.type === "appointment.deleted") return t("alerts.deleted");
+  return t("alerts.created");
 });
 
 const icon = computed(() => {
@@ -86,13 +87,13 @@ async function openAppointments() {
                 {{ when }}
               </template>
               <span v-if="alert.teacherName"> · {{ alert.teacherName }}</span>
-              <span v-if="alert.type === 'appointment.moved' && alert.actorName"> · von {{ alert.actorName }}</span>
+              <span v-if="alert.type === 'appointment.moved' && alert.actorName"> · {{ t("alerts.byActor", { name: alert.actorName }) }}</span>
             </p>
             <div class="mt-3 flex justify-end gap-2">
               <UButton v-if="canAskNotifications" size="xs" variant="soft" color="neutral" @click="enableNotifications">
-                Mitteilungen
+                {{ t("common.notifications") }}
               </UButton>
-              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">Schließen</UButton>
+              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">{{ t("common.close") }}</UButton>
               <UButton
                 v-if="alert.type !== 'appointment.deleted'"
                 size="xs"
@@ -100,7 +101,7 @@ async function openAppointments() {
                 icon="i-lucide-calendar-days"
                 @click="openAppointments"
               >
-                Ansehen
+                {{ t("common.view") }}
               </UButton>
             </div>
           </div>

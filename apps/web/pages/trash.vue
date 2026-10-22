@@ -30,6 +30,7 @@ interface TrashCounts {
 }
 
 const { primaryTenant, canManageTenant } = useAuth();
+const { t, intlLocale } = useAppLocale();
 
 const items = ref<TrashItem[]>([]);
 const pagination = ref<Pagination>({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
@@ -51,20 +52,13 @@ const filters = reactive({
   kind: "all" as TrashFilter,
 });
 
-const kindOptions: Array<{ value: TrashFilter; label: string }> = [
-  { value: "all", label: "Alle" },
-  { value: "appointment", label: "Termine" },
-  { value: "customer", label: "Kunden" },
-  { value: "lessonType", label: "Termintypen" },
-  { value: "member", label: "Benutzer" },
-];
-
-const kindBadge: Record<TrashKind, { label: string; color: "primary" | "neutral" | "warning" | "success" }> = {
-  appointment: { label: "Termin", color: "primary" },
-  customer: { label: "Kunde", color: "success" },
-  lessonType: { label: "Termintyp", color: "warning" },
-  member: { label: "Benutzer", color: "neutral" },
-};
+const kindOptions = computed<Array<{ value: TrashFilter; label: string }>>(() => [
+  { value: "all", label: t("common.all") },
+  { value: "appointment", label: t("nav.appointments") },
+  { value: "customer", label: t("common.customers") },
+  { value: "lessonType", label: t("nav.lessonTypes") },
+  { value: "member", label: t("nav.users") },
+]);
 
 const canLoad = computed(() => Boolean(primaryTenant.value?.tenantId) && canManageTenant.value);
 
@@ -73,8 +67,15 @@ function countFor(kind: TrashFilter) {
   return counts.value[kind];
 }
 
+const kindBadge = computed<Record<TrashKind, { label: string; color: "primary" | "neutral" | "warning" | "success" }>>(() => ({
+  appointment: { label: t("common.appointment"), color: "primary" },
+  customer: { label: t("common.customer"), color: "success" },
+  lessonType: { label: t("common.lessonType"), color: "warning" },
+  member: { label: t("common.user"), color: "neutral" },
+}));
+
 function formatDeletedAt(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -117,7 +118,7 @@ async function loadTrash() {
       await loadTrash();
     }
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Papierkorb konnte nicht geladen werden");
+    error.value = apiMessage(e, t("trashPage.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -144,10 +145,10 @@ async function restoreItem(item: TrashItem) {
       method: "POST",
       credentials: "include",
     });
-    info.value = `„${item.title}“ wiederhergestellt`;
+    info.value = t("trashPage.restored", { title: item.title });
     await loadTrash();
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Eintrag konnte nicht wiederhergestellt werden");
+    error.value = apiMessage(e, t("trashPage.restoreFailed"));
   } finally {
     restoringId.value = "";
   }
@@ -173,13 +174,13 @@ watch(
 <template>
   <UContainer class="py-8 space-y-5">
     <div>
-      <p class="text-sm text-muted font-medium">Alpiplan · Papierkorb</p>
+      <p class="text-sm text-muted font-medium">{{ t("trashPage.breadcrumb") }}</p>
       <h1 class="font-display text-3xl sm:text-4xl">
-        Papierkorb
+        {{ t("trashPage.title") }}
         <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
       </h1>
       <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-        Gelöschte Daten von <strong>{{ primaryTenant?.tenantName || "—" }}</strong> wiederherstellen.
+        {{ t("trashPage.subtitle", { tenant: primaryTenant?.tenantName || "—" }) }}
       </p>
     </div>
 
@@ -211,11 +212,11 @@ watch(
       <UInput
         v-model="filters.q"
         class="flex-1"
-        placeholder="Suche nach Name, Kontakt oder E-Mail"
+        :placeholder="t('trashPage.searchPlaceholder')"
         icon="i-lucide-search"
       />
       <UButton type="submit" :disabled="!canLoad" :loading="loading" icon="i-lucide-search">
-        Suchen
+        {{ t("common.search") }}
       </UButton>
     </form>
 
@@ -223,13 +224,13 @@ watch(
       v-if="!primaryTenant"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Für den Papierkorb brauchst du eine Mandanten-Mitgliedschaft.
+      {{ t("trashPage.membershipRequired") }}
     </div>
     <div
       v-else-if="!items.length && !loading"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Keine gelöschten Einträge gefunden.
+      {{ t("trashPage.empty") }}
     </div>
     <div v-else class="space-y-3">
       <UCard v-for="item in items" :key="`${item.kind}-${item.id}`">
@@ -245,8 +246,8 @@ watch(
               {{ item.subtitle }}
             </p>
             <p class="text-xs text-neutral-500 mt-1">
-              Gelöscht am {{ formatDeletedAt(item.deletedAt) }}
-              <span v-if="item.deletedByName"> · von {{ item.deletedByName }}</span>
+              {{ t("trashPage.deletedAt", { when: formatDeletedAt(item.deletedAt) }) }}
+              <span v-if="item.deletedByName"> · {{ t("common.byName", { name: item.deletedByName }) }}</span>
             </p>
           </div>
           <UButton
@@ -257,7 +258,7 @@ watch(
             :loading="restoringId === item.id"
             @click="restoreItem(item)"
           >
-            Wiederherstellen
+            {{ t("common.restore") }}
           </UButton>
         </div>
       </UCard>
@@ -275,10 +276,10 @@ watch(
         :disabled="pagination.page <= 1 || loading"
         @click="goToPage(pagination.page - 1)"
       >
-        Zurück
+        {{ t("common.back") }}
       </UButton>
       <span class="text-sm text-neutral-600 dark:text-neutral-400">
-        Seite {{ pagination.page }} / {{ pagination.totalPages }}
+        {{ t("common.pageOf", { page: pagination.page, total: pagination.totalPages }) }}
       </span>
       <UButton
         size="sm"
@@ -288,7 +289,7 @@ watch(
         :disabled="pagination.page >= pagination.totalPages || loading"
         @click="goToPage(pagination.page + 1)"
       >
-        Weiter
+        {{ t("common.next") }}
       </UButton>
     </div>
   </UContainer>

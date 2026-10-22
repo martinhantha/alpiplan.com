@@ -26,6 +26,7 @@ interface SuperadminOverview {
 }
 
 const { user } = useAuth();
+const { t } = useAppLocale();
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 
 const tenants = ref<SuperadminTenant[]>([]);
@@ -47,7 +48,7 @@ const filtered = computed(() => {
   const q = filters.q.trim().toLowerCase();
   if (!q) return tenants.value;
   return tenants.value.filter(
-    (t) => t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q),
+    (tenant) => tenant.name.toLowerCase().includes(q) || tenant.slug.toLowerCase().includes(q),
   );
 });
 
@@ -85,7 +86,7 @@ async function load() {
     }
     memberCounts.value = counts;
   } catch (e: unknown) {
-    setError(apiMessage(e, "Mandanten konnten nicht geladen werden"));
+    setError(apiMessage(e, t("tenantsPage.loadFailed")));
   } finally {
     loading.value = false;
   }
@@ -111,7 +112,7 @@ function openEdit(item: SuperadminTenant) {
 
 async function submit() {
   if (!form.name.trim() || !form.slug.trim()) {
-    setError("Name und Slug sind erforderlich");
+    setError(t("common.nameAndSlugRequired"));
     return;
   }
   loading.value = true;
@@ -127,19 +128,19 @@ async function submit() {
         credentials: "include",
         body,
       });
-      setInfo("Mandant erstellt");
+      setInfo(t("tenantsPage.created"));
     } else if (editingId.value) {
       await $fetch(`/api/admin/tenants/${editingId.value}`, {
         method: "PATCH",
         credentials: "include",
         body,
       });
-      setInfo("Mandant aktualisiert");
+      setInfo(t("tenantsPage.updated"));
     }
     dialogOpen.value = false;
     await load();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Speichern fehlgeschlagen"));
+    setError(apiMessage(e, t("common.saveFailed")));
   } finally {
     loading.value = false;
   }
@@ -151,19 +152,19 @@ onMounted(load);
 <template>
   <UContainer class="py-8 space-y-5">
     <div v-if="!isSuperadmin" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-      Diese Seite ist nur für Superadmins zugänglich.
+      {{ t("tenantsPage.superadminOnly") }}
     </div>
     <template v-else>
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p class="text-sm text-muted font-medium">Alpiplan · Mandanten</p>
+          <p class="text-sm text-muted font-medium">{{ t("tenantsPage.breadcrumb") }}</p>
           <h1 class="font-display text-3xl sm:text-4xl">
-            Mandanten
+            {{ t("tenantsPage.title") }}
             <span class="ml-2 text-sm font-normal text-neutral-500">({{ filtered.length }})</span>
           </h1>
           <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
             <UBadge color="secondary" variant="soft">SUPERADMIN</UBadge>
-            <span class="ml-2">Alle Mandanten im System</span>
+            <span class="ml-2">{{ t("tenantsPage.allInSystem") }}</span>
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -173,7 +174,7 @@ onMounted(load);
             icon="i-lucide-filter"
             @click="filterOpen = !filterOpen"
           >
-            Filter
+            {{ t("common.filter") }}
             <UBadge v-if="activeFilterCount" color="primary" variant="subtle" class="ml-1">
               {{ activeFilterCount }}
             </UBadge>
@@ -183,7 +184,7 @@ onMounted(load);
             />
           </UButton>
           <UButton icon="i-lucide-plus" color="primary" @click="openCreate">
-            Mandant hinzufügen
+            {{ t("tenantsPage.add") }}
           </UButton>
         </div>
       </div>
@@ -194,12 +195,12 @@ onMounted(load);
       <UCard v-if="filterOpen">
         <template #header>
           <div class="flex items-center justify-between gap-3">
-            <h2 class="font-medium">Filter</h2>
+            <h2 class="font-medium">{{ t("common.filter") }}</h2>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
           </div>
         </template>
         <div class="grid gap-3 md:grid-cols-3">
-          <UInput v-model="filters.q" placeholder="Suche Name oder Slug" />
+          <UInput v-model="filters.q" :placeholder="t('common.searchNameOrSlug')" />
         </div>
       </UCard>
 
@@ -207,7 +208,7 @@ onMounted(load);
         v-if="!filtered.length && !loading"
         class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
       >
-        Keine Mandanten vorhanden.
+        {{ t("tenantsPage.empty") }}
       </div>
       <div v-else class="space-y-3">
         <UCard v-for="item in filtered" :key="item.id">
@@ -217,10 +218,10 @@ onMounted(load);
               <p class="text-xs text-neutral-500 truncate">{{ item.slug }}</p>
               <div class="mt-2 flex flex-wrap gap-1">
                 <UBadge color="primary" variant="subtle">
-                  {{ memberCounts[item.id] ?? 0 }} Mitglieder
+                  {{ t("common.membersCount", { count: memberCounts[item.id] ?? 0 }) }}
                 </UBadge>
                 <UBadge :color="item.useDefaultDuration ? 'success' : 'neutral'" variant="subtle">
-                  Dauer {{ item.useDefaultDuration ? "an" : "aus" }}
+                  {{ item.useDefaultDuration ? t("tenantsPage.durationOn") : t("tenantsPage.durationOff") }}
                 </UBadge>
               </div>
             </div>
@@ -233,7 +234,7 @@ onMounted(load);
                 :loading="savingId === item.id"
                 @click="openEdit(item)"
               >
-                Bearbeiten
+                {{ t("common.edit") }}
               </UButton>
             </div>
           </div>
@@ -244,25 +245,25 @@ onMounted(load);
         <template #header>
           <div class="flex items-center justify-between gap-3 w-full">
             <h2 class="font-medium">
-              {{ dialogMode === "create" ? "Mandant hinzufügen" : "Mandant bearbeiten" }}
+              {{ dialogMode === "create" ? t("tenantsPage.add") : t("tenantsPage.edit") }}
             </h2>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="dialogOpen = false" />
           </div>
         </template>
         <template #body>
           <form class="space-y-3" @submit.prevent="submit">
-            <UFormField label="Name">
-              <UInput v-model="form.name" placeholder="z. B. Musikschule Beispiel" />
+            <UFormField :label="t('common.name')">
+              <UInput v-model="form.name" :placeholder="t('tenantsPage.namePlaceholder')" />
             </UFormField>
-            <UFormField label="Slug" hint="Klein­buch­staben, Ziffern, Bindestriche">
-              <UInput v-model="form.slug" placeholder="musikschule-beispiel" />
+            <UFormField :label="t('common.slug')" :hint="t('tenantsPage.slugHint')">
+              <UInput v-model="form.slug" :placeholder="t('tenantsPage.slugPlaceholder')" />
             </UFormField>
             <label class="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300 mt-2">
               <input v-model="form.useDefaultDuration" type="checkbox" class="mt-1" />
               <span>
-                <span class="font-medium">Standard-Dauer bei Termintypen verwenden</span>
+                <span class="font-medium">{{ t("tenantsPage.defaultDuration") }}</span>
                 <span class="block text-xs text-neutral-500 mt-0.5">
-                  Wenn deaktiviert, hat ein Termintyp keine Standard-Dauer. Termin-Dauer wird dann pro Termin manuell gesetzt.
+                  {{ t("tenantsPage.defaultDurationHint") }}
                 </span>
               </span>
             </label>
@@ -270,14 +271,14 @@ onMounted(load);
         </template>
         <template #footer>
           <div class="flex justify-end gap-2 w-full">
-            <UButton variant="ghost" color="neutral" @click="dialogOpen = false">Abbrechen</UButton>
+            <UButton variant="ghost" color="neutral" @click="dialogOpen = false">{{ t("common.cancel") }}</UButton>
             <UButton
               color="primary"
               :loading="loading"
               :icon="dialogMode === 'create' ? 'i-lucide-plus' : 'i-lucide-save'"
               @click="submit"
             >
-              {{ dialogMode === "create" ? "Hinzufügen" : "Speichern" }}
+              {{ dialogMode === "create" ? t("common.add") : t("common.save") }}
             </UButton>
           </div>
         </template>

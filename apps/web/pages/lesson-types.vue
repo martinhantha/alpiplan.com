@@ -21,6 +21,7 @@ interface TeacherOption {
 }
 
 const { user, primaryTenant, teacherLabel } = useAuth();
+const { t } = useAppLocale();
 
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 const isTenantAdmin = computed(() => primaryTenant.value?.role === "ADMIN");
@@ -94,7 +95,7 @@ async function load() {
     lessonTypes.value = response.data;
     teachers.value = options.teachers;
   } catch (e: unknown) {
-    setError(apiMessage(e, "Termintypen konnten nicht geladen werden"));
+    setError(apiMessage(e, t("lessonTypesPage.loadFailed")));
   } finally {
     loading.value = false;
   }
@@ -123,7 +124,7 @@ function openEdit(item: LessonType) {
 async function submit() {
   if (!primaryTenant.value?.tenantId) return;
   if (!form.name.trim()) {
-    setError("Name ist erforderlich");
+    setError(t("common.nameRequired"));
     return;
   }
   loading.value = true;
@@ -140,18 +141,18 @@ async function submit() {
         credentials: "include",
         body,
       });
-      setInfo("Termintyp erstellt");
+      setInfo(t("lessonTypesPage.created"));
     } else if (editingId.value) {
       await $fetch(
         `/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types/${editingId.value}`,
         { method: "PATCH", credentials: "include", body },
       );
-      setInfo("Termintyp aktualisiert");
+      setInfo(t("lessonTypesPage.updated"));
     }
     dialogOpen.value = false;
     await load();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Speichern fehlgeschlagen"));
+    setError(apiMessage(e, t("common.saveFailed")));
   } finally {
     loading.value = false;
   }
@@ -159,17 +160,17 @@ async function submit() {
 
 async function remove(item: LessonType) {
   if (!primaryTenant.value?.tenantId) return;
-  if (!confirm(`Termintyp „${item.name}“ löschen? Er kann im Papierkorb wiederhergestellt werden.`)) return;
+  if (!confirm(t("lessonTypesPage.deleteConfirm", { name: item.name }))) return;
   savingId.value = item.id;
   try {
     await $fetch(
       `/api/v1/tenants/${primaryTenant.value.tenantId}/lesson-types/${item.id}`,
       { method: "DELETE", credentials: "include" },
     );
-    setInfo("Termintyp gelöscht");
+    setInfo(t("lessonTypesPage.deleted"));
     await load();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Löschen fehlgeschlagen"));
+    setError(apiMessage(e, t("common.deleteFailed")));
   } finally {
     savingId.value = "";
   }
@@ -183,13 +184,13 @@ watch(() => primaryTenant.value?.tenantId, load);
   <UContainer class="py-8 space-y-5">
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
-        <p class="text-sm text-muted font-medium">Alpiplan · Termintypen</p>
+        <p class="text-sm text-muted font-medium">{{ t("lessonTypesPage.breadcrumb") }}</p>
         <h1 class="font-display text-3xl sm:text-4xl">
-          Termintypen
+          {{ t("lessonTypesPage.title") }}
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ filtered.length }})</span>
         </h1>
         <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Mandant <strong>{{ primaryTenant?.tenantName || "—" }}</strong>
+          {{ t("lessonTypesPage.tenant") }} <strong>{{ primaryTenant?.tenantName || "—" }}</strong>
           <UBadge v-if="canEdit" color="primary" variant="subtle" class="ml-1">{{ isSuperadmin ? 'SUPERADMIN' : 'ADMIN' }}</UBadge>
         </p>
       </div>
@@ -200,7 +201,7 @@ watch(() => primaryTenant.value?.tenantId, load);
           icon="i-lucide-filter"
           @click="filterOpen = !filterOpen"
         >
-          Filter
+          {{ t("common.filter") }}
           <UBadge v-if="activeFilterCount" color="primary" variant="subtle" class="ml-1">
             {{ activeFilterCount }}
           </UBadge>
@@ -215,7 +216,7 @@ watch(() => primaryTenant.value?.tenantId, load);
           color="primary"
           @click="openCreate"
         >
-          Termintyp hinzufügen
+          {{ t("lessonTypesPage.add") }}
         </UButton>
       </div>
     </div>
@@ -226,12 +227,12 @@ watch(() => primaryTenant.value?.tenantId, load);
     <UCard v-if="filterOpen">
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <h2 class="font-medium">Filter</h2>
+          <h2 class="font-medium">{{ t("common.filter") }}</h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
         </div>
       </template>
       <div class="grid gap-3 md:grid-cols-3">
-        <UInput v-model="filters.q" placeholder="Suche nach Name" />
+        <UInput v-model="filters.q" :placeholder="t('lessonTypesPage.search')" />
       </div>
     </UCard>
 
@@ -239,7 +240,7 @@ watch(() => primaryTenant.value?.tenantId, load);
       v-if="!filtered.length && !loading"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Keine Termintypen vorhanden.
+      {{ t("lessonTypesPage.empty") }}
     </div>
     <div v-else class="space-y-3">
       <UCard v-for="item in filtered" :key="item.id">
@@ -249,18 +250,18 @@ watch(() => primaryTenant.value?.tenantId, load);
               <span
                 class="size-3 shrink-0 rounded-full"
                 :style="{ backgroundColor: avatarColor(item.id, item.color) }"
-                :title="item.color ? 'Eigene Farbe' : 'Automatische Farbe'"
+                :title="item.color ? t('colorPicker.customTitle') : t('colorPicker.autoTitle')"
               />
               <span class="truncate">{{ item.name }}</span>
             </p>
             <p v-if="useDuration" class="text-xs text-neutral-500 mt-1">
-              Standard-Dauer:
+              {{ t("lessonTypesPage.defaultDuration") }}
               <span class="font-medium">
-                {{ item.defaultDurationMin ? `${item.defaultDurationMin} min` : "—" }}
+                {{ item.defaultDurationMin ? t("lessonTypesPage.minutes", { minutes: item.defaultDurationMin }) : "—" }}
               </span>
             </p>
             <p v-if="item.teacherIds?.length" class="text-xs text-neutral-500 mt-1">
-              Bevorzugte {{ teacherLabel }}:
+              {{ t("lessonTypesPage.preferred", { teacher: teacherLabel }) }}
               <span class="font-medium">{{ teacherNames(item.teacherIds) }}</span>
             </p>
           </div>
@@ -272,7 +273,7 @@ watch(() => primaryTenant.value?.tenantId, load);
               icon="i-lucide-pencil"
               @click="openEdit(item)"
             >
-              Bearbeiten
+              {{ t("common.edit") }}
             </UButton>
             <UButton
               size="sm"
@@ -282,7 +283,7 @@ watch(() => primaryTenant.value?.tenantId, load);
               :loading="savingId === item.id"
               @click="remove(item)"
             >
-              Löschen
+              {{ t("common.delete") }}
             </UButton>
           </div>
         </div>
@@ -293,17 +294,17 @@ watch(() => primaryTenant.value?.tenantId, load);
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
           <h2 class="font-medium">
-            {{ dialogMode === "create" ? "Termintyp hinzufügen" : "Termintyp bearbeiten" }}
+            {{ dialogMode === "create" ? t("lessonTypesPage.add") : t("lessonTypesPage.edit") }}
           </h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="dialogOpen = false" />
         </div>
       </template>
       <template #body>
         <form class="space-y-3" @submit.prevent="submit">
-          <UFormField label="Name">
-            <UInput v-model="form.name" placeholder="z. B. Klavier 30min" />
+          <UFormField :label="t('common.name')">
+            <UInput v-model="form.name" :placeholder="t('lessonTypesPage.namePlaceholder')" />
           </UFormField>
-          <UFormField label="Farbe" help="Hintergrund der Termine in der Zeitachse. Der Streifen links zeigt die Farbe der Person.">
+          <UFormField :label="t('common.color')" :help="t('lessonTypesPage.colorHelp')">
             <TeacherColorPicker
               v-if="editingId"
               :teacher-id="editingId"
@@ -311,10 +312,10 @@ watch(() => primaryTenant.value?.tenantId, load);
               @change="form.color = $event"
             />
             <p v-else class="text-xs text-neutral-500">
-              Wird automatisch vergeben und kann danach beim Bearbeiten geändert werden.
+              {{ t("lessonTypesPage.colorLater") }}
             </p>
           </UFormField>
-          <UFormField v-if="useDuration" label="Standard-Dauer (Minuten)" hint="optional, 5 – 1440">
+          <UFormField v-if="useDuration" :label="t('lessonTypesPage.durationLabel')" :hint="t('lessonTypesPage.durationHint')">
             <UInput v-model.number="form.defaultDurationMin" type="number" min="5" max="1440" />
           </UFormField>
           <UAlert
@@ -322,16 +323,16 @@ watch(() => primaryTenant.value?.tenantId, load);
             color="neutral"
             variant="subtle"
             icon="i-lucide-info"
-            title="Dauer ist für diesen Mandanten deaktiviert"
-            description="Die Termin-Dauer wird pro Termin manuell gesetzt."
+            :title="t('lessonTypesPage.durationOffTitle')"
+            :description="t('lessonTypesPage.durationOffBody')"
           />
           <p v-if="!useDuration" class="text-xs text-neutral-500">
-            Aktivieren in <strong>Einstellungen → Allgemein</strong>.
+            {{ t("lessonTypesPage.enableInSettings") }}
           </p>
           <UFormField
-            :label="`Bevorzugte ${teacherLabel}`"
-            hint="optional"
-            help="Werden in der Schnellerfassung zuerst vorgeschlagen und automatisch ausgewählt, wenn frei. Danach folgt die Priorität."
+            :label="t('lessonTypesPage.preferredLabel', { teacher: teacherLabel })"
+            :hint="t('common.optional')"
+            :help="t('lessonTypesPage.preferredHelp')"
           >
             <TeacherPicker v-model="form.teacherIds" :options="teachers" :label="teacherLabel" />
           </UFormField>
@@ -339,14 +340,14 @@ watch(() => primaryTenant.value?.tenantId, load);
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UButton variant="ghost" color="neutral" @click="dialogOpen = false">Abbrechen</UButton>
+          <UButton variant="ghost" color="neutral" @click="dialogOpen = false">{{ t("common.cancel") }}</UButton>
           <UButton
             color="primary"
             :loading="loading"
             :icon="dialogMode === 'create' ? 'i-lucide-plus' : 'i-lucide-save'"
             @click="submit"
           >
-            {{ dialogMode === "create" ? "Hinzufügen" : "Speichern" }}
+            {{ dialogMode === "create" ? t("common.add") : t("common.save") }}
           </UButton>
         </div>
       </template>

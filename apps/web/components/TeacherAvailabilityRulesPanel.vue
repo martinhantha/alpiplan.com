@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
 
 interface AvailabilityRule {
@@ -25,6 +25,8 @@ const emit = defineEmits<{
   error: [message: string];
 }>();
 
+const { t, intlLocale } = useAppLocale();
+
 const rules = ref<AvailabilityRule[]>([]);
 const loading = ref(false);
 const form = reactive({
@@ -37,13 +39,20 @@ const form = reactive({
   priority: 0,
 });
 
-const weekdayLabels = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const weekdayOrder = [1, 2, 3, 4, 5, 6, 0];
-const weekdayPresets = [
-  { label: "Mo–Fr", days: [1, 2, 3, 4, 5] },
-  { label: "Wochenende", days: [6, 0] },
-  { label: "Alle", days: [1, 2, 3, 4, 5, 6, 0] },
-];
+const weekdayLabels = computed(() => {
+  const sunday = new Date(Date.UTC(2024, 0, 7));
+  return Array.from({ length: 7 }, (_, day) => {
+    const date = new Date(sunday);
+    date.setUTCDate(sunday.getUTCDate() + day);
+    return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", timeZone: "UTC" }).format(date);
+  });
+});
+const weekdayPresets = computed(() => [
+  { label: t("availability.weekdaysShort"), days: [1, 2, 3, 4, 5] },
+  { label: t("availability.weekend"), days: [6, 0] },
+  { label: t("common.all"), days: [1, 2, 3, 4, 5, 6, 0] },
+]);
 
 function apiMessage(e: unknown, fallback: string) {
   const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
@@ -66,7 +75,7 @@ function formatWeekdays(days: number[]): string {
   let from = ordered[0]!;
   let prev = ordered[0]!;
   const flush = (start: number, end: number) => {
-    ranges.push(start === end ? weekdayLabels[start]! : `${weekdayLabels[start]}–${weekdayLabels[end]}`);
+    ranges.push(start === end ? weekdayLabels.value[start]! : `${weekdayLabels.value[start]}–${weekdayLabels.value[end]}`);
   };
   for (let i = 1; i < ordered.length; i += 1) {
     const day = ordered[i]!;
@@ -88,7 +97,7 @@ function ruleDays(item: AvailabilityRule): number[] {
 
 function ruleTimeLabel(item: AvailabilityRule): string {
   if (item.allDay || (item.kind === "unavailable" && item.startTime === "00:00" && item.endTime === "23:59")) {
-    return "ganzer Tag";
+    return t("common.wholeDay");
   }
   return `${item.startTime}–${item.endTime}`;
 }
@@ -113,7 +122,7 @@ async function load() {
     const response = await $fetch<{ data: AvailabilityRule[] }>(basePath(), { credentials: "include" });
     rules.value = response.data;
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Verfügbarkeit konnte nicht geladen werden"));
+    emit("error", apiMessage(e, t("availability.loadFailed")));
   } finally {
     loading.value = false;
   }
@@ -154,7 +163,7 @@ async function save() {
   if (!props.tenantId || !props.teacherId) return;
   const days = orderedWeekdays(form.weekdays);
   if (!days.length) {
-    emit("error", "Mindestens einen Wochentag wählen");
+    emit("error", t("availability.pickDay"));
     return;
   }
   loading.value = true;
@@ -170,15 +179,15 @@ async function save() {
     };
     if (form.id) {
       await $fetch(`${basePath()}/${form.id}`, { method: "PATCH", credentials: "include", body });
-      emit("info", "Regel aktualisiert");
+      emit("info", t("availability.updated"));
     } else {
       await $fetch(basePath(), { method: "POST", credentials: "include", body });
-      emit("info", days.length > 1 ? `Regel für ${days.length} Tage angelegt` : "Regel angelegt");
+      emit("info", days.length > 1 ? t("availability.createdMany", { count: days.length }) : t("availability.created"));
     }
     resetForm();
     await load();
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Regel konnte nicht gespeichert werden"));
+    emit("error", apiMessage(e, t("availability.saveFailed")));
   } finally {
     loading.value = false;
   }
@@ -186,14 +195,14 @@ async function save() {
 
 async function remove(item: AvailabilityRule) {
   if (!props.tenantId || !props.teacherId) return;
-  if (!confirm(`Regel ${formatWeekdays(ruleDays(item))} · ${ruleTimeLabel(item)} löschen?`)) return;
+  if (!confirm(t("availability.deleteConfirm", { days: formatWeekdays(ruleDays(item)), time: ruleTimeLabel(item) }))) return;
   try {
     await $fetch(`${basePath()}/${item.id}`, { method: "DELETE", credentials: "include" });
-    emit("info", "Regel gelöscht");
+    emit("info", t("availability.deleted"));
     if (form.id === item.id) resetForm();
     await load();
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Regel konnte nicht gelöscht werden"));
+    emit("error", apiMessage(e, t("availability.deleteFailed")));
   }
 }
 
@@ -212,12 +221,12 @@ watch(
     <UCard class="lg:col-span-2">
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <h2 class="font-medium">Standard-Uhrzeiten ({{ rules.length }})</h2>
+          <h2 class="font-medium">{{ t("availability.title", { count: rules.length }) }}</h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load" />
         </div>
       </template>
       <div v-if="!rules.length" class="text-sm text-neutral-500">
-        Noch keine Standard-Uhrzeiten für diesen {{ teacherLabel }}.
+        {{ t("availability.empty", { teacher: teacherLabel }) }}
       </div>
       <div v-else class="divide-y divide-neutral-200 dark:divide-neutral-800">
         <div v-for="item in rules" :key="item.id" class="flex items-center justify-between py-2 gap-3">
@@ -226,8 +235,8 @@ watch(
               {{ formatWeekdays(ruleDays(item)) }} · {{ ruleTimeLabel(item) }}
             </p>
             <p class="text-xs text-neutral-500">
-              {{ item.kind === "unavailable" ? "Nicht verfügbar" : "Verfügbar" }}
-              <span v-if="item.kind !== 'unavailable'"> · Priorität {{ item.priority }}</span>
+              {{ item.kind === "unavailable" ? t("blocks.unavailable") : t("blocks.available") }}
+              <span v-if="item.kind !== 'unavailable'"> · {{ t("availability.priority", { priority: item.priority }) }}</span>
             </p>
           </div>
           <div class="flex gap-1">
@@ -240,10 +249,10 @@ watch(
 
     <UCard>
       <template #header>
-        <h2 class="font-medium">{{ form.id ? "Regel bearbeiten" : "Neue Regel" }}</h2>
+        <h2 class="font-medium">{{ form.id ? t("availability.edit") : t("availability.create") }}</h2>
       </template>
       <form class="space-y-3" @submit.prevent="save">
-        <UFormField label="Art">
+        <UFormField :label="t('common.kind')">
           <div class="flex flex-wrap gap-1.5">
             <button
               type="button"
@@ -255,7 +264,7 @@ watch(
               "
               @click="setKind('available')"
             >
-              Verfügbar
+              {{ t("blocks.available") }}
             </button>
             <button
               type="button"
@@ -267,14 +276,14 @@ watch(
               "
               @click="setKind('unavailable')"
             >
-              Nicht verfügbar
+              {{ t("blocks.unavailable") }}
             </button>
           </div>
           <p class="mt-1 text-xs text-neutral-500">
-            Mehrere Tage bleiben eine Regel. „Nicht verfügbar“ blockiert ganze Tage oder einzelne Stunden.
+            {{ t("availability.multiDay") }}
           </p>
         </UFormField>
-        <UFormField label="Wochentage">
+        <UFormField :label="t('availability.weekdays')">
           <div class="flex flex-wrap gap-1.5">
             <button
               v-for="day in weekdayOrder"
@@ -306,28 +315,28 @@ watch(
         </UFormField>
         <label v-if="form.kind === 'unavailable'" class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
           <input v-model="form.allDay" type="checkbox" />
-          Ganzer Tag
+          {{ t("common.allDay") }}
         </label>
         <div v-if="!(form.kind === 'unavailable' && form.allDay)" class="grid grid-cols-2 gap-2">
-          <UFormField label="Von">
+          <UFormField :label="t('common.from')">
             <UInput v-model="form.startTime" type="time" />
           </UFormField>
-          <UFormField label="Bis">
+          <UFormField :label="t('common.to')">
             <UInput v-model="form.endTime" type="time" />
           </UFormField>
         </div>
         <UFormField
           v-if="form.kind === 'available'"
-          label="Priorität"
-          hint="Höhere Zahl = wird zuerst als nächster freier Termin vorgeschlagen"
+          :label="t('common.priority')"
+          :hint="t('availability.priorityHint')"
         >
           <UInput v-model.number="form.priority" type="number" />
         </UFormField>
         <div class="flex gap-2">
           <UButton type="submit" color="primary" :loading="loading" :disabled="!teacherId">
-            {{ form.id ? "Speichern" : "Anlegen" }}
+            {{ form.id ? t("common.save") : t("common.create") }}
           </UButton>
-          <UButton v-if="form.id" variant="ghost" color="neutral" @click="resetForm">Abbrechen</UButton>
+          <UButton v-if="form.id" variant="ghost" color="neutral" @click="resetForm">{{ t("common.cancel") }}</UButton>
         </div>
       </form>
     </UCard>

@@ -214,10 +214,10 @@ async function saveTenantSettings(patch: {
       lastSavedDefaultLessonTypeId.value = defaultLessonTypeIdLocal.value;
     }
     await refreshSession();
-    setInfo("Mandanten-Einstellungen gespeichert");
+    setInfo(t("settingsPage.saved"));
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
-    setError(err.data?.data?.message || err.data?.message || err.statusMessage || "Speichern fehlgeschlagen");
+    setError(err.data?.data?.message || err.data?.message || err.statusMessage || t("common.saveFailed"));
     useDefaultDurationLocal.value = primaryTenant.value?.useDefaultDuration ?? true;
     resourcesEnabledLocal.value = primaryTenant.value?.resourcesEnabled ?? true;
     speechRecognitionEnabledLocal.value = primaryTenant.value?.speechRecognitionEnabled ?? false;
@@ -271,12 +271,12 @@ async function saveNextDayBriefing(enabled: boolean) {
     });
     setInfo(
       enabled
-        ? `Vortags-Info aktiv – um ${nextDayBriefingTimeLocal.value} Uhr, wenn morgen Termine anstehen.`
-        : "Vortags-Info deaktiviert.",
+        ? t("settingsPage.briefingOn", { time: nextDayBriefingTimeLocal.value })
+        : t("settingsPage.briefingOff"),
     );
   } catch (e: unknown) {
     nextDayBriefingEnabledLocal.value = user.value?.nextDayBriefingEnabled !== false;
-    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+    setError(apiMessage(e, t("common.settingSaveFailed")));
   } finally {
     briefingSaving.value = false;
   }
@@ -294,7 +294,7 @@ async function saveUiScale(scale: UiScale) {
     setInfo(t("uiScale.saved"));
   } catch (e: unknown) {
     uiScaleLocal.value = normalizeUiScale(user.value?.uiScale);
-    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+    setError(apiMessage(e, t("common.settingSaveFailed")));
   } finally {
     uiScaleSaving.value = false;
   }
@@ -309,10 +309,10 @@ async function saveReminder(enabled: boolean) {
       credentials: "include",
       body: { appointmentReminderEnabled: enabled },
     });
-    setInfo(enabled ? "Erinnerung 15 Minuten vor deinen Terminen aktiv." : "Terminerinnerung deaktiviert.");
+    setInfo(enabled ? t("settingsPage.reminderOn") : t("settingsPage.reminderOff"));
   } catch (e: unknown) {
     reminderEnabledLocal.value = user.value?.appointmentReminderEnabled !== false;
-    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+    setError(apiMessage(e, t("common.settingSaveFailed")));
   } finally {
     reminderSaving.value = false;
   }
@@ -329,12 +329,12 @@ async function saveMovedAlerts(enabled: boolean) {
     });
     setInfo(
       enabled
-        ? "Du wirst benachrichtigt, wenn jemand einen Termin verschiebt."
-        : "Keine Benachrichtigung mehr bei verschobenen Terminen anderer.",
+        ? t("settingsPage.movedOn")
+        : t("settingsPage.movedOff"),
     );
   } catch (e: unknown) {
     movedAlertsEnabledLocal.value = user.value?.appointmentMovedAlertsEnabled !== false;
-    setError(apiMessage(e, "Einstellung konnte nicht gespeichert werden"));
+    setError(apiMessage(e, t("common.settingSaveFailed")));
   } finally {
     movedAlertsSaving.value = false;
   }
@@ -355,10 +355,10 @@ async function saveNextDayBriefingTime() {
       credentials: "include",
       body: { nextDayBriefingMinutes: minutes },
     });
-    setInfo(`Vortags-Info kommt ab jetzt um ${formatBriefingTime(minutes)} Uhr.`);
+    setInfo(t("settingsPage.briefingTime", { time: formatBriefingTime(minutes) }));
   } catch (e: unknown) {
     nextDayBriefingTimeLocal.value = formatBriefingTime(savedMinutes);
-    setError(apiMessage(e, "Uhrzeit konnte nicht gespeichert werden"));
+    setError(apiMessage(e, t("settingsPage.timeSaveFailed")));
   } finally {
     briefingSaving.value = false;
   }
@@ -376,15 +376,15 @@ async function toggleWebPush(enabled: boolean) {
   try {
     if (enabled) {
       webPush.value = await enableWebPush();
-      if (webPush.value === "subscribed") setInfo("Push auf diesem Gerät aktiv – auch wenn Alpiplan geschlossen ist.");
-      else if (webPush.value === "denied") setError("Mitteilungen sind für Alpiplan blockiert – siehe Hinweis unter „Push auf diesem Gerät“.");
+      if (webPush.value === "subscribed") setInfo(t("settingsPage.pushOn"));
+      else if (webPush.value === "denied") setError(t("settingsPage.pushBlocked"));
     } else {
       await disableWebPush();
       await refreshWebPushState();
-      setInfo("Push auf diesem Gerät deaktiviert.");
+      setInfo(t("settingsPage.pushOff"));
     }
   } catch (e: unknown) {
-    setError(apiMessage(e, `Push konnte nicht eingerichtet werden (${webPushErrorDetail(e)})`));
+    setError(apiMessage(e, t("settingsPage.pushSetupFailed", { detail: webPushErrorDetail(e) })));
     await refreshWebPushState();
   } finally {
     webPushSaving.value = false;
@@ -398,12 +398,12 @@ async function toggleCallHints(enabled: boolean) {
     callHintsEnabled.value = enabled && isCallHintsOptIn();
     setInfo(
       callHintsEnabled.value
-        ? "Letzte Anrufe werden nur lokal als Vorschlag genutzt — nicht an den Server gesendet."
-        : "Anruf-Vorschläge sind deaktiviert.",
+        ? t("settingsPage.callHintsOn")
+        : t("settingsPage.callHintsOff"),
     );
   } catch (e: unknown) {
     callHintsEnabled.value = false;
-    setError(e instanceof Error ? e.message : "Anruf-Vorschläge konnten nicht aktiviert werden");
+    setError(e instanceof Error ? e.message : t("settingsPage.callHintsFailed"));
   } finally {
     callHintsSaving.value = false;
   }
@@ -424,7 +424,7 @@ async function loadLessonTypes() {
     );
     lessonTypes.value = response.data;
   } catch (e: unknown) {
-    setError(apiMessage(e, "Terminarten konnten nicht geladen werden"));
+    setError(apiMessage(e, t("settingsPage.lessonTypesLoadFailed")));
   }
 }
 
@@ -548,15 +548,14 @@ onBeforeUnmount(() => {
         </div>
       </UCard>
       <UCard class="lg:col-span-2">
-        <template #header><h2 class="font-medium">Benachrichtigungen</h2></template>
+        <template #header><h2 class="font-medium">{{ t("settingsPage.notifications") }}</h2></template>
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="font-medium">Termine am nächsten Tag</p>
+            <p class="font-medium">{{ t("settingsPage.nextDayTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Am Vorabend eine Übersicht für den nächsten Tag, wenn du eigene Termine hast — wie viele und wann.
-              Standardmäßig aktiv, um 20:00 Uhr.
+              {{ t("settingsPage.nextDayHint") }}
             </p>
-            <UFormField v-if="nextDayBriefingEnabledLocal" label="Uhrzeit" class="mt-3 w-32">
+            <UFormField v-if="nextDayBriefingEnabledLocal" :label="t('settingsPage.time')" class="mt-3 w-32">
               <UInput
                 v-model="nextDayBriefingTimeLocal"
                 type="time"
@@ -578,9 +577,9 @@ onBeforeUnmount(() => {
         </div>
         <div class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
           <div>
-            <p class="font-medium">Erinnerung vor dem Termin</p>
+            <p class="font-medium">{{ t("settingsPage.reminderTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              15 Minuten vor deinen eigenen Terminen eine Benachrichtigung. Standardmäßig aktiv.
+              {{ t("settingsPage.reminderHint") }}
             </p>
           </div>
           <label class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer">
@@ -599,10 +598,9 @@ onBeforeUnmount(() => {
           class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800"
         >
           <div>
-            <p class="font-medium">Verschobene Termine</p>
+            <p class="font-medium">{{ t("settingsPage.movedTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Als Admin eine Push-Nachricht, wenn jemand anderes einen Termin zeitlich oder auf eine andere Person
-              verschiebt. Standardmäßig aktiv.
+              {{ t("settingsPage.movedHint") }}
             </p>
           </div>
           <label class="relative inline-flex items-center shrink-0 mt-1 cursor-pointer">
@@ -621,21 +619,18 @@ onBeforeUnmount(() => {
           class="mt-4 flex items-start justify-between gap-4 border-t border-neutral-200 pt-4 dark:border-neutral-800"
         >
           <div>
-            <p class="font-medium">Push auf diesem Gerät</p>
+            <p class="font-medium">{{ t("settingsPage.pushTitle") }}</p>
             <p v-if="webPush === 'needs-install'" class="text-xs text-neutral-500 mt-1">
-              Auf iPhone/iPad: in Safari <strong>Teilen</strong> → <strong>Zum Home-Bildschirm</strong> antippen,
-              Alpiplan dann über das neue Symbol öffnen und hier Push einschalten.
+              {{ t("settingsPage.pushNeedsInstall") }}
             </p>
             <p v-else-if="webPush === 'not-configured'" class="text-xs text-neutral-500 mt-1">
-              Web-Push ist auf dem Server noch nicht eingerichtet.
+              {{ t("settingsPage.pushNotConfigured") }}
             </p>
             <p v-else-if="webPush === 'denied'" class="text-xs text-neutral-500 mt-1">
-              Mitteilungen sind blockiert. Auf iPhone/iPad: <strong>Einstellungen → Mitteilungen → Alpiplan</strong>
-              → „Mitteilungen erlauben“. Fehlt Alpiplan dort, das Symbol vom Home-Bildschirm löschen, über Safari neu
-              hinzufügen und Push erneut einschalten. Am Computer: Website-Einstellungen des Browsers.
+              {{ t("settingsPage.pushDenied") }}
             </p>
             <p v-else class="text-xs text-neutral-500 mt-1">
-              Neue und verschobene Termine, Erinnerungen und die Vortags-Info — auch wenn Alpiplan geschlossen ist.
+              {{ t("settingsPage.pushReady") }}
             </p>
           </div>
           <label
@@ -654,41 +649,37 @@ onBeforeUnmount(() => {
         </div>
       </UCard>
       <UCard class="lg:col-span-2">
-        <template #header><h2 class="font-medium">Dieses Gerät</h2></template>
+        <template #header><h2 class="font-medium">{{ t("settingsPage.device") }}</h2></template>
         <div class="space-y-4 text-sm">
           <p>
-            <span class="text-neutral-500">Umgebung:</span>
+            <span class="text-neutral-500">{{ t("settingsPage.environment") }}:</span>
             {{
               device.platform === "android"
-                ? "Android-App"
+                ? t("settingsPage.androidApp")
                 : device.platform === "ios"
-                  ? "iOS-App"
-                  : "Browser"
+                  ? t("settingsPage.iosApp")
+                  : t("settingsPage.browser")
             }}
           </p>
           <div class="space-y-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <p class="font-medium">WhatsApp-App</p>
+            <p class="font-medium">{{ t("settingsPage.whatsappApp") }}</p>
             <p class="text-xs text-neutral-500">
-              Welche App beim Tippen auf WhatsApp geöffnet wird. WhatsApp Business wird in der Android-App direkt
-              gestartet und muss installiert sein.
+              {{ t("settingsPage.whatsappHint") }}
             </p>
             <select
               class="w-full max-w-md rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
               :value="whatsappApp"
               @change="onWhatsAppAppChange"
             >
-              <option value="whatsapp">WhatsApp</option>
-              <option value="business">WhatsApp Business</option>
+              <option value="whatsapp">{{ t("settingsPage.whatsapp") }}</option>
+              <option value="business">{{ t("settingsPage.whatsappBusiness") }}</option>
             </select>
           </div>
           <div class="flex items-start justify-between gap-4">
             <div>
-              <p class="font-medium">Letzte Anrufe als Telefon-Vorschlag</p>
+              <p class="font-medium">{{ t("settingsPage.callHintsTitle") }}</p>
               <p class="text-xs text-neutral-500 mt-1">
-                Nur in der Android-App (ab Android 10), nur nach Opt-in. Dafür wird Alpiplan als
-                „Anrufer-ID- &amp; Spam-App“ eingestellt; Anrufe werden nicht blockiert. Vorgeschlagen werden
-                Anrufe ab dann, auch der Anruf, der gerade läuft. Nummern bleiben auf dem Gerät und werden nicht
-                an den Server geschickt. Unter iOS und im Browser nicht verfügbar.
+                {{ t("settingsPage.callHintsBody") }}
               </p>
             </div>
             <label class="relative inline-flex items-center shrink-0 mt-1" :class="device.features.callHints ? 'cursor-pointer' : 'opacity-50'">
@@ -703,23 +694,23 @@ onBeforeUnmount(() => {
             </label>
           </div>
           <div v-if="isNative" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <p class="font-medium">{{ speechRecognitionEnabled ? "Mikrofon & Kontakte" : "Kontakte" }}</p>
+            <p class="font-medium">{{ speechRecognitionEnabled ? t("settingsPage.micAndContacts") : t("settingsPage.contactsOnly") }}</p>
             <p class="text-xs text-neutral-500">
-              <template v-if="speechRecognitionEnabled">Spracheingabe und Adressbuch. </template>
-              <template v-else>Adressbuch. </template>
-              Kontakte werden lokal gespeichert (Organisation: {{ primaryTenant?.tenantName || "Mandant" }}), nicht im Google-Konto.
+              <template v-if="speechRecognitionEnabled">{{ t("settingsPage.speechAndBook") }}</template>
+              <template v-else>{{ t("settingsPage.bookOnly") }}</template>
+              {{ t("settingsPage.contactsLocal", { organization: primaryTenant?.tenantName || t("common.tenant") }) }}
             </p>
             <ul class="text-sm space-y-1">
               <li v-if="speechRecognitionEnabled" class="flex items-center justify-between gap-3">
-                <span>Mikrofon</span>
+                <span>{{ t("common.microphone") }}</span>
                 <UBadge :color="microphoneGranted ? 'success' : 'neutral'" variant="subtle">
-                  {{ microphoneGranted ? "Erlaubt" : "Nicht erlaubt" }}
+                  {{ microphoneGranted ? t("common.allowed") : t("common.denied") }}
                 </UBadge>
               </li>
               <li class="flex items-center justify-between gap-3">
-                <span>Kontakte</span>
+                <span>{{ t("common.contacts") }}</span>
                 <UBadge :color="contactsGranted ? 'success' : 'neutral'" variant="subtle">
-                  {{ contactsGranted ? "Erlaubt" : "Nicht erlaubt" }}
+                  {{ contactsGranted ? t("common.allowed") : t("common.denied") }}
                 </UBadge>
               </li>
             </ul>
@@ -733,7 +724,7 @@ onBeforeUnmount(() => {
                 :disabled="allGranted || permissionsRequesting"
                 @click="requestNow"
               >
-                Jetzt erlauben
+                {{ t("common.allowNow") }}
               </UButton>
               <UButton
                 v-if="anyDenied || !allGranted"
@@ -744,43 +735,43 @@ onBeforeUnmount(() => {
                 icon="i-lucide-settings-2"
                 @click="openAppSettings"
               >
-                App-Einstellungen
+                {{ t("common.appSettings") }}
               </UButton>
             </div>
             <p v-if="permissionsError" class="text-xs text-red-600 dark:text-red-400">{{ permissionsError }}</p>
           </div>
           <p v-else class="text-xs text-neutral-500">
-            Kontakte speichern: in der App direkt ins Adressbuch, im Browser als vCard-Download.
+            {{ t("settingsPage.contactsSaveHint") }}
           </p>
         </div>
       </UCard>
       <UCard>
-        <template #header><h2 class="font-medium">Account</h2></template>
+        <template #header><h2 class="font-medium">{{ t("settingsPage.account") }}</h2></template>
         <div class="space-y-2 text-sm">
-          <p><span class="text-neutral-500">Name:</span> {{ user?.name || "—" }}</p>
-          <p><span class="text-neutral-500">E-Mail:</span> {{ user?.email || "—" }}</p>
+          <p><span class="text-neutral-500">{{ t("common.name") }}:</span> {{ user?.name || "—" }}</p>
+          <p><span class="text-neutral-500">{{ t("common.email") }}:</span> {{ user?.email || "—" }}</p>
           <p>
-            <span class="text-neutral-500">Rolle:</span>
-            {{ user?.isSuperadmin ? "Superadmin" : "Standard" }}
+            <span class="text-neutral-500">{{ t("common.role") }}:</span>
+            {{ user?.isSuperadmin ? t("settings.roles.superadmin") : t("common.standard") }}
           </p>
         </div>
       </UCard>
       <UCard>
-        <template #header><h2 class="font-medium">Mandant</h2></template>
+        <template #header><h2 class="font-medium">{{ t("common.tenant") }}</h2></template>
         <div class="space-y-2 text-sm">
-          <p><span class="text-neutral-500">Aktiver Mandant:</span> {{ primaryTenant?.tenantName || "—" }}</p>
-          <p><span class="text-neutral-500">Slug:</span> {{ primaryTenant?.tenantSlug || "—" }}</p>
-          <p><span class="text-neutral-500">Rolle:</span> {{ primaryTenant?.role || "—" }}</p>
+          <p><span class="text-neutral-500">{{ t("settingsPage.activeTenant") }}:</span> {{ primaryTenant?.tenantName || "—" }}</p>
+          <p><span class="text-neutral-500">{{ t("common.slug") }}:</span> {{ primaryTenant?.tenantSlug || "—" }}</p>
+          <p><span class="text-neutral-500">{{ t("common.role") }}:</span> {{ primaryTenant?.role || "—" }}</p>
         </div>
       </UCard>
 
       <UCard v-if="canEdit" class="lg:col-span-2">
-        <template #header><h2 class="font-medium">Mandanten-Optionen</h2></template>
+        <template #header><h2 class="font-medium">{{ t("settingsPage.tenantOptions") }}</h2></template>
         <div class="flex items-start justify-between gap-4">
           <div class="text-sm">
-            <p class="font-medium">Standard-Dauer für Termintypen verwenden</p>
+            <p class="font-medium">{{ t("settingsPage.defaultDurationTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Wenn deaktiviert, hat ein Termintyp keine Standard-Dauer. Die Termin-Dauer wird pro Termin manuell gesetzt.
+              {{ t("settingsPage.defaultDurationHint") }}
             </p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
@@ -802,9 +793,9 @@ onBeforeUnmount(() => {
 
         <div class="flex items-start justify-between gap-4 mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <div class="text-sm">
-            <p class="font-medium">Ressource bei Terminen verwenden</p>
+            <p class="font-medium">{{ t("settingsPage.resourcesTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Wenn deaktiviert, wird bei Terminen keine Ressource zugeordnet (z. B. Raum oder Flugzeug).
+              {{ t("settingsPage.resourcesHint") }}
             </p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
@@ -826,9 +817,9 @@ onBeforeUnmount(() => {
 
         <div class="flex items-start justify-between gap-4 mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <div class="text-sm">
-            <p class="font-medium">Spracherkennung</p>
+            <p class="font-medium">{{ t("settingsPage.speechTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Standardmäßig aus. Wenn aktiviert, startet die Spracheingabe in der Schnellerfassung automatisch.
+              {{ t("settingsPage.speechHint") }}
             </p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
@@ -850,13 +841,13 @@ onBeforeUnmount(() => {
 
         <div class="flex items-start justify-between gap-4 mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <div class="text-sm min-w-0">
-            <p class="font-medium">Termine automatisch als erledigt markieren</p>
+            <p class="font-medium">{{ t("settingsPage.autoCompleteTitle") }}</p>
             <p class="text-xs text-neutral-500 mt-1">
-              Gilt für alle Benutzer. Offene Termine werden erledigt, sobald das Ende plus die angegebene Zeit vorbei ist.
+              {{ t("settingsPage.autoCompleteHint") }}
             </p>
             <UFormField
               v-if="autoCompleteAppointmentsLocal"
-              label="Minuten nach Terminende"
+              :label="t('settingsPage.autoCompleteMinutes')"
               class="mt-3 max-w-xs"
             >
               <UInput
@@ -892,15 +883,15 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
-          <p class="font-medium text-sm">Bezeichnung der Rolle</p>
+          <p class="font-medium text-sm">{{ t("settingsPage.roleLabelTitle") }}</p>
           <p class="text-xs text-neutral-500">
-            Wird in der Schnellerfassung und bei Terminen angezeigt. z. B. Lehrer, Pilot, Trainer.
+            {{ t("settingsPage.roleLabelHint") }}
           </p>
           <UInput
             v-model="teacherLabelLocal"
             class="max-w-md"
             maxlength="40"
-            placeholder="Lehrer"
+            :placeholder="t('settingsPage.roleLabelPlaceholder')"
             :disabled="!canEdit || tenantSettingsSaving"
             @blur="saveTeacherLabel"
             @keydown.enter.prevent="saveTeacherLabel"
@@ -908,10 +899,9 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
-          <p class="font-medium text-sm">Standard-{{ teacherLabelLocal }} für Schnellerfassung</p>
+          <p class="font-medium text-sm">{{ t("settingsPage.defaultTeacherTitle", { teacher: teacherLabelLocal }) }}</p>
           <p class="text-xs text-neutral-500">
-            Wird beim Anlegen eines Termins über die Schnellerfassung vorausgewählt. Ohne Auswahl bleibt der erste
-            {{ teacherLabelLocal }} vorausgewählt.
+            {{ t("settingsPage.defaultTeacherHint", { teacher: teacherLabelLocal }) }}
           </p>
           <select
             v-model="defaultTeacherIdLocal"
@@ -919,16 +909,15 @@ onBeforeUnmount(() => {
             :disabled="!canEdit || tenantSettingsSaving"
             @change="saveTenantSettings({ defaultTeacherId: defaultTeacherIdLocal || null })"
           >
-            <option value="">Kein Standard (erster {{ teacherLabelLocal }})</option>
+            <option value="">{{ t("settingsPage.noDefaultTeacher", { teacher: teacherLabelLocal }) }}</option>
             <option v-for="t in teachers" :key="t.id" :value="t.id">{{ t.displayName }}</option>
           </select>
         </div>
 
         <div class="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
-          <p class="font-medium text-sm">Standard-Terminart für Schnellerfassung</p>
+          <p class="font-medium text-sm">{{ t("settingsPage.defaultLessonTitle") }}</p>
           <p class="text-xs text-neutral-500">
-            Wird beim Anlegen eines Termins über die Schnellerfassung vorausgewählt. Ohne Auswahl bleibt die erste
-            Terminart vorausgewählt.
+            {{ t("settingsPage.defaultLessonHint") }}
           </p>
           <select
             v-model="defaultLessonTypeIdLocal"
@@ -936,7 +925,7 @@ onBeforeUnmount(() => {
             :disabled="!canEdit || tenantSettingsSaving"
             @change="saveTenantSettings({ defaultLessonTypeId: defaultLessonTypeIdLocal || null })"
           >
-            <option value="">Kein Standard (erste Terminart)</option>
+            <option value="">{{ t("settingsPage.noDefaultLesson") }}</option>
             <option v-for="item in lessonTypes" :key="item.id" :value="item.id">{{ item.name }}</option>
           </select>
         </div>
@@ -945,9 +934,9 @@ onBeforeUnmount(() => {
 
     <section v-else-if="activeTab === 'absences' && ownTeacherId && primaryTenant" class="space-y-4">
       <p v-if="canEdit" class="text-sm text-neutral-600 dark:text-neutral-400">
-        Hier trägst du deine eigenen Abwesenheiten ein. Für andere Personen und die Standard-Uhrzeiten:
+        {{ t("settingsPage.ownAbsences") }}
         <NuxtLink to="/users?tab=absences" class="font-medium text-primary-700 hover:underline dark:text-primary-300">
-          Benutzer → Urlaub & Freizeiten
+          {{ t("settingsPage.usersAbsencesLink") }}
         </NuxtLink>
       </p>
       <TeacherAbsencesPanel

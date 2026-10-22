@@ -27,13 +27,13 @@ const emit = defineEmits<{
   error: [message: string];
 }>();
 
-const { intlLocale } = useAppLocale();
+const { t, intlLocale } = useAppLocale();
 
-const absenceTypeOptions: { value: AbsenceType; label: string }[] = [
-  { value: "vacation", label: "Urlaub" },
-  { value: "block", label: "Frei" },
-  { value: "sick", label: "Krank" },
-];
+const absenceTypeOptions = computed(() => [
+  { value: "vacation" as const, label: t("blocks.vacation") },
+  { value: "block" as const, label: t("blocks.block") },
+  { value: "sick" as const, label: t("blocks.sick") },
+]);
 
 function todayDateKey() {
   const d = new Date();
@@ -72,8 +72,8 @@ const basePath = computed(
 );
 
 function typeLabel(type: Absence["type"]) {
-  if (type === "extra_open") return "Zusätzlich verfügbar";
-  return absenceTypeOptions.find((option) => option.value === type)?.label ?? type;
+  if (type === "extra_open") return t("blocks.extraOpen");
+  return absenceTypeOptions.value.find((option) => option.value === type)?.label ?? type;
 }
 
 function typeColor(type: Absence["type"]) {
@@ -95,7 +95,7 @@ function formatDate(value: string) {
 function rangeLabel(item: Absence) {
   const dates =
     item.startsOn === item.endsOn ? formatDate(item.startsOn) : `${formatDate(item.startsOn)} – ${formatDate(item.endsOn)}`;
-  const time = item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : "ganzer Tag";
+  const time = item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : t("common.wholeDay");
   return `${dates} · ${time}`;
 }
 
@@ -109,7 +109,7 @@ async function load() {
     const response = await $fetch<{ data: Absence[] }>(basePath.value, { credentials: "include" });
     absences.value = response.data;
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Abwesenheiten konnten nicht geladen werden"));
+    emit("error", apiMessage(e, t("absences.loadFailed")));
   } finally {
     loading.value = false;
   }
@@ -147,11 +147,11 @@ watch(
 async function save() {
   if (!props.tenantId || !props.teacherId) return;
   if (!form.startsOn || !form.endsOn) {
-    emit("error", "Von- und Bis-Datum sind erforderlich");
+    emit("error", t("absences.datesRequired"));
     return;
   }
   if (!form.allDay && form.startTime >= form.endTime) {
-    emit("error", "Bis-Uhrzeit muss nach der Von-Uhrzeit liegen");
+    emit("error", t("absences.timeOrder"));
     return;
   }
   loading.value = true;
@@ -166,15 +166,15 @@ async function save() {
     };
     if (form.id) {
       await $fetch(`${basePath.value}/${form.id}`, { method: "PATCH", credentials: "include", body });
-      emit("info", "Abwesenheit aktualisiert");
+      emit("info", t("absences.updated"));
     } else {
       await $fetch(basePath.value, { method: "POST", credentials: "include", body });
-      emit("info", "Abwesenheit eingetragen");
+      emit("info", t("absences.created"));
     }
     resetForm();
     await load();
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Abwesenheit konnte nicht gespeichert werden"));
+    emit("error", apiMessage(e, t("absences.saveFailed")));
   } finally {
     loading.value = false;
   }
@@ -182,14 +182,14 @@ async function save() {
 
 async function remove(item: Absence) {
   if (!props.tenantId || !props.teacherId) return;
-  if (!confirm(`${typeLabel(item.type)} ${rangeLabel(item)} löschen?`)) return;
+  if (!confirm(t("absences.deleteConfirm", { type: typeLabel(item.type), range: rangeLabel(item) }))) return;
   try {
     await $fetch(`${basePath.value}/${item.id}`, { method: "DELETE", credentials: "include" });
-    emit("info", "Abwesenheit gelöscht");
+    emit("info", t("absences.deleted"));
     if (form.id === item.id) resetForm();
     await load();
   } catch (e: unknown) {
-    emit("error", apiMessage(e, "Abwesenheit konnte nicht gelöscht werden"));
+    emit("error", apiMessage(e, t("absences.deleteFailed")));
   }
 }
 
@@ -209,20 +209,20 @@ watch(
       <template #header>
         <div class="flex items-center justify-between gap-3">
           <h2 class="font-medium">
-            Abwesenheiten
+            {{ t("absences.title") }}
             <span v-if="teacherName" class="text-neutral-500 font-normal">· {{ teacherName }}</span>
           </h2>
           <div class="flex items-center gap-2">
             <label class="inline-flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 cursor-pointer">
               <input v-model="showPast" type="checkbox" />
-              Vergangene{{ pastCount && !showPast ? ` (${pastCount})` : "" }}
+              {{ t("absences.past") }}{{ pastCount && !showPast ? ` (${pastCount})` : "" }}
             </label>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load" />
           </div>
         </div>
       </template>
       <div v-if="!visibleAbsences.length" class="text-sm text-neutral-500">
-        Keine {{ showPast ? "" : "anstehenden " }}Abwesenheiten eingetragen.
+        {{ showPast ? t("absences.emptyAll") : t("absences.emptyUpcoming") }}
       </div>
       <div v-else class="divide-y divide-neutral-200 dark:divide-neutral-800">
         <div v-for="item in visibleAbsences" :key="item.id" class="flex items-center justify-between py-2 gap-3">
@@ -245,10 +245,10 @@ watch(
 
     <UCard>
       <template #header>
-        <h2 class="font-medium">{{ form.id ? "Abwesenheit bearbeiten" : "Abwesenheit eintragen" }}</h2>
+        <h2 class="font-medium">{{ form.id ? t("absences.edit") : t("absences.create") }}</h2>
       </template>
       <form class="space-y-3" @submit.prevent="save">
-        <UFormField label="Art">
+        <UFormField :label="t('common.kind')">
           <div class="flex flex-wrap gap-1.5">
             <button
               v-for="option in absenceTypeOptions"
@@ -267,42 +267,41 @@ watch(
           </div>
         </UFormField>
         <div class="grid grid-cols-2 gap-2">
-          <UFormField label="Von Datum">
+          <UFormField :label="t('absences.fromDate')">
             <UInput v-model="form.startsOn" type="date" />
           </UFormField>
-          <UFormField label="Bis Datum">
+          <UFormField :label="t('absences.toDate')">
             <UInput v-model="form.endsOn" type="date" :min="form.startsOn" />
           </UFormField>
         </div>
         <label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
           <input v-model="form.allDay" type="checkbox" />
-          Ganzer Tag
+          {{ t("common.allDay") }}
         </label>
         <div v-if="!form.allDay" class="space-y-1">
           <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Von">
+            <UFormField :label="t('common.from')">
               <UInput v-model="form.startTime" type="time" />
             </UFormField>
-            <UFormField label="Bis">
+            <UFormField :label="t('common.to')">
               <UInput v-model="form.endTime" type="time" />
             </UFormField>
           </div>
           <p v-if="form.startsOn !== form.endsOn" class="text-xs text-neutral-500">
-            Gilt an jedem Tag im gewählten Zeitraum.
+            {{ t("absences.eachDay") }}
           </p>
         </div>
-        <UFormField label="Notiz" hint="optional">
-          <UInput v-model="form.reason" maxlength="200" placeholder="z. B. Arzttermin" />
+        <UFormField :label="t('common.note')" :hint="t('common.optional')">
+          <UInput v-model="form.reason" maxlength="200" :placeholder="t('absences.notePlaceholder')" />
         </UFormField>
         <p class="text-xs text-neutral-500">
-          In diesem Zeitraum können keine Termine für {{ teacherName || "dich" }} eingetragen werden; Vorschläge für
-          freie Termine überspringen ihn.
+          {{ t("absences.blocked", { who: teacherName || t("absences.you") }) }}
         </p>
         <div class="flex gap-2">
           <UButton type="submit" color="primary" :loading="loading" :disabled="!teacherId">
-            {{ form.id ? "Speichern" : "Eintragen" }}
+            {{ form.id ? t("common.save") : t("absences.submit") }}
           </UButton>
-          <UButton v-if="form.id" variant="ghost" color="neutral" @click="resetForm">Abbrechen</UButton>
+          <UButton v-if="form.id" variant="ghost" color="neutral" @click="resetForm">{{ t("common.cancel") }}</UButton>
         </div>
       </form>
     </UCard>

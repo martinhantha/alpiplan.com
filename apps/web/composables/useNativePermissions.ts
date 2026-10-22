@@ -67,14 +67,15 @@ async function readCallHintsStatus(): Promise<CallHintsPermissionStatus | null> 
   }
 }
 
-export function permissionLabel(granted: boolean) {
-  return granted ? "Erlaubt" : "Nicht erlaubt";
+export function permissionLabel(granted: boolean, translate: (key: string) => string) {
+  return granted ? translate("common.allowed") : translate("common.denied");
 }
 
 export function useNativePermissions(options?: {
   autoPrompt?: boolean;
   needMicrophone?: MaybeRefOrGetter<boolean>;
 }) {
+  const { t } = useI18n();
   const open = ref(false);
   const requesting = useState("alpiplan.nativePermissions.requesting", () => false);
   const lastError = useState("alpiplan.nativePermissions.error", () => "");
@@ -154,7 +155,7 @@ export function useNativePermissions(options?: {
       if (!anyAskable.value && !anyDenied.value) open.value = false;
     } catch (error) {
       lastError.value =
-        error instanceof Error ? error.message : "Berechtigung konnte nicht angefragt werden.";
+        error instanceof Error ? error.message : t("permissions.requestFailed");
       await refreshStatus();
     } finally {
       requesting.value = false;
@@ -168,7 +169,7 @@ export function useNativePermissions(options?: {
       await AlpiplanDevice.openAppSettings();
     } catch (error) {
       lastError.value =
-        error instanceof Error ? error.message : "App-Einstellungen konnten nicht geöffnet werden.";
+        error instanceof Error ? error.message : t("permissions.settingsOpenFailed");
     }
   }
 

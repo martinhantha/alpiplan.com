@@ -58,25 +58,26 @@ interface SuperadminOverview {
 }
 
 const { user, primaryTenant } = useAuth();
+const { t } = useAppLocale();
 const route = useRoute();
 const router = useRouter();
 
 const isSuperadmin = computed(() => Boolean(user.value?.isSuperadmin));
 const isTenantAdmin = computed(() => primaryTenant.value?.role === "ADMIN");
 const canEdit = computed(() => isSuperadmin.value || isTenantAdmin.value);
-const teacherLabel = computed(() => primaryTenant.value?.teacherLabel || "Lehrer");
+const teacherLabel = computed(() => primaryTenant.value?.teacherLabel || t("quickCapture.teacherFallback"));
 
 type UsersTab = "users" | "absences" | "availability";
-const USERS_TABS: { id: UsersTab; label: string; icon: string }[] = [
-  { id: "users", label: "Benutzer", icon: "i-lucide-users" },
-  { id: "absences", label: "Urlaub & Freizeiten", icon: "i-lucide-calendar-off" },
-  { id: "availability", label: "Standard-Uhrzeiten", icon: "i-lucide-clock" },
-];
+const USERS_TABS = computed<{ id: UsersTab; label: string; icon: string }[]>(() => [
+  { id: "users", label: t("usersPage.tabUsers"), icon: "i-lucide-users" },
+  { id: "absences", label: t("usersPage.tabAbsences"), icon: "i-lucide-calendar-off" },
+  { id: "availability", label: t("usersPage.tabHours"), icon: "i-lucide-clock" },
+]);
 
 const activeTab = computed<UsersTab>({
   get: () => {
     const tab = route.query.tab;
-    return USERS_TABS.some((item) => item.id === tab) ? (tab as UsersTab) : "users";
+    return USERS_TABS.value.some((item) => item.id === tab) ? (tab as UsersTab) : "users";
   },
   set: (tab) => {
     void router.replace({ query: { ...route.query, tab: tab === "users" ? undefined : tab } });
@@ -108,7 +109,7 @@ async function loadScheduleTeachers() {
         (own && scheduleTeachers.value.some((teacher) => teacher.id === own) ? own : scheduleTeachers.value[0]?.id) ?? "";
     }
   } catch (e: unknown) {
-    setError(apiMessage(e, `${teacherLabel.value} konnten nicht geladen werden`));
+    setError(apiMessage(e, t("usersPage.teachersLoadFailed", { teacher: teacherLabel.value })));
   }
 }
 
@@ -194,11 +195,11 @@ const editEmailTaken = computed(() => {
 });
 
 const roleOptions: TenantRole[] = ["ADMIN", "STAFF", "END_CUSTOMER"];
-const roleLabels: Record<TenantRole, string> = {
-  ADMIN: "Admin",
-  STAFF: "Benutzer",
-  END_CUSTOMER: "Kunde",
-};
+const roleLabels = computed<Record<TenantRole, string>>(() => ({
+  ADMIN: t("usersPage.roleAdmin"),
+  STAFF: t("usersPage.roleStaff"),
+  END_CUSTOMER: t("usersPage.roleCustomer"),
+}));
 
 const filteredUsers = computed(() => {
   const q = filters.q.trim().toLowerCase();
@@ -251,11 +252,11 @@ interface PasswordLinkResult {
 }
 
 function passwordLinkMessage(email: string, result: PasswordLinkResult) {
-  const kind = result.purpose === "setup" ? "Einladung" : "Link zum Zurücksetzen";
-  if (result.delivered) return `${kind} an ${email} gesendet`;
+  const kind = result.purpose === "setup" ? t("usersPage.invite") : t("usersPage.resetLink");
+  if (result.delivered) return t("usersPage.linkSent", { kind, email });
   return result.actionUrl
-    ? `E-Mail-Versand nicht konfiguriert (SMTP) – Link: ${result.actionUrl}`
-    : "E-Mail-Versand nicht konfiguriert (SMTP) – es wurde keine E-Mail gesendet";
+    ? t("usersPage.smtpWithLink", { url: result.actionUrl })
+    : t("usersPage.smtpNone");
 }
 
 const sendingLinkId = ref("");
@@ -272,7 +273,7 @@ async function sendPasswordLink(userItem: UserItem) {
     const result = await $fetch<PasswordLinkResult>(url, { method: "POST", credentials: "include" });
     setDialogInfo(passwordLinkMessage(userItem.email, result));
   } catch (e: unknown) {
-    setDialogError(apiMessage(e, "Passwort-Link konnte nicht gesendet werden"));
+    setDialogError(apiMessage(e, t("usersPage.linkFailed")));
   } finally {
     sendingLinkId.value = "";
   }
@@ -346,7 +347,7 @@ async function loadUsers() {
       }));
     }
   } catch (e: unknown) {
-    setError(apiMessage(e, "Benutzer konnten nicht geladen werden"));
+    setError(apiMessage(e, t("usersPage.loadFailed")));
   } finally {
     loading.value = false;
   }
@@ -368,11 +369,11 @@ async function submitAdd() {
   clearDialogMessages();
   const email = addForm.email.trim();
   if (!email) {
-    setDialogError("E-Mail ist erforderlich");
+    setDialogError(t("usersPage.emailRequired"));
     return;
   }
   if (!email.includes("@")) {
-    setDialogError("Gültige E-Mail ist erforderlich");
+    setDialogError(t("usersPage.emailInvalid"));
     return;
   }
   const password = addForm.password ?? "";
@@ -383,15 +384,15 @@ async function submitAdd() {
   const sendInvite = willCreateNewUser && addForm.sendInvite && !password;
 
   if (willCreateNewUser && password.length > 0 && password.length < 6) {
-    setDialogError("Passwort muss mindestens 6 Zeichen haben");
+    setDialogError(t("usersPage.passwordMin"));
     return;
   }
   if (willCreateNewUser && !sendInvite && password.length < 6) {
-    setDialogError("Für einen neuen Benutzer ist ein Passwort mit mind. 6 Zeichen oder eine Einladung per E-Mail erforderlich");
+    setDialogError(t("usersPage.passwordOrInvite"));
     return;
   }
   if (!isSuperadmin.value && !primaryTenant.value?.tenantId) {
-    setDialogError("Kein aktiver Mandant – Benutzer kann nicht angelegt werden");
+    setDialogError(t("usersPage.noActiveTenant"));
     return;
   }
 
@@ -415,7 +416,7 @@ async function submitAdd() {
     } else {
       const tenantId = addForm.tenantId || primaryTenant.value?.tenantId;
       if (!tenantId) {
-        throw new Error("Kein Mandant ausgewählt");
+        throw new Error(t("usersPage.noTenantSelected"));
       }
       created = await $fetch(`/api/v1/tenants/${tenantId}/members`, {
         method: "POST",
@@ -431,13 +432,13 @@ async function submitAdd() {
     }
     setInfo(
       created.passwordLink
-        ? `Benutzer hinzugefügt · ${passwordLinkMessage(email, created.passwordLink)}`
-        : "Benutzer hinzugefügt",
+        ? t("usersPage.addedWithLink", { message: passwordLinkMessage(email, created.passwordLink) })
+        : t("usersPage.added"),
     );
     addOpen.value = false;
     await loadUsers();
   } catch (e: unknown) {
-    setDialogError(apiMessage(e, "Benutzer konnte nicht hinzugefügt werden"));
+    setDialogError(apiMessage(e, t("usersPage.addFailed")));
   } finally {
     loading.value = false;
   }
@@ -505,22 +506,20 @@ async function submitEdit() {
   clearDialogMessages();
   const email = editForm.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
-    setDialogError("Gültige E-Mail ist erforderlich");
+    setDialogError(t("usersPage.emailInvalid"));
     return;
   }
   if (editEmailTaken.value) {
-    setDialogError("Diese E-Mail ist bereits vergeben");
+    setDialogError(t("usersPage.emailTaken"));
     return;
   }
   if (editForm.password.trim().length > 0 && editForm.password.trim().length < 6) {
-    setDialogError("Passwort muss mindestens 6 Zeichen haben");
+    setDialogError(t("usersPage.passwordMin"));
     return;
   }
   const remainingMemberships = editMemberships.value.filter((m) => !m.removed);
   if (!editForm.isSuperadmin && remainingMemberships.length === 0) {
-    setDialogError(
-      "Benutzer muss mindestens einem Mandanten zugewiesen sein (oder Superadmin-Rechte erhalten).",
-    );
+    setDialogError(t("usersPage.mustHaveTenant"));
     return;
   }
 
@@ -630,12 +629,12 @@ async function submitEdit() {
       }
     }
 
-    setInfo(`Benutzer ${target.email} aktualisiert`);
+    setInfo(t("usersPage.updated", { email: target.email }));
     editOpen.value = false;
     editingUser.value = null;
     await loadUsers();
   } catch (e: unknown) {
-    setDialogError(apiMessage(e, "Benutzer konnte nicht aktualisiert werden"));
+    setDialogError(apiMessage(e, t("usersPage.updateFailed")));
   } finally {
     loading.value = false;
   }
@@ -659,10 +658,10 @@ async function changeRole(userItem: UserItem, role: TenantRole) {
         body: { userId: userItem.id, tenantId: primaryTenant.value.tenantId, role },
       });
     }
-    setInfo(`Rolle für ${userItem.email} aktualisiert`);
+    setInfo(t("usersPage.roleUpdated", { email: userItem.email }));
     await loadUsers();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Rolle konnte nicht geändert werden"));
+    setError(apiMessage(e, t("usersPage.roleFailed")));
   } finally {
     savingId.value = "";
   }
@@ -673,7 +672,7 @@ async function removeFromTenant(userItem: UserItem) {
   if (!userItem.roleInActive) return;
   if (
     !confirm(
-      `Benutzer ${userItem.email} aus Mandant „${primaryTenant.value.tenantName}“ entfernen? Die Mitgliedschaft kann im Papierkorb wiederhergestellt werden.`,
+      t("usersPage.removeConfirm", { email: userItem.email, tenant: primaryTenant.value.tenantName }),
     )
   ) {
     return;
@@ -684,10 +683,10 @@ async function removeFromTenant(userItem: UserItem) {
       method: "DELETE",
       credentials: "include",
     });
-    setInfo(`${userItem.email} entfernt`);
+    setInfo(t("usersPage.removed", { email: userItem.email }));
     await loadUsers();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Benutzer konnte nicht entfernt werden"));
+    setError(apiMessage(e, t("usersPage.removeFailed")));
   } finally {
     savingId.value = "";
   }
@@ -715,8 +714,8 @@ async function toggleDisabled(userItem: UserItem) {
   if (
     !confirm(
       lock
-        ? `Benutzer ${userItem.email} sperren? Die Person kann sich dann nicht mehr anmelden.`
-        : `Sperre für ${userItem.email} aufheben?`,
+        ? t("usersPage.lockConfirm", { email: userItem.email })
+        : t("usersPage.unlockConfirm", { email: userItem.email }),
     )
   ) {
     return;
@@ -736,13 +735,13 @@ async function toggleDisabled(userItem: UserItem) {
         body: { disabled: lock },
       });
     }
-    setInfo(lock ? `${userItem.email} gesperrt` : `${userItem.email} entsperrt`);
+    setInfo(lock ? t("usersPage.lockedInfo", { email: userItem.email }) : t("usersPage.unlockedInfo", { email: userItem.email }));
     if (editingUser.value?.id === userItem.id) {
       editingUser.value = { ...editingUser.value, disabledAt: lock ? new Date().toISOString() : null };
     }
     await loadUsers();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Benutzerstatus konnte nicht geändert werden"));
+    setError(apiMessage(e, t("usersPage.statusFailed")));
   } finally {
     savingId.value = "";
   }
@@ -752,7 +751,7 @@ async function deleteUserAccount(userItem: UserItem) {
   if (!canDeleteUser(userItem)) return;
   if (
     !confirm(
-      `Benutzerkonto ${userItem.email} wirklich löschen? Die Person wird abgemeldet und erscheint nicht mehr in der Benutzerliste. Wiederherstellen ist im Papierkorb möglich.`,
+      t("usersPage.deleteConfirm", { email: userItem.email }),
     )
   ) {
     return;
@@ -770,13 +769,13 @@ async function deleteUserAccount(userItem: UserItem) {
         credentials: "include",
       });
     }
-    setInfo(`${userItem.email} gelöscht`);
+    setInfo(t("usersPage.deleted", { email: userItem.email }));
     editOpen.value = false;
     editingUser.value = null;
     await loadUsers();
   } catch (e: unknown) {
-    setError(apiMessage(e, "Benutzer konnte nicht gelöscht werden"));
-    setDialogError(apiMessage(e, "Benutzer konnte nicht gelöscht werden"));
+    setError(apiMessage(e, t("usersPage.deleteFailed")));
+    setDialogError(apiMessage(e, t("usersPage.deleteFailed")));
   } finally {
     savingId.value = "";
   }
@@ -806,18 +805,18 @@ watch(
   <UContainer class="py-8 space-y-5">
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
-        <p class="text-sm text-muted font-medium">Alpiplan · Benutzer</p>
+        <p class="text-sm text-muted font-medium">{{ t("usersPage.breadcrumb") }}</p>
         <h1 class="font-display text-3xl sm:text-4xl">
-          Benutzer
+          {{ t("usersPage.title") }}
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ filteredUsers.length }})</span>
         </h1>
         <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           <template v-if="isSuperadmin">
-            Alle Benutzer im System
+            {{ t("usersPage.allInSystem") }}
             <UBadge color="secondary" variant="soft" class="ml-1">SUPERADMIN</UBadge>
           </template>
           <template v-else>
-            Mitglieder von <strong>{{ primaryTenant?.tenantName || "—" }}</strong>
+            {{ t("usersPage.membersOf") }} <strong>{{ primaryTenant?.tenantName || "—" }}</strong>
             <template v-if="canEdit">
               · <UBadge color="primary" variant="subtle" class="ml-1">ADMIN</UBadge>
             </template>
@@ -831,7 +830,7 @@ watch(
           icon="i-lucide-filter"
           @click="filterOpen = !filterOpen"
         >
-          Filter
+          {{ t("common.filter") }}
           <UBadge v-if="activeFilterCount" color="primary" variant="subtle" class="ml-1">
             {{ activeFilterCount }}
           </UBadge>
@@ -846,7 +845,7 @@ watch(
           color="primary"
           @click="openAdd"
         >
-          Benutzer hinzufügen
+          {{ t("usersPage.add") }}
         </UButton>
       </div>
     </div>
@@ -873,23 +872,23 @@ watch(
         v-if="!primaryTenant"
         class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
       >
-        Wähle zuerst einen Mandanten aus.
+        {{ t("usersPage.pickTenant") }}
       </div>
       <div
         v-else-if="!scheduleTeachers.length"
         class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
       >
-        Noch keine {{ teacherLabel }} in diesem Mandanten.
+        {{ t("usersPage.noTeachers", { teacher: teacherLabel }) }}
       </div>
       <template v-else>
         <UCard>
-          <template #header><h2 class="font-medium">{{ teacherLabel }} wählen</h2></template>
+          <template #header><h2 class="font-medium">{{ t("usersPage.chooseTeacher", { teacher: teacherLabel }) }}</h2></template>
           <select
             v-model="scheduleTeacherId"
             class="w-full max-w-md rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
           >
             <option v-for="t in scheduleTeachers" :key="t.id" :value="t.id">
-              {{ t.displayName }}{{ t.id === primaryTenant.teacherProfileId ? " (ich)" : "" }}
+              {{ t.displayName }}{{ t.id === primaryTenant.teacherProfileId ? ` ${$t("common.me")}` : "" }}
             </option>
           </select>
         </UCard>
@@ -916,17 +915,17 @@ watch(
     <UCard v-if="filterOpen">
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <h2 class="font-medium">Filter</h2>
+          <h2 class="font-medium">{{ t("common.filter") }}</h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
         </div>
       </template>
       <div class="grid gap-3 md:grid-cols-3">
-        <UInput v-model="filters.q" placeholder="Suche E-Mail oder Name" />
+        <UInput v-model="filters.q" :placeholder="t('usersPage.searchPlaceholder')" />
         <select
           v-model="filters.role"
           class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
         >
-          <option value="">Alle Rollen</option>
+          <option value="">{{ t("usersPage.allRoles") }}</option>
           <option v-for="role in roleOptions" :key="role" :value="role">{{ roleLabels[role] }}</option>
         </select>
         <select
@@ -934,8 +933,8 @@ watch(
           v-model="filters.scope"
           class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
         >
-          <option value="active">Nur aktiver Mandant</option>
-          <option value="all">Alle Mandanten</option>
+          <option value="active">{{ t("usersPage.scopeActive") }}</option>
+          <option value="all">{{ t("usersPage.scopeAll") }}</option>
         </select>
       </div>
     </UCard>
@@ -944,7 +943,7 @@ watch(
       v-if="!filteredUsers.length && !loading"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Keine Benutzer passend zu den Filtern.
+      {{ t("usersPage.empty") }}
     </div>
     <div v-else class="space-y-3">
       <UCard v-for="u in filteredUsers" :key="u.id">
@@ -955,24 +954,24 @@ watch(
                 v-if="u.teacherProfile"
                 class="size-3 shrink-0 rounded-full"
                 :style="{ backgroundColor: avatarColor(u.teacherProfile.id, u.teacherProfile.color) }"
-                title="Farbe im Kalender"
+                :title="t('colorPicker.calendar')"
               />
               <span class="truncate">{{ u.name || u.email }}</span>
             </p>
             <p class="text-xs text-neutral-500 truncate">{{ u.email }}</p>
             <div class="mt-2 flex flex-wrap gap-1 items-center">
               <UBadge v-if="u.isSuperadmin" color="secondary" variant="soft">SUPERADMIN</UBadge>
-              <UBadge v-if="u.disabledAt" color="warning" variant="soft">Gesperrt</UBadge>
+              <UBadge v-if="u.disabledAt" color="warning" variant="soft">{{ t("usersPage.locked") }}</UBadge>
               <UBadge v-if="u.teacherProfile" color="neutral" variant="subtle">
-                {{ teacherLabel }} · Priorität {{ u.teacherProfile.priority }}
+                {{ teacherLabel }} · {{ t("availability.priority", { priority: u.teacherProfile.priority }) }}
               </UBadge>
               <UBadge v-else-if="u.roleInActive && !u.performsAppointmentsInActive" color="info" variant="subtle">
-                Nur organisieren
+                {{ t("usersPage.organizeBadge") }}
               </UBadge>
             </div>
             <div class="mt-2">
               <p class="text-[11px] uppercase tracking-wide text-neutral-500 mb-1">
-                Mandanten ({{ u.memberships.length }})
+                {{ t("usersPage.tenantsCount", { count: u.memberships.length }) }}
               </p>
               <div v-if="u.memberships.length" class="flex flex-wrap gap-1">
                 <UBadge
@@ -989,10 +988,10 @@ watch(
                 color="warning"
                 variant="subtle"
                 icon="i-lucide-alert-triangle"
-                title="Keine Mandanten-Zuweisung"
-                description="Dieser Benutzer hat aktuell keine Mitgliedschaft."
+                :title="t('usersPage.noAssignment')"
+                :description="t('usersPage.noMembershipBody')"
               />
-              <span v-else class="text-xs text-neutral-500 italic">Superadmin ohne Mandanten-Mitgliedschaft</span>
+              <span v-else class="text-xs text-neutral-500 italic">{{ t("usersPage.noMembership") }}</span>
             </div>
           </div>
           <div v-if="canEdit" class="flex items-center gap-2 shrink-0">
@@ -1010,12 +1009,12 @@ watch(
               color="neutral"
               variant="ghost"
               icon="i-lucide-pencil"
-              aria-label="Bearbeiten"
-              title="Bearbeiten"
+              :aria-label="t('common.edit')"
+              :title="t('common.edit')"
               :disabled="!isSuperadmin && !u.roleInActive"
               @click="openEdit(u)"
             >
-              <span class="hidden sm:inline">Bearbeiten</span>
+              <span class="hidden sm:inline">{{ t("common.edit") }}</span>
             </UButton>
             <UButton
               v-if="canLockUser(u)"
@@ -1023,13 +1022,13 @@ watch(
               :color="u.disabledAt ? 'success' : 'warning'"
               variant="ghost"
               :icon="u.disabledAt ? 'i-lucide-unlock' : 'i-lucide-lock'"
-              :aria-label="u.disabledAt ? 'Entsperren' : 'Sperren'"
-              :title="u.disabledAt ? 'Entsperren' : 'Sperren'"
+              :aria-label="u.disabledAt ? t('usersPage.unlock') : t('usersPage.lock')"
+              :title="u.disabledAt ? t('usersPage.unlock') : t('usersPage.lock')"
               :disabled="savingId === u.id"
               :loading="savingId === u.id"
               @click="toggleDisabled(u)"
             >
-              <span class="hidden sm:inline">{{ u.disabledAt ? "Entsperren" : "Sperren" }}</span>
+              <span class="hidden sm:inline">{{ u.disabledAt ? t("usersPage.unlock") : t("usersPage.lock") }}</span>
             </UButton>
             <UButton
               v-if="u.roleInActive"
@@ -1037,12 +1036,12 @@ watch(
               color="error"
               variant="ghost"
               icon="i-lucide-user-minus"
-              aria-label="Aus Mandant entfernen"
-              title="Aus Mandant entfernen"
+              :aria-label="t('usersPage.removeFromTenant')"
+              :title="t('usersPage.removeFromTenant')"
               :loading="savingId === u.id"
               @click="removeFromTenant(u)"
             >
-              <span class="hidden sm:inline">Entfernen</span>
+              <span class="hidden sm:inline">{{ t("common.remove") }}</span>
             </UButton>
             <UButton
               v-if="canDeleteUser(u)"
@@ -1050,13 +1049,13 @@ watch(
               color="error"
               variant="ghost"
               icon="i-lucide-trash-2"
-              aria-label="Konto löschen"
-              title="Konto löschen"
+              :aria-label="t('usersPage.deleteAccount')"
+              :title="t('usersPage.deleteAccount')"
               :disabled="savingId === u.id"
               :loading="savingId === u.id"
               @click="deleteUserAccount(u)"
             >
-              <span class="hidden sm:inline">Löschen</span>
+              <span class="hidden sm:inline">{{ t("common.delete") }}</span>
             </UButton>
           </div>
         </div>
@@ -1068,9 +1067,9 @@ watch(
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="min-w-0">
-            <h2 class="font-medium truncate">Benutzer bearbeiten</h2>
+            <h2 class="font-medium truncate">{{ t("usersPage.editTitle") }}</h2>
             <p class="text-xs text-neutral-500 truncate">{{ editingUser?.email }}</p>
-            <UBadge v-if="editingUser?.disabledAt" color="warning" variant="soft" class="mt-1">Gesperrt</UBadge>
+            <UBadge v-if="editingUser?.disabledAt" color="warning" variant="soft" class="mt-1">{{ t("usersPage.locked") }}</UBadge>
           </div>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="editOpen = false" />
         </div>
@@ -1086,7 +1085,7 @@ watch(
             :title="dialogInfo"
             :ui="{ title: 'break-all' }"
           />
-          <UFormField label="E-Mail" required hint="muss eindeutig sein">
+          <UFormField :label="t('common.email')" required :hint="t('usersPage.emailUnique')">
             <UInput v-model="editForm.email" type="email" autocomplete="off" />
           </UFormField>
           <UAlert
@@ -1094,17 +1093,17 @@ watch(
             color="error"
             variant="subtle"
             icon="i-lucide-circle-alert"
-            title="Diese E-Mail ist bereits vergeben"
+            :title="t('usersPage.emailTaken')"
           />
-          <UFormField label="Name">
+          <UFormField :label="t('common.name')">
             <UInput v-model="editForm.name" />
           </UFormField>
-          <UFormField label="Neues Passwort" hint="leer lassen, um nicht zu ändern">
+          <UFormField :label="t('usersPage.newPassword')" :hint="t('usersPage.passwordKeep')">
             <UInput v-model="editForm.password" type="password" autocomplete="new-password" />
           </UFormField>
           <div v-if="editingUser" class="flex items-center justify-between gap-3 flex-wrap -mt-1">
             <p class="text-xs text-neutral-500">
-              Oder Link per E-Mail senden – der Benutzer legt sein Passwort selbst fest.
+              {{ t("usersPage.orEmailLink") }}
             </p>
             <UButton
               size="xs"
@@ -1115,7 +1114,7 @@ watch(
               :disabled="Boolean(editingUser.disabledAt) || (editingUser.isSuperadmin && !isSuperadmin)"
               @click="sendPasswordLink(editingUser)"
             >
-              Passwort-Link senden
+              {{ t("usersPage.sendPasswordLink") }}
             </UButton>
           </div>
 
@@ -1123,25 +1122,21 @@ watch(
             v-if="editingUser?.roleInActive === 'ADMIN' || editingUser?.roleInActive === 'STAFF'"
             class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800"
           >
-            <h3 class="text-sm font-medium">{{ teacherLabel }} · Planung</h3>
+            <h3 class="text-sm font-medium">{{ t("usersPage.planning", { teacher: teacherLabel }) }}</h3>
             <UCheckbox
               v-model="editForm.performsAppointments"
-              :label="`Führt Termine durch (als ${teacherLabel} buchbar)`"
-              :description="
-                editForm.performsAppointments
-                  ? undefined
-                  : 'Nur organisieren: nicht buchbar, sieht und plant alle Termine. Löschen bleibt Admins vorbehalten.'
-              "
+              :label="t('usersPage.performs', { teacher: teacherLabel })"
+              :description="editForm.performsAppointments ? undefined : t('usersPage.organizeOnly')"
             />
             <template v-if="editingUser.teacherProfile && editForm.performsAppointments">
-              <UFormField label="Farbe im Kalender">
+              <UFormField :label="t('colorPicker.calendar')">
                 <TeacherColorPicker
                   :teacher-id="editingUser.teacherProfile.id"
                   :color="editForm.teacherColor"
                   @change="editForm.teacherColor = $event"
                 />
               </UFormField>
-              <UFormField label="Priorität" hint="höher = wird in der Schnellerfassung zuerst vorgeschlagen">
+              <UFormField :label="t('common.priority')" :hint="t('usersPage.priorityHint')">
                 <UInput v-model.number="editForm.teacherPriority" type="number" min="-100" max="100" step="1" />
               </UFormField>
             </template>
@@ -1149,14 +1144,14 @@ watch(
 
           <div class="border-t border-neutral-200 dark:border-neutral-800 pt-4">
             <div class="flex items-center justify-between mb-2">
-              <h3 class="text-sm font-medium">Mandanten-Zuweisungen</h3>
+              <h3 class="text-sm font-medium">{{ t("usersPage.memberships") }}</h3>
               <UBadge color="neutral" variant="subtle">
                 {{ editMemberships.filter((m) => !m.removed).length }}
               </UBadge>
             </div>
 
             <div v-if="!editMemberships.length" class="text-xs text-neutral-500 italic mb-2">
-              Noch keine Mitgliedschaft.
+              {{ t("usersPage.noMembershipYet") }}
             </div>
             <ul v-else class="space-y-2 mb-3">
               <li
@@ -1176,7 +1171,7 @@ watch(
                 >
                   <option v-for="role in roleOptions" :key="role" :value="role">{{ roleLabels[role] }}</option>
                 </select>
-                <UBadge v-if="m.isNew" color="success" variant="subtle">neu</UBadge>
+                <UBadge v-if="m.isNew" color="success" variant="subtle">{{ t("common.newBadge") }}</UBadge>
                 <UButton
                   v-if="isSuperadmin || m.tenantId === primaryTenant?.tenantId"
                   size="xs"
@@ -1185,7 +1180,7 @@ watch(
                   :icon="m.removed ? 'i-lucide-rotate-ccw' : 'i-lucide-trash-2'"
                   @click="toggleMembershipRemove(m)"
                 >
-                  {{ m.removed ? "Wiederherstellen" : "Entfernen" }}
+                  {{ m.removed ? t("common.restore") : t("common.remove") }}
                 </UButton>
               </li>
             </ul>
@@ -1194,18 +1189,18 @@ watch(
               v-if="isSuperadmin && availableTenantsForNew.length"
               class="flex items-end gap-2 flex-wrap rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-2"
             >
-              <UFormField label="Mandant" class="flex-1 min-w-[160px]">
+              <UFormField :label="t('common.tenant')" class="flex-1 min-w-[160px]">
                 <select
                   v-model="newMembershipForm.tenantId"
                   class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
                 >
-                  <option value="">Mandant wählen…</option>
+                  <option value="">{{ t("usersPage.pickTenantOption") }}</option>
                   <option v-for="t in availableTenantsForNew" :key="t.id" :value="t.id">
                     {{ t.name }} ({{ t.slug }})
                   </option>
                 </select>
               </UFormField>
-              <UFormField label="Rolle">
+              <UFormField :label="t('common.role')">
                 <select
                   v-model="newMembershipForm.role"
                   class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
@@ -1220,11 +1215,11 @@ watch(
                 :disabled="!newMembershipForm.tenantId"
                 @click="addMembershipDraft"
               >
-                Zuweisen
+                {{ t("common.assign") }}
               </UButton>
             </div>
             <p v-else-if="isSuperadmin" class="text-xs text-neutral-500 italic">
-              Benutzer ist bereits allen Mandanten zugewiesen.
+              {{ t("usersPage.assignedAll") }}
             </p>
           </div>
 
@@ -1233,7 +1228,7 @@ watch(
             class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
           >
             <input v-model="editForm.isSuperadmin" type="checkbox" />
-            Superadmin-Rechte
+            {{ t("usersPage.superadminRights") }}
           </label>
         </form>
       </template>
@@ -1248,7 +1243,7 @@ watch(
               :loading="savingId === editingUser.id"
               @click="toggleDisabled(editingUser)"
             >
-              {{ editingUser.disabledAt ? "Entsperren" : "Sperren" }}
+              {{ editingUser.disabledAt ? t("usersPage.unlock") : t("usersPage.lock") }}
             </UButton>
             <UButton
               v-if="editingUser && canDeleteUser(editingUser)"
@@ -1258,13 +1253,13 @@ watch(
               :loading="savingId === editingUser.id"
               @click="deleteUserAccount(editingUser)"
             >
-              Konto löschen
+              {{ t("usersPage.deleteAccountButton") }}
             </UButton>
           </div>
           <div class="flex gap-2 ml-auto">
-            <UButton variant="ghost" color="neutral" @click="editOpen = false">Abbrechen</UButton>
+            <UButton variant="ghost" color="neutral" @click="editOpen = false">{{ t("common.cancel") }}</UButton>
             <UButton color="primary" :loading="loading" icon="i-lucide-save" :disabled="editEmailTaken" @click="submitEdit">
-              Speichern
+              {{ t("common.save") }}
             </UButton>
           </div>
         </div>
@@ -1274,7 +1269,7 @@ watch(
     <UModal v-model:open="addOpen" :ui="{ content: 'max-w-lg' }">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
-          <h2 class="font-medium">Benutzer hinzufügen</h2>
+          <h2 class="font-medium">{{ t("usersPage.add") }}</h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="addOpen = false" />
         </div>
       </template>
@@ -1282,7 +1277,7 @@ watch(
         <form class="space-y-3" @submit.prevent="submitAdd">
           <UAlert v-if="dialogError" color="error" variant="soft" icon="i-lucide-circle-alert" :title="dialogError" />
           <UAlert v-if="dialogInfo" color="success" variant="soft" icon="i-lucide-circle-check" :title="dialogInfo" />
-          <UFormField label="E-Mail" required>
+          <UFormField :label="t('common.email')" required>
             <UInput v-model="addForm.email" type="email" placeholder="email@domain.tld" autocomplete="off" />
           </UFormField>
           <UAlert
@@ -1290,26 +1285,26 @@ watch(
             color="info"
             variant="subtle"
             icon="i-lucide-info"
-            title="Benutzer existiert bereits"
-            description="Dieser Benutzer wird dem Mandanten zugeordnet. Passwort ist nicht erforderlich."
+            :title="t('usersPage.existingUser')"
+            :description="t('usersPage.existingUserHint')"
           />
-          <UFormField label="Name (optional)">
+          <UFormField :label="t('usersPage.nameOptional')">
             <UInput v-model="addForm.name" />
           </UFormField>
           <UCheckbox
             v-if="!addIsExistingUser"
             v-model="addForm.sendInvite"
-            label="Einladung per E-Mail senden"
-            description="Der Benutzer erhält einen Link und legt sein Passwort selbst fest (Link 7 Tage gültig)."
+            :label="t('usersPage.sendInvite')"
+            :description="t('usersPage.sendInviteHint')"
           />
           <UFormField
-            :label="addPasswordRequired ? 'Passwort' : 'Passwort (optional)'"
+            :label="addPasswordRequired ? t('usersPage.password') : t('usersPage.passwordOptional')"
             :hint="
               addIsExistingUser
-                ? 'wird ignoriert, Benutzer existiert bereits'
+                ? t('usersPage.passwordIgnored')
                 : addPasswordRequired
-                  ? 'Pflicht bei neuem Benutzer · mind. 6 Zeichen'
-                  : 'leer lassen, wenn der Benutzer es selbst festlegt'
+                  ? t('usersPage.passwordRequiredHint')
+                  : t('usersPage.passwordSelfHint')
             "
             :required="addPasswordRequired"
           >
@@ -1320,18 +1315,18 @@ watch(
               :disabled="addIsExistingUser"
             />
           </UFormField>
-          <UFormField v-if="isSuperadmin" label="Mandant">
+          <UFormField v-if="isSuperadmin" :label="t('common.tenant')">
             <select
               v-model="addForm.tenantId"
               class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
             >
-              <option value="">Ohne Mandant</option>
+              <option value="">{{ t("usersPage.withoutTenant") }}</option>
               <option v-for="t in tenants" :key="t.id" :value="t.id">
                 {{ t.name }} ({{ t.slug }})
               </option>
             </select>
           </UFormField>
-          <UFormField label="Rolle">
+          <UFormField :label="t('common.role')">
             <select
               v-model="addForm.role"
               class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
@@ -1341,15 +1336,15 @@ watch(
           </UFormField>
           <label v-if="isSuperadmin" class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
             <input v-model="addForm.isSuperadmin" type="checkbox" />
-            Superadmin-Rechte
+            {{ t("usersPage.superadminRights") }}
           </label>
         </form>
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UButton variant="ghost" color="neutral" @click="addOpen = false">Abbrechen</UButton>
+          <UButton variant="ghost" color="neutral" @click="addOpen = false">{{ t("common.cancel") }}</UButton>
           <UButton color="primary" :loading="loading" icon="i-lucide-user-plus" @click="submitAdd">
-            Hinzufügen
+            {{ t("common.add") }}
           </UButton>
         </div>
       </template>

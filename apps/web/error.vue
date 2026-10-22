@@ -19,13 +19,13 @@ function retry() {
       <AppLogo size="lg" inverted class="justify-center" />
       <template v-if="serverDown">
         <p class="mt-6 text-lg leading-relaxed text-neutral-300">
-          Wir sind gleich wieder da. Die App wird gerade aktualisiert.
+          {{ $t("errorPage.updating") }}
         </p>
-        <UButton class="mt-6" size="lg" color="neutral" @click="retry">Erneut versuchen</UButton>
+        <UButton class="mt-6" size="lg" color="neutral" @click="retry">{{ $t("errorPage.retry") }}</UButton>
       </template>
       <template v-else>
-        <p class="mt-6 text-lg text-neutral-300">Diese Seite gibt es nicht.</p>
-        <UButton class="mt-6" size="lg" color="neutral" variant="soft" to="/">Zur Startseite</UButton>
+        <p class="mt-6 text-lg text-neutral-300">{{ $t("errorPage.notFound") }}</p>
+        <UButton class="mt-6" size="lg" color="neutral" variant="soft" to="/">{{ $t("errorPage.home") }}</UButton>
       </template>
     </main>
   </div>

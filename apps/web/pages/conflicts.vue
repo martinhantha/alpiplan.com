@@ -5,7 +5,7 @@ import { useAuth } from "../composables/useAuth";
 import { formatAppointmentTeachers } from "../utils/appointment-contact";
 
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
-const { intlLocale } = useAppLocale();
+const { t, intlLocale } = useAppLocale();
 
 interface ConflictAppointment {
   id: string;
@@ -110,11 +110,11 @@ function formatTime(value: string) {
 }
 
 function appointmentTitle(appointment: ConflictAppointment) {
-  return appointment.customer?.displayName || appointment.appointmentContactText || "Termin ohne Kontakt";
+  return appointment.customer?.displayName || appointment.appointmentContactText || t("appointments.noContact");
 }
 
 function conflictTypeLabel(type: SchedulingConflict["type"]) {
-  return type === "RESOURCE_DOUBLE_BOOK" ? "Ressource" : teacherLabel.value;
+  return type === "RESOURCE_DOUBLE_BOOK" ? t("conflictsPage.resource") : teacherLabel.value;
 }
 
 function pickMoveTarget(appointments: ConflictAppointment[]) {
@@ -159,7 +159,7 @@ async function loadConflicts() {
       resetSelection();
     }
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Konflikte konnten nicht geladen werden");
+    error.value = apiMessage(e, t("conflictsPage.loadFailed"));
     conflicts.value = [];
     resetSelection();
   } finally {
@@ -179,7 +179,7 @@ async function loadAlternatives() {
     );
     alternatives.value = response.data;
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Alternativen konnten nicht geladen werden");
+    error.value = apiMessage(e, t("conflictsPage.alternativesFailed"));
   } finally {
     alternativesLoading.value = false;
   }
@@ -212,11 +212,11 @@ async function applyAlternative() {
       headers: { "If-Match": String(moveAppointment.value.version) },
       body,
     });
-    info.value = "Alternative übernommen — Termin wurde verschoben.";
+    info.value = t("conflictsPage.applied");
     resetSelection();
     await loadConflicts();
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Alternative konnte nicht übernommen werden");
+    error.value = apiMessage(e, t("conflictsPage.applyFailed"));
   } finally {
     applying.value = false;
   }
@@ -245,10 +245,10 @@ onMounted(() => {
   <UContainer class="py-6 space-y-6 max-w-3xl">
     <div class="flex items-start justify-between gap-3 flex-wrap">
       <div class="space-y-1">
-        <p class="text-sm text-muted font-medium">Alpiplan · Konflikte</p>
-        <h1 class="font-display text-3xl sm:text-4xl">Konflikte</h1>
+        <p class="text-sm text-muted font-medium">{{ t("conflictsPage.breadcrumb") }}</p>
+        <h1 class="font-display text-3xl sm:text-4xl">{{ t("conflictsPage.title") }}</h1>
         <p class="text-sm text-neutral-600 dark:text-neutral-400">
-          Überschneidungen bei {{ teacherLabel }} oder Ressourcen. Wähle eine Alternative, um den Termin zu verschieben.
+          {{ t("conflictsPage.subtitle", { teacher: teacherLabel }) }}
         </p>
       </div>
       <UButton
@@ -260,7 +260,7 @@ onMounted(() => {
         :disabled="!canManageTenant || !activeTenantId"
         @click="loadConflicts"
       >
-        Neu laden
+        {{ t("common.reload") }}
       </UButton>
     </div>
 
@@ -268,20 +268,20 @@ onMounted(() => {
       v-if="!canManageTenant"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Konflikte können nur Admins ansehen und auflösen.
+      {{ t("conflictsPage.adminsOnly") }}
     </div>
 
     <div
       v-else-if="!activeTenantId"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Kein Mandant zugewiesen — Konflikte können nicht geladen werden.
+      {{ t("conflictsPage.noTenant") }}
     </div>
 
     <template v-else>
       <UCard>
         <div class="grid gap-3 sm:grid-cols-3">
-          <UFormField v-if="tenantOptions.length > 1" label="Mandant">
+          <UFormField v-if="tenantOptions.length > 1" :label="t('common.tenant')">
             <select
               v-model="selectedTenantId"
               class="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
@@ -291,10 +291,10 @@ onMounted(() => {
               </option>
             </select>
           </UFormField>
-          <UFormField label="Von">
+          <UFormField :label="t('common.from')">
             <UInput v-model="fromDate" type="date" @change="loadConflicts" />
           </UFormField>
-          <UFormField label="Bis">
+          <UFormField :label="t('common.to')">
             <UInput v-model="toDate" type="date" @change="loadConflicts" />
           </UFormField>
         </div>
@@ -303,12 +303,12 @@ onMounted(() => {
       <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :title="error" />
       <UAlert v-if="info" color="success" variant="soft" icon="i-lucide-circle-check" :title="info" />
 
-      <div v-if="loading && !conflicts.length" class="text-sm text-neutral-500">Konflikte werden geladen …</div>
+      <div v-if="loading && !conflicts.length" class="text-sm text-neutral-500">{{ t("conflictsPage.loading") }}</div>
       <div
         v-else-if="!conflicts.length"
         class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
       >
-        Keine Konflikte im gewählten Zeitraum.
+        {{ t("conflictsPage.empty") }}
       </div>
 
       <div v-else class="space-y-3">
@@ -347,12 +347,12 @@ onMounted(() => {
           color="warning"
           variant="subtle"
           :title="selectedConflict.title"
-          :description="`${selectedConflict.detail}. Wähle, welcher Termin verschoben wird, und eine Alternative.`"
+          :description="t('conflictsPage.chooseHint', { detail: selectedConflict.detail })"
         />
 
         <UCard>
           <template #header>
-            <h2 class="font-medium">Termin verschieben</h2>
+            <h2 class="font-medium">{{ t("conflictsPage.moveTitle") }}</h2>
           </template>
           <div class="space-y-2">
             <label
@@ -373,7 +373,7 @@ onMounted(() => {
                 </p>
                 <div class="mt-1 flex flex-wrap gap-2 text-xs text-neutral-500">
                   <span v-if="formatAppointmentTeachers(appointment)">{{ teacherLabel }}: {{ formatAppointmentTeachers(appointment) }}</span>
-                  <span v-if="appointment.resource">Ressource: {{ appointment.resource.name }}</span>
+                  <span v-if="appointment.resource">{{ t("conflictsPage.resource") }}: {{ appointment.resource.name }}</span>
                   <UBadge
                     v-if="appointmentStatusLabel(appointment.status)"
                     :color="appointmentStatusColor(appointment.status)"
@@ -389,7 +389,7 @@ onMounted(() => {
 
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-3">
-            <h2 class="font-medium">Alternativen</h2>
+            <h2 class="font-medium">{{ t("conflictsPage.alternatives") }}</h2>
             <UButton
               size="xs"
               variant="ghost"
@@ -400,12 +400,12 @@ onMounted(() => {
               @click="loadAlternatives"
             />
           </div>
-          <div v-if="alternativesLoading" class="text-sm text-neutral-500">Alternativen werden gesucht …</div>
+          <div v-if="alternativesLoading" class="text-sm text-neutral-500">{{ t("conflictsPage.searching") }}</div>
           <div
             v-else-if="!alternatives.length"
             class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
           >
-            Keine freie Alternative im Zeitraum gefunden. Passe den Termin manuell unter Termine an.
+            {{ t("conflictsPage.noAlternative") }}
           </div>
           <button
             v-for="alternative in alternatives"
@@ -432,7 +432,7 @@ onMounted(() => {
           :loading="applying"
           @click="applyAlternative"
         >
-          Auswahl übernehmen
+          {{ t("conflictsPage.apply") }}
         </UButton>
       </template>
     </template>

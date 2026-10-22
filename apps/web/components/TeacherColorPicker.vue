@@ -9,6 +9,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ change: [color: string | null] }>();
+const { t } = useI18n();
 
 const isAuto = computed(() => !props.color);
 const current = computed(() => avatarColor(props.teacherId, props.color));
@@ -24,10 +25,10 @@ function pick(color: string | null) {
     <label
       class="relative flex h-8 cursor-pointer items-center gap-2 rounded-md border border-neutral-200 pl-1.5 pr-2.5 text-xs transition-colors hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500"
       :class="disabled ? 'pointer-events-none opacity-50' : ''"
-      title="Farbe auswählen"
+      :title="t('colorPicker.choose')"
     >
       <span class="size-5 rounded-full shadow-inner" :style="{ backgroundColor: current }" />
-      <span class="text-neutral-700 dark:text-neutral-200">{{ isAuto ? "Automatisch" : "Eigene Farbe" }}</span>
+      <span class="text-neutral-700 dark:text-neutral-200">{{ isAuto ? t("colorPicker.auto") : t("colorPicker.custom") }}</span>
       <input
         type="color"
         class="absolute inset-0 size-full cursor-pointer opacity-0"
@@ -43,7 +44,7 @@ function pick(color: string | null) {
       variant="ghost"
       icon="i-lucide-rotate-ccw"
       :disabled="disabled"
-      title="Wieder automatisch zuweisen"
+      :title="t('colorPicker.resetAuto')"
       @click="pick(null)"
     >
       Auto

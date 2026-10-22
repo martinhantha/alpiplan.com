@@ -1,9 +1,10 @@
 <script setup lang="ts">
 const { reminder, minutesLeft, teacherLabel, dismiss } = useAppointmentReminders();
+const { t, intlLocale } = useAppLocale();
 
 const when = computed(() => {
   if (!reminder.value) return "";
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -34,9 +35,9 @@ async function openAppointment() {
             <UIcon name="i-lucide-bell-ring" class="size-5 text-primary-700 dark:text-primary-200" />
           </div>
           <div class="min-w-0 flex-1">
-            <p id="appointment-reminder-title" class="text-sm font-semibold">Terminerinnerung</p>
+            <p id="appointment-reminder-title" class="text-sm font-semibold">{{ t("alerts.reminderTitle") }}</p>
             <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              Dein Termin beginnt in {{ minutesLeft }} Minuten.
+              {{ t("alerts.reminderBody", { minutes: minutesLeft }) }}
             </p>
             <p class="mt-2 text-base font-semibold text-neutral-900 dark:text-neutral-50">
               {{ reminder.title }}
@@ -46,9 +47,9 @@ async function openAppointment() {
               <span v-if="reminder.teacherName"> · {{ teacherLabel }}: {{ reminder.teacherName }}</span>
             </p>
             <div class="mt-3 flex justify-end gap-2">
-              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">Später</UButton>
+              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">{{ t("common.later") }}</UButton>
               <UButton size="xs" color="primary" icon="i-lucide-calendar-days" @click="openAppointment">
-                Ansehen
+                {{ t("common.view") }}
               </UButton>
             </div>
           </div>

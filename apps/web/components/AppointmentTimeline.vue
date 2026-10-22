@@ -61,6 +61,8 @@ import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import { avatarColor, avatarInitials } from "../utils/avatar";
 
+const { t } = useI18n();
+
 const props = defineProps<{
   rows: TimelineRowInput<T>[];
   day: Date;
@@ -145,9 +147,13 @@ function blockStyle(kind: TimelineBlockKind, emphasized: boolean) {
   };
 }
 
+function blockKindLabel(kind: TimelineBlockKind) {
+  return t(`blocks.${kind}`);
+}
+
 function blockTitle(block: TimelineBlock) {
-  const label = TIMELINE_BLOCK_LABELS[block.kind];
-  const window = block.allDay ? "ganztägig" : `${props.formatTime(block.startsAt)}–${props.formatTime(block.endsAt)}`;
+  const label = blockKindLabel(block.kind);
+  const window = block.allDay ? t("blocks.allDayParen") : `${props.formatTime(block.startsAt)}–${props.formatTime(block.endsAt)}`;
   return [`${label} (${window})`, block.reason].filter(Boolean).join(" · ");
 }
 
@@ -413,7 +419,7 @@ function chipTitle(appointment: T) {
           class="sticky left-0 z-30 w-14 shrink-0 border-r border-neutral-200 bg-white sm:w-48 dark:border-neutral-800 dark:bg-neutral-950"
         >
           <div class="flex h-10 items-end border-b border-neutral-200 px-3 pb-2 dark:border-neutral-800">
-            <span class="hidden text-[11px] font-medium uppercase tracking-wider text-neutral-400 sm:inline">Team</span>
+            <span class="hidden text-[11px] font-medium uppercase tracking-wider text-neutral-400 sm:inline">{{ t("timeline.team") }}</span>
           </div>
           <div
             v-for="row in layout"
@@ -444,7 +450,7 @@ function chipTitle(appointment: T) {
               <template #content>
                 <p class="font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</p>
                 <p class="text-xs text-neutral-500 tabular-nums">
-                  {{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}
+                  {{ row.appointments.length }} {{ row.appointments.length === 1 ? t("common.appointment") : t("nav.appointments") }}
                 </p>
                 <p
                   v-for="block in row.blocks ?? []"
@@ -459,7 +465,7 @@ function chipTitle(appointment: T) {
             <div class="hidden min-w-0 sm:block">
               <p class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{{ row.name }}</p>
               <p class="flex items-center gap-1.5 text-[11px] text-neutral-500 tabular-nums">
-                <span>{{ row.appointments.length }} {{ row.appointments.length === 1 ? "Termin" : "Termine" }}</span>
+                <span>{{ row.appointments.length }} {{ row.appointments.length === 1 ? t("common.appointment") : t("nav.appointments") }}</span>
                 <span
                   v-if="row.absence"
                   class="truncate rounded px-1 font-medium"
@@ -469,7 +475,7 @@ function chipTitle(appointment: T) {
                   }"
                   :title="blockTitle(row.absence)"
                 >
-                  {{ TIMELINE_BLOCK_LABELS[row.absence.kind] }}
+                  {{ blockKindLabel(row.absence.kind) }}
                 </span>
               </p>
             </div>
@@ -547,7 +553,7 @@ function chipTitle(appointment: T) {
                   class="absolute bottom-0.5 left-1 max-w-[calc(100%-0.5rem)] truncate text-[10px] font-semibold uppercase tracking-wide"
                   :style="{ color: TIMELINE_BLOCK_COLORS[item.block.kind] }"
                 >
-                  {{ TIMELINE_BLOCK_LABELS[item.block.kind] }}
+                  {{ blockKindLabel(item.block.kind) }}
                 </span>
               </div>
               <div
@@ -600,7 +606,7 @@ function chipTitle(appointment: T) {
                     <span
                       v-if="item.appointment.status === 'draft'"
                       class="size-1.5 shrink-0 rounded-full bg-amber-500"
-                      title="Entwurf"
+                      :title="t('appointment.status.draft')"
                     />
                     <UIcon
                       v-else-if="item.appointment.status === 'completed'"
@@ -637,8 +643,8 @@ function chipTitle(appointment: T) {
                     <button
                       type="button"
                       class="flex size-6 items-center justify-center rounded-md bg-white/90 text-neutral-600 shadow-sm ring-1 ring-neutral-200 hover:text-neutral-900 dark:bg-neutral-800/90 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:text-white"
-                      aria-label="Termin-Aktionen"
-                      title="Aktionen"
+                      :aria-label="t('timeline.actions')"
+                      :title="t('common.actions')"
                     >
                       <UIcon name="i-lucide-ellipsis" class="size-4" />
                     </button>
@@ -675,8 +681,11 @@ function chipTitle(appointment: T) {
       class="flex items-center gap-1.5 border-t border-neutral-100 px-3 py-2 text-[11px] text-neutral-500 dark:border-neutral-900"
     >
       <UIcon name="i-lucide-mouse-pointer-2" class="size-3.5" />
-      Ziehen zum Verschieben{{ canChangeRow ? " (auch auf andere Personen)" : "" }}, rechten Rand ziehen für die Dauer, Esc bricht ab.{{
-        canCreate ? " Klick auf eine freie Stelle legt einen neuen Termin an." : ""
+      {{
+        t("timeline.dragHint", {
+          row: canChangeRow ? t("timeline.dragRow") : "",
+          create: canCreate ? t("timeline.dragCreate") : "",
+        })
       }}
     </div>
   </div>

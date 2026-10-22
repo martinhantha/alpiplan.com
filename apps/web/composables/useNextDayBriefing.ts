@@ -50,18 +50,15 @@ function persistShownKeys(keys: Set<string>) {
   localStorage.setItem(SHOWN_KEY, JSON.stringify([...keys].slice(-30)));
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+function formatTime(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: BUSINESS_TIME_ZONE,
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-async function notifyOs(briefing: NextDayBriefing) {
-  const times = briefing.items.map((item) => `${formatTime(item.startsAt)} ${item.title}`).join(", ");
-  const title = "Termine morgen";
-  const body = `${briefing.items.length} ${briefing.items.length === 1 ? "Termin" : "Termine"} · ${times}`;
+async function notifyOs(briefing: NextDayBriefing, title: string, body: string) {
 
   // Native OS banners come from FCM so a killed app still gets the briefing.
   if (Capacitor.isNativePlatform()) return;
@@ -75,6 +72,7 @@ async function notifyOs(briefing: NextDayBriefing) {
 
 export function useNextDayBriefing() {
   const { user, primaryTenant } = useAuth();
+  const { t, intlLocale } = useAppLocale();
   const briefing = useState<NextDayBriefing | null>("appointment-briefing", () => null);
   const shownKeys = useState<Set<string>>("appointment-briefing-shown", () => loadShownKeys());
 
@@ -95,7 +93,15 @@ export function useNextDayBriefing() {
     shownKeys.value.add(key);
     persistShownKeys(shownKeys.value);
     briefing.value = next;
-    void notifyOs(next);
+    const times = next.items.map((item) => `${formatTime(item.startsAt, intlLocale.value)} ${item.title}`).join(", ");
+    void notifyOs(
+      next,
+      t("alerts.tomorrowTitle"),
+      t(next.items.length === 1 ? "alerts.osBriefingOne" : "alerts.osBriefingMany", {
+        count: next.items.length,
+        times,
+      }),
+    );
   }
 
   async function loadTomorrowItems(): Promise<NextDayBriefingItem[]> {

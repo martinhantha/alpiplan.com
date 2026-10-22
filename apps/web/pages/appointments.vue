@@ -9,7 +9,6 @@ import { quickCaptureModalUi } from "../utils/quick-capture-modal-ui";
 import { avatarColor, avatarInitials } from "../utils/avatar";
 import {
   TIMELINE_BLOCK_COLORS,
-  TIMELINE_BLOCK_LABELS,
   type TimelineBlock,
   type TimelineBlockKind,
   type TimelineCreate,
@@ -206,13 +205,13 @@ const filterAutoApply = useFilterAutoApply(
   () => canLoad.value,
 );
 
-const statusOptions = [
-  { value: DEFAULT_STATUS_FILTER, label: "Offen" },
-  { value: "draft", label: "Entwurf" },
-  { value: "completed", label: "Erledigt" },
-  { value: "cancelled", label: "Storniert" },
-  { value: "", label: "Alle" },
-];
+const statusOptions = computed(() => [
+  { value: DEFAULT_STATUS_FILTER, label: t("appointments.statusOpen") },
+  { value: "draft", label: t("appointments.statusDraft") },
+  { value: "completed", label: t("appointments.statusDone") },
+  { value: "cancelled", label: t("appointments.statusCancelled") },
+  { value: "", label: t("common.all") },
+]);
 
 /** Einheitliche Höhe für Suche, Select und Datum im Filter. */
 const filterControlUi = { base: "min-h-10 py-2.5" };
@@ -222,7 +221,7 @@ const filterSelectUi = { base: "min-h-10 w-full" };
 const ALL_FILTER_VALUE = "__all";
 
 const teacherFilterItems = computed(() => [
-  { label: `Alle ${teacherLabel.value}`, value: ALL_FILTER_VALUE },
+  { label: t("appointments.allTeachers", { teacher: teacherLabel.value }), value: ALL_FILTER_VALUE },
   ...(options.value?.teachers ?? []).map((teacher) => ({
     label: teacher.displayName,
     value: teacher.id,
@@ -230,11 +229,11 @@ const teacherFilterItems = computed(() => [
 ]);
 
 const statusFilterItems = computed(() =>
-  statusOptions.map((option) => ({ label: option.label, value: option.value || ALL_FILTER_VALUE })),
+  statusOptions.value.map((option) => ({ label: option.label, value: option.value || ALL_FILTER_VALUE })),
 );
 
 const lessonTypeFilterItems = computed(() => [
-  { label: "Alle Termintypen", value: ALL_FILTER_VALUE },
+  { label: t("appointments.allLessonTypes"), value: ALL_FILTER_VALUE },
   ...(options.value?.lessonTypes ?? []).map((lessonType) => ({
     label: lessonType.name,
     value: lessonType.id,
@@ -266,8 +265,8 @@ const canLoad = computed(() => Boolean(primaryTenant.value?.tenantId));
 
 const filterHint = computed(() =>
   view.value === "calendar"
-    ? "Im Kalender gilt der gewählte Tag, die Woche oder der Monat — hier nur Suche und Zuordnung."
-    : "Termintyp, Status und Zeitraum gelten für die Liste.",
+    ? t("appointments.filterHintCalendar")
+    : t("appointments.filterHintList"),
 );
 
 const activeFilterCount = computed(() => {
@@ -284,14 +283,14 @@ const activeFilterCount = computed(() => {
 });
 
 const rangeLabel = computed(() => {
-  if (!pagination.value.total) return "0 Termine";
+  if (!pagination.value.total) return t("appointments.zero");
   const start = (pagination.value.page - 1) * pagination.value.pageSize + 1;
   const end = Math.min(pagination.value.page * pagination.value.pageSize, pagination.value.total);
-  return `${start}–${end} von ${pagination.value.total}`;
+  return t("appointments.range", { start, end, total: pagination.value.total });
 });
 
 function appointmentTitle(appointment: AppointmentListItem) {
-  return appointment.customer?.displayName || appointment.appointmentContactText || "Termin ohne Kontakt";
+  return appointment.customer?.displayName || appointment.appointmentContactText || t("appointments.noContact");
 }
 
 function formatDateTime(value: string) {
@@ -357,7 +356,7 @@ async function loadAppointments() {
     void loadUnavailability();
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
-    error.value = err.data?.data?.message || err.data?.message || err.statusMessage || "Termine konnten nicht geladen werden";
+    error.value = err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.loadFailed");
   } finally {
     loading.value = false;
   }
@@ -411,7 +410,7 @@ function noticesFor(teacherId: string, key: string): TimelineBlock[] {
 }
 
 function noticeLabel(block: TimelineBlock) {
-  const label = TIMELINE_BLOCK_LABELS[block.kind];
+  const label = t(`blocks.${block.kind}`);
   return block.allDay ? label : `${label} ${formatTime(block.startsAt)}–${formatTime(block.endsAt)}`;
 }
 
@@ -466,7 +465,14 @@ const monthGrid = computed(() => {
   });
 });
 
-const weekdayHeaders = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const weekdayHeaders = computed(() => {
+  const monday = new Date(Date.UTC(2024, 0, 1));
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + index);
+    return new Intl.DateTimeFormat(intlLocale.value, { weekday: "short", timeZone: "UTC" }).format(date);
+  });
+});
 
 function dateKey(value: string) {
   const d = new Date(value);
@@ -518,7 +524,7 @@ const dayColumns = computed(() => {
   }
   const sorted = [...columns.values()].sort((a, b) => a.name.localeCompare(b.name, intlLocale.value));
   if (unassigned.length) {
-    sorted.push({ id: "__unassigned", name: `Ohne ${teacherLabel.value}`, color: null, appointments: unassigned });
+    sorted.push({ id: "__unassigned", name: t("appointments.unassigned", { teacher: teacherLabel.value }), color: null, appointments: unassigned });
   }
   return sorted;
 });
@@ -559,7 +565,7 @@ const teamRows = computed(() => {
   for (const teacher of options.value?.teachers ?? []) {
     rows.set(teacher.id, { id: teacher.id, name: teacher.displayName, color: teacher.color ?? null, byDay: new Map() });
   }
-  const unassigned = { id: UNASSIGNED_ROW_ID, name: `Ohne ${teacherLabel.value}`, color: null, byDay: new Map() };
+  const unassigned = { id: UNASSIGNED_ROW_ID, name: t("appointments.unassigned", { teacher: teacherLabel.value }), color: null, byDay: new Map() };
   const sortedAppointments = [...appointments.value].sort(
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   );
@@ -667,7 +673,7 @@ function nextTeacherIds(current: string[], fromRowId: string, toRowId: string): 
 }
 
 async function patchAppointmentSchedule(appointment: AppointmentListItem, body: Record<string, unknown>) {
-  if (!primaryTenant.value?.tenantId) throw new Error("Kein Mandant");
+  if (!primaryTenant.value?.tenantId) throw new Error(t("appointments.noTenant"));
   return $fetch<AppointmentListItem>(
     `/api/v1/tenants/${primaryTenant.value.tenantId}/appointments/${appointment.id}`,
     {
@@ -711,7 +717,7 @@ async function onTimelineMove(move: TimelineMove<AppointmentListItem>) {
     const updated = await patchAppointmentSchedule(appointment, body);
     replaceAppointment(updated);
     const target = teacherChanged
-      ? ` zu ${timelineRows.value.find((row) => row.id === move.toRowId)?.name ?? teacherLabel.value}`
+      ? t("appointments.movedTo", { name: timelineRows.value.find((row) => row.id === move.toRowId)?.name ?? teacherLabel.value })
       : "";
     showLastMove(
       appointment.id,
@@ -721,7 +727,7 @@ async function onTimelineMove(move: TimelineMove<AppointmentListItem>) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht verschoben werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.moveFailed");
     await loadAppointments();
   } finally {
     savingId.value = "";
@@ -743,7 +749,7 @@ async function undoLastMove() {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Rückgängig machen fehlgeschlagen";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.undoFailed");
     await loadAppointments();
   } finally {
     savingId.value = "";
@@ -891,19 +897,19 @@ function canCompleteAppointment(appointment: AppointmentListItem) {
 function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[][] {
   const groups: DropdownMenuItem[][] = [
     [
-      { label: "Bearbeiten", icon: "i-lucide-pencil", onSelect: () => openEditAppointment(appointment) },
+      { label: t("appointments.edit"), icon: "i-lucide-pencil", onSelect: () => openEditAppointment(appointment) },
       ...(canAccessWorkspace.value
-        ? [{ label: "Duplizieren", icon: "i-lucide-copy-plus", onSelect: () => openDuplicateAppointment(appointment) }]
+        ? [{ label: t("appointments.duplicate"), icon: "i-lucide-copy-plus", onSelect: () => openDuplicateAppointment(appointment) }]
         : []),
       ...(canCompleteAppointment(appointment)
-        ? [{ label: "Als erledigt markieren", icon: "i-lucide-check", onSelect: () => markCompleted(appointment) }]
+        ? [{ label: t("appointments.markDone"), icon: "i-lucide-check", onSelect: () => markCompleted(appointment) }]
         : []),
     ],
   ];
   if (canAccessWorkspace.value) {
     groups.push([
       {
-        label: "Auf einen oder mehrere Tage kopieren…",
+        label: t("appointments.copyMenu"),
         icon: "i-lucide-copy",
         onSelect: () => openCopyDialog(appointment),
       },
@@ -911,7 +917,7 @@ function timelineMenuItems(appointment: AppointmentListItem): DropdownMenuItem[]
   }
   if (canManageTenant.value) {
     groups.push([
-      { label: "Löschen", icon: "i-lucide-trash-2", color: "error", onSelect: () => deleteAppointment(appointment) },
+      { label: t("appointments.delete"), icon: "i-lucide-trash-2", color: "error", onSelect: () => deleteAppointment(appointment) },
     ]);
   }
   return groups;
@@ -1006,7 +1012,7 @@ async function runCopy() {
       });
     } catch (e: unknown) {
       failed.push(day);
-      copyFailures.value.push({ date: formatCopyDate(day), message: apiErrorMessage(e, "Fehlgeschlagen") });
+      copyFailures.value.push({ date: formatCopyDate(day), message: apiErrorMessage(e, t("appointments.copyFailed")) });
     }
   }
   copySaving.value = false;
@@ -1125,7 +1131,7 @@ async function markCompleted(appointment: AppointmentListItem) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht abgehakt werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.completeFailed");
   } finally {
     savingId.value = "";
   }
@@ -1133,7 +1139,7 @@ async function markCompleted(appointment: AppointmentListItem) {
 
 async function deleteAppointment(appointment: AppointmentListItem) {
   if (!primaryTenant.value?.tenantId) return;
-  if (!confirm(`Termin „${appointmentTitle(appointment)}“ wirklich löschen? Er kann im Papierkorb wiederhergestellt werden.`)) return;
+  if (!confirm(t("appointments.deleteConfirm", { title: appointmentTitle(appointment) }))) return;
   savingId.value = appointment.id;
   error.value = "";
   try {
@@ -1145,7 +1151,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht gelöscht werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.deleteFailed");
   } finally {
     savingId.value = "";
   }
@@ -1197,13 +1203,13 @@ watch(
   <UContainer class="py-8 space-y-5">
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
-        <p class="text-sm text-muted font-medium">Alpiplan · Termine</p>
+        <p class="text-sm text-muted font-medium">{{ t("appointments.breadcrumb") }}</p>
         <h1 class="font-display text-3xl sm:text-4xl">
-          Termine
+          {{ t("appointments.title") }}
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
         </h1>
         <p v-if="!canManageTenant" class="mt-1 text-sm text-neutral-500">
-          {{ canPlanAllAppointments ? "" : "Nur eigene Termine. " }}Löschen nur durch Admin.
+          {{ canPlanAllAppointments ? "" : t("appointments.ownOnly") }}{{ t("appointments.deleteAdminOnly") }}
         </p>
       </div>
       <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -1216,12 +1222,12 @@ watch(
                 ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
                 : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             "
-            aria-label="Listenansicht"
-            title="Liste"
+            :aria-label="t('appointments.listView')"
+            :title="t('appointments.list')"
             @click="setView('list')"
           >
             <UIcon name="i-lucide-list" class="size-4" />
-            <span class="hidden sm:inline">Liste</span>
+            <span class="hidden sm:inline">{{ t("appointments.list") }}</span>
           </button>
           <button
             type="button"
@@ -1231,23 +1237,23 @@ watch(
                 ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
                 : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             "
-            aria-label="Kalenderansicht"
-            title="Kalender"
+            :aria-label="t('appointments.calendarView')"
+            :title="t('appointments.calendar')"
             @click="setView('calendar')"
           >
             <UIcon name="i-lucide-calendar-range" class="size-4" />
-            <span class="hidden sm:inline">Kalender</span>
+            <span class="hidden sm:inline">{{ t("appointments.calendar") }}</span>
           </button>
         </div>
         <UButton
           variant="outline"
           color="neutral"
           icon="i-lucide-filter"
-          aria-label="Filter"
-          title="Filter"
+          :aria-label="t('common.filter')"
+          :title="t('common.filter')"
           @click="filterOpen = !filterOpen"
         >
-          <span class="hidden sm:inline">Filter</span>
+          <span class="hidden sm:inline">{{ t("common.filter") }}</span>
           <UBadge v-if="activeFilterCount" color="primary" variant="subtle" class="sm:ml-1">
             {{ activeFilterCount }}
           </UBadge>
@@ -1261,21 +1267,21 @@ watch(
           variant="outline"
           color="neutral"
           icon="i-lucide-message-circle-question"
-          aria-label="Assistent"
-          title="Assistent"
+          :aria-label="t('appointments.assistant')"
+          :title="t('appointments.assistant')"
           @click="openAssistant"
         >
-          <span class="hidden sm:inline">Assistent</span>
+          <span class="hidden sm:inline">{{ t("appointments.assistant") }}</span>
         </UButton>
         <UButton
           v-if="canAccessWorkspace"
           icon="i-lucide-plus"
           color="primary"
-          aria-label="Neuer Termin"
-          title="Neuer Termin"
+          :aria-label="t('appointments.new')"
+          :title="t('appointments.new')"
           @click="openQuickCapture"
         >
-          <span class="hidden sm:inline">Neuer Termin</span>
+          <span class="hidden sm:inline">{{ t("appointments.new") }}</span>
         </UButton>
       </div>
     </div>
@@ -1299,7 +1305,7 @@ watch(
       <template #header>
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 space-y-1">
-            <h2 class="font-medium text-neutral-900 dark:text-neutral-100">Filter</h2>
+            <h2 class="font-medium text-neutral-900 dark:text-neutral-100">{{ t("common.filter") }}</h2>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-snug">
               {{ filterHint }}
             </p>
@@ -1323,12 +1329,12 @@ watch(
             : 'sm:grid-cols-2 lg:grid-cols-3'
         "
       >
-        <UFormField label="Suche" class="min-w-0 sm:col-span-2 lg:col-span-1">
+        <UFormField :label="t('common.searchLabel')" class="min-w-0 sm:col-span-2 lg:col-span-1">
           <UInput
             v-model="filters.q"
             size="md"
             class="w-full"
-            placeholder="Kunde oder Kontakttext"
+            :placeholder="t('appointments.searchPlaceholder')"
             icon="i-lucide-search"
             :ui="filterControlUi"
           />
@@ -1343,7 +1349,7 @@ watch(
           />
         </UFormField>
         <template v-if="view === 'list'">
-          <UFormField label="Termintyp" class="min-w-0">
+          <UFormField :label="t('common.lessonType')" class="min-w-0">
             <USelect
               v-model="lessonTypeFilterModel"
               size="md"
@@ -1352,7 +1358,7 @@ watch(
               :ui="filterSelectUi"
             />
           </UFormField>
-          <UFormField label="Status" class="min-w-0">
+          <UFormField :label="t('common.status')" class="min-w-0">
             <USelect
               v-model="statusFilterModel"
               size="md"
@@ -1361,7 +1367,7 @@ watch(
               :ui="filterSelectUi"
             />
           </UFormField>
-          <UFormField label="Von" class="min-w-0">
+          <UFormField :label="t('common.from')" class="min-w-0">
             <UInput
               v-model="filters.from"
               type="date"
@@ -1370,7 +1376,7 @@ watch(
               :ui="filterControlUi"
             />
           </UFormField>
-          <UFormField label="Bis" class="min-w-0">
+          <UFormField :label="t('common.to')" class="min-w-0">
             <UInput
               v-model="filters.to"
               type="date"
@@ -1386,11 +1392,11 @@ watch(
         <div class="flex flex-wrap items-center justify-between gap-3">
           <p class="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
             <UIcon name="i-lucide-timer" class="size-3.5 shrink-0 opacity-80" />
-            Änderungen werden automatisch übernommen
+            {{ t("common.autoApply") }}
           </p>
           <div class="flex items-center gap-2">
             <UButton size="sm" variant="ghost" color="neutral" @click="resetFilters">
-              Zurücksetzen
+              {{ t("common.reset") }}
             </UButton>
             <UButton
               size="sm"
@@ -1400,7 +1406,7 @@ watch(
               :loading="loading"
               @click="applyFilters"
             >
-              Jetzt laden
+              {{ t("common.loadNow") }}
             </UButton>
           </div>
         </div>
@@ -1411,7 +1417,7 @@ watch(
       <div class="flex items-center justify-between gap-3 text-sm text-neutral-600 dark:text-neutral-400">
         <span>{{ rangeLabel }}</span>
         <div class="flex items-center gap-2">
-          <span>Pro Seite</span>
+          <span>{{ t("common.perPage") }}</span>
           <select
             v-model.number="pageSize"
             class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
@@ -1425,10 +1431,10 @@ watch(
       </div>
 
       <div v-if="!primaryTenant" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-        Für Termine brauchst du eine Mandanten-Mitgliedschaft.
+        {{ t("appointments.membershipRequired") }}
       </div>
       <div v-else-if="!appointments.length && !loading" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-        Keine Termine passend zu den Filtern.
+        {{ t("appointments.noMatches") }}
       </div>
       <div v-else class="space-y-3">
         <UCard v-for="appointment in appointments" :key="appointment.id">
@@ -1464,8 +1470,8 @@ watch(
                   />
                   {{ teachersCaption(appointment) }}
                 </span>
-                <span v-if="resourcesEnabled && appointment.resource">Ressource: {{ appointment.resource.name }}</span>
-                <span v-if="appointment.lessonType">Art: {{ appointment.lessonType.name }}</span>
+                <span v-if="resourcesEnabled && appointment.resource">{{ t("appointments.resource") }}: {{ appointment.resource.name }}</span>
+                <span v-if="appointment.lessonType">{{ t("appointments.type") }}: {{ appointment.lessonType.name }}</span>
               </div>
             </button>
             <AppointmentQuickActions
@@ -1496,10 +1502,10 @@ watch(
           :disabled="pagination.page <= 1 || loading"
           @click="goToPage(pagination.page - 1)"
         >
-          Zurück
+          {{ t("common.back") }}
         </UButton>
         <span class="text-sm text-neutral-600 dark:text-neutral-400">
-          Seite {{ pagination.page }} / {{ pagination.totalPages }}
+          {{ t("common.pageOf", { page: pagination.page, total: pagination.totalPages }) }}
         </span>
         <UButton
           size="sm"
@@ -1509,7 +1515,7 @@ watch(
           :disabled="pagination.page >= pagination.totalPages || loading"
           @click="goToPage(pagination.page + 1)"
         >
-          Weiter
+          {{ t("common.next") }}
         </UButton>
       </div>
     </template>
@@ -1528,7 +1534,7 @@ watch(
               "
               @click="setCalendarMode('day')"
             >
-              Tag
+              {{ t("appointments.day") }}
             </button>
             <button
               type="button"
@@ -1540,7 +1546,7 @@ watch(
               "
               @click="setCalendarMode('timeline')"
             >
-              Zeitachse
+              {{ t("appointments.timeline") }}
             </button>
             <button
               type="button"
@@ -1552,7 +1558,7 @@ watch(
               "
               @click="setCalendarMode('week')"
             >
-              Woche
+              {{ t("appointments.week") }}
             </button>
             <button
               v-if="canPlanAllAppointments"
@@ -1563,7 +1569,7 @@ watch(
                   ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/40 dark:text-primary-100'
                   : 'bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               "
-              title="Woche nach Personen"
+              :title="t('appointments.teamWeek')"
               @click="setCalendarMode('team')"
             >
               Team
@@ -1578,19 +1584,19 @@ watch(
               "
               @click="setCalendarMode('month')"
             >
-              Monat
+              {{ t("appointments.month") }}
             </button>
           </div>
           <div class="flex items-center gap-1">
             <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-chevron-left" @click="shiftCalendar(-1)" />
-            <UButton size="sm" variant="ghost" color="neutral" @click="goToToday">Heute</UButton>
+            <UButton size="sm" variant="ghost" color="neutral" @click="goToToday">{{ t("common.today") }}</UButton>
             <UButton
               size="sm"
               variant="outline"
               color="neutral"
               icon="i-lucide-calendar-search"
-              aria-label="Datum wählen"
-              title="Datum wählen"
+              :aria-label="t('appointments.pickDate')"
+              :title="t('appointments.pickDate')"
               @click="datePickerOpen = true"
             />
             <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-chevron-right" @click="shiftCalendar(1)" />
@@ -1599,7 +1605,7 @@ watch(
         <button
           type="button"
           class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-neutral-700 capitalize transition hover:bg-neutral-100 hover:text-primary-700 dark:text-neutral-200 dark:hover:bg-neutral-800 dark:hover:text-primary-200"
-          title="Datum wählen"
+          :title="t('appointments.pickDate')"
           @click="datePickerOpen = true"
         >
           <UIcon name="i-lucide-calendar-days" class="size-4 shrink-0 opacity-70" />
@@ -1613,10 +1619,10 @@ watch(
       >
         <label class="inline-flex items-center gap-1.5 cursor-pointer">
           <input v-model="timeline.auto" type="checkbox" class="rounded border-neutral-300 dark:border-neutral-700" />
-          Nach Terminen ausrichten
+          {{ t("appointments.align") }}
         </label>
         <div class="inline-flex items-center gap-1.5" :class="timeline.auto ? 'opacity-50' : ''">
-          <span>Von</span>
+          <span>{{ t("common.from") }}</span>
           <select
             v-model.number="timeline.fromHour"
             :disabled="timeline.auto"
@@ -1624,7 +1630,7 @@ watch(
           >
             <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ formatHour(hour - 1) }}</option>
           </select>
-          <span>bis</span>
+          <span>{{ t("appointments.until") }}</span>
           <select
             v-model.number="timeline.toHour"
             :disabled="timeline.auto"
@@ -1636,12 +1642,12 @@ watch(
           </select>
         </div>
         <span v-if="timelineHiddenCount" class="text-xs text-amber-700 dark:text-amber-300">
-          {{ timelineHiddenCount }} Termin(e) außerhalb des Zeitraums
+          {{ t("appointments.outsideRange", { count: timelineHiddenCount }) }}
         </span>
       </div>
 
       <div v-if="!primaryTenant" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-        Für Termine brauchst du eine Mandanten-Mitgliedschaft.
+        {{ t("appointments.membershipRequired") }}
       </div>
 
       <template v-else-if="calendarMode === 'timeline'">
@@ -1649,8 +1655,8 @@ watch(
           v-if="!timelineRows.length && !loading"
           class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
         >
-          <template v-if="timeline.auto">Keine Termine an diesem Tag.</template>
-          <template v-else>Keine {{ teacherLabel }} hinterlegt und keine Termine an diesem Tag.</template>
+          <template v-if="timeline.auto">{{ t("appointments.noneToday") }}</template>
+          <template v-else>{{ t("appointments.noneTodayNoTeachers", { teacher: teacherLabel }) }}</template>
         </div>
         <template v-else>
           <Transition
@@ -1665,11 +1671,11 @@ watch(
             >
               <span class="flex min-w-0 items-center gap-2">
                 <UIcon name="i-lucide-check-circle-2" class="size-4 shrink-0" />
-                <span class="truncate">Verschoben: {{ lastMove.message }}</span>
+                <span class="truncate">{{ t("appointments.moved", { message: lastMove.message }) }}</span>
               </span>
               <div class="flex shrink-0 items-center gap-1">
                 <UButton size="xs" variant="soft" color="primary" icon="i-lucide-undo-2" @click="undoLastMove">
-                  Rückgängig
+                  {{ t("common.undo") }}
                 </UButton>
                 <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="lastMove = null" />
               </div>
@@ -1701,7 +1707,7 @@ watch(
           v-if="!dayAppointments.length && !loading"
           class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
         >
-          Keine Termine an diesem Tag.
+          {{ t("appointments.noneToday") }}
         </div>
         <div v-else class="overflow-x-auto -mx-1 px-1 pb-1">
           <div
@@ -1782,7 +1788,7 @@ watch(
           <thead>
             <tr class="bg-neutral-50 dark:bg-neutral-900/60">
               <th class="sticky left-0 z-10 w-40 border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900">
-                Team
+                {{ t("timeline.team") }}
               </th>
               <th
                 v-for="day in weekDays"
@@ -1790,7 +1796,7 @@ watch(
                 class="border-b border-l border-neutral-200 px-2 py-1.5 text-left font-medium dark:border-neutral-800"
                 :class="isToday(day.date) ? 'bg-primary-50 text-primary-800 dark:bg-primary-500/10 dark:text-primary-200' : 'text-neutral-600 dark:text-neutral-400'"
               >
-                <button type="button" class="hover:text-primary-700 dark:hover:text-primary-200" title="Zeitachse für diesen Tag" @click="openDay(day.date, 'timeline')">
+                <button type="button" class="hover:text-primary-700 dark:hover:text-primary-200" :title="t('appointments.openTimeline')" @click="openDay(day.date, 'timeline')">
                   {{ formatDayHeader(day.date) }}
                 </button>
               </th>
@@ -1798,7 +1804,7 @@ watch(
           </thead>
           <tbody>
             <tr v-if="!teamRows.length">
-              <td colspan="8" class="px-3 py-4 text-sm text-neutral-500">Keine {{ teacherLabel }} hinterlegt.</td>
+              <td colspan="8" class="px-3 py-4 text-sm text-neutral-500">{{ t("appointments.noTeachers", { teacher: teacherLabel }) }}</td>
             </tr>
             <tr v-for="row in teamRows" :key="row.id" class="align-top">
               <th class="sticky left-0 z-10 border-b border-neutral-100 bg-white px-3 py-2 text-left font-normal dark:border-neutral-900 dark:bg-neutral-950">
@@ -1846,11 +1852,11 @@ watch(
                   <button
                     type="button"
                     class="flex items-center justify-between rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-100 hover:text-primary-700 dark:hover:bg-neutral-800 dark:hover:text-primary-200"
-                    title="Zeitachse für diesen Tag"
+                    :title="t('appointments.openTimeline')"
                     @click="openDay(day.date, 'timeline')"
                   >
                     <span v-if="row.byDay.get(day.key)!.length > TEAM_CELL_VISIBLE">
-                      +{{ row.byDay.get(day.key)!.length - TEAM_CELL_VISIBLE }} weitere
+                      {{ t("appointments.more", { count: row.byDay.get(day.key)!.length - TEAM_CELL_VISIBLE }) }}
                     </span>
                     <span v-else />
                     <span class="tabular-nums">{{ bookedHoursLabel(row.byDay.get(day.key)!) }}</span>
@@ -1872,13 +1878,13 @@ watch(
               ? 'border-primary-300 dark:border-primary-700 ring-1 ring-primary-200 dark:ring-primary-900/40'
               : 'border-neutral-200 dark:border-neutral-800'
           "
-          title="Zeitachse für diesen Tag"
+          :title="t('appointments.openTimeline')"
           @click="openDay(day.date)"
         >
           <button
             type="button"
             class="flex items-center justify-between px-0.5 text-left text-xs font-medium text-neutral-600 hover:text-primary-700 dark:text-neutral-400 dark:hover:text-primary-200"
-            title="Zeitachse für diesen Tag"
+            :title="t('appointments.openTimeline')"
             @click.stop="openDay(day.date)"
           >
             <span>{{ formatDayHeader(day.date) }}</span>
@@ -1913,9 +1919,9 @@ watch(
             class="rounded px-1.5 py-1 text-left text-[11px] font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-500/10"
             @click.stop="openDay(day.date)"
           >
-            +{{ appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }} weitere
+            {{ t("appointments.more", { count: appointmentsByDay(day.key).length - WEEK_DAY_VISIBLE }) }}
           </button>
-          <p v-if="!appointmentsByDay(day.key).length" class="px-0.5 text-xs italic text-neutral-400">Keine Termine</p>
+          <p v-if="!appointmentsByDay(day.key).length" class="px-0.5 text-xs italic text-neutral-400">{{ t("appointments.none") }}</p>
         </div>
       </div>
 
@@ -1938,7 +1944,7 @@ watch(
                 ? 'border-primary-300 dark:border-primary-700 ring-1 ring-primary-200 dark:ring-primary-900/40'
                 : 'border-neutral-200 dark:border-neutral-800',
             ]"
-            title="Zeitachse für diesen Tag"
+            :title="t('appointments.openTimeline')"
             @click="openDay(day.date)"
           >
             <div class="flex items-center justify-center sm:justify-end text-[11px] sm:text-xs">
@@ -2045,7 +2051,7 @@ watch(
       </template>
     </UModal>
 
-    <UModal v-model:open="datePickerOpen" title="Datum wählen" :ui="{ content: 'max-w-sm' }">
+    <UModal v-model:open="datePickerOpen" :title="t('appointments.pickDate')" :ui="{ content: 'max-w-sm' }">
       <template #body>
         <UCalendar
           :model-value="datePickerValue"
@@ -2061,7 +2067,7 @@ watch(
             icon="i-lucide-calendar-check"
             @click="jumpToDate(toCalendarDate(new Date()))"
           >
-            Heute
+            {{ t("common.today") }}
           </UButton>
         </div>
       </template>
@@ -2069,7 +2075,7 @@ watch(
 
     <UModal
       v-model:open="copyOpen"
-      title="Auf einen oder mehrere Tage kopieren"
+      :title="t('appointments.copyTitle')"
       :dismissible="!copySaving"
       :ui="{ content: 'max-w-md' }"
     >
@@ -2080,11 +2086,11 @@ watch(
             <p class="text-xs text-neutral-500 tabular-nums">
               {{ formatTime(copySource.startsAt) }}–{{ formatTime(copySource.endsAt) }}
               <template v-if="teachersCaption(copySource)"> · {{ teachersCaption(copySource) }}</template>
-              · Uhrzeit bleibt gleich
+              · {{ t("appointments.timeStays") }}
             </p>
           </div>
           <p class="text-xs text-neutral-500">
-            Einen oder mehrere Tage im Kalender anklicken.
+            {{ t("appointments.clickDays") }}
           </p>
           <UCalendar
             v-model="copyCalendarModel"
@@ -2103,7 +2109,7 @@ watch(
             color="error"
             variant="soft"
             icon="i-lucide-circle-alert"
-            title="Nicht alle Kopien konnten angelegt werden"
+            :title="t('appointments.copyFailedTitle')"
           >
             <template #description>
               <ul class="space-y-0.5">
@@ -2117,7 +2123,7 @@ watch(
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
-          <UButton variant="ghost" color="neutral" :disabled="copySaving" @click="copyOpen = false">Abbrechen</UButton>
+          <UButton variant="ghost" color="neutral" :disabled="copySaving" @click="copyOpen = false">{{ t("common.cancel") }}</UButton>
           <UButton
             color="primary"
             icon="i-lucide-copy"
@@ -2125,7 +2131,7 @@ watch(
             :disabled="!copyDates.length"
             @click="runCopy"
           >
-            {{ copyDates.length > 1 ? `${copyDates.length} Kopien anlegen` : "Kopie anlegen" }}
+            {{ copyDates.length > 1 ? t("appointments.copyMany", { count: copyDates.length }) : t("appointments.copyOne") }}
           </UButton>
         </div>
       </template>

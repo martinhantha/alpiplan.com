@@ -28,7 +28,7 @@ const { user, primaryTenant, logout } = useAuth();
           size="sm"
           icon="i-lucide-shield-check"
         >
-          <span class="hidden sm:inline">Superadmin</span>
+          <span class="hidden sm:inline">{{ $t("settings.roles.superadmin") }}</span>
         </UButton>
         <span class="text-sm text-neutral-600 dark:text-neutral-400 hidden sm:inline truncate max-w-[12rem]">
           {{ user?.name || user?.email }}
@@ -38,10 +38,10 @@ const { user, primaryTenant, logout } = useAuth();
           variant="ghost"
           size="sm"
           icon="i-lucide-log-out"
-          aria-label="Abmelden"
+          :aria-label="$t('layout.logout')"
           @click="logout()"
         >
-          <span class="hidden sm:inline">Abmelden</span>
+          <span class="hidden sm:inline">{{ $t("layout.logout") }}</span>
         </UButton>
       </div>
     </UContainer>

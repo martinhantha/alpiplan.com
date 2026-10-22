@@ -26,6 +26,7 @@ export function installRuntimeDevice(device: DeviceCapabilities) {
 
 export function useDeviceCapabilities() {
   const nuxtApp = useNuxtApp();
+  const { t } = useI18n();
 
   onMounted(() => {
     if (deviceReady.value) return;
@@ -49,9 +50,7 @@ export function useDeviceCapabilities() {
       if (!granted) {
         persistCallHintsOptIn(false);
         await refresh();
-        throw new Error(
-          "Alpiplan ist nicht als Anrufer-ID-App eingestellt. Bitte unter Einstellungen → Apps → Standard-Apps → „Anrufer-ID- & Spam-App“ Alpiplan auswählen.",
-        );
+        throw new Error(t("permissions.callerIdSetup"));
       }
     }
     await refresh();

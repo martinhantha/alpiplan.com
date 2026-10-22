@@ -16,6 +16,7 @@ const props = defineProps<{
 }>();
 
 const model = defineModel<string[]>({ required: true });
+const { t } = useI18n();
 
 const open = ref(false);
 const query = ref("");
@@ -128,7 +129,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
         <button
           type="button"
           class="flex size-5 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
-          :aria-label="`${option.displayName} entfernen`"
+          :aria-label="t('picker.remove', { name: option.displayName })"
           @click.stop="remove(option.id)"
         >
           <UIcon name="i-lucide-x" class="size-3.5" />
@@ -141,10 +142,10 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
         role="combobox"
         :aria-expanded="open"
         :aria-controls="listId"
-        :aria-label="`${label} suchen`"
+        :aria-label="t('picker.search', { label })"
         autocomplete="off"
         class="min-w-28 flex-1 bg-transparent px-1.5 py-1 outline-none placeholder:text-neutral-400"
-        :placeholder="selected.length ? 'Weitere hinzufügen…' : `${label} wählen…`"
+        :placeholder="selected.length ? t('picker.addMore') : t('picker.choose', { label })"
         @focus="open = true"
         @keydown="onKeydown"
       />
@@ -187,7 +188,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
           </span>
           <span class="min-w-0 flex-1 truncate text-neutral-800 dark:text-neutral-100">
             {{ option.displayName }}
-            <span v-if="option.id === highlightId" class="ml-1 text-xs text-neutral-500">(ich)</span>
+            <span v-if="option.id === highlightId" class="ml-1 text-xs text-neutral-500">{{ t("common.me") }}</span>
             <span v-if="hints?.[option.id]" class="ml-1 text-xs text-amber-700 dark:text-amber-400">
               {{ hints[option.id] }}
             </span>
@@ -204,7 +205,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
           </span>
         </li>
         <li v-if="!filtered.length" class="px-2 py-3 text-center text-sm text-neutral-500">
-          Kein Treffer für „{{ query }}“
+          {{ t("picker.noMatch", { query }) }}
         </li>
       </ul>
     </Transition>

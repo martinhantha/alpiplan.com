@@ -2,6 +2,7 @@
 import { permissionLabel } from "../composables/useNativePermissions";
 
 const { speechRecognitionEnabled } = useAuth();
+const { t } = useI18n();
 const {
   open,
   requesting,
@@ -23,50 +24,46 @@ const {
 <template>
   <UModal v-if="isNative" v-model:open="open" :ui="{ content: 'max-w-md' }">
     <template #header>
-      <h2 class="font-medium">Geräteberechtigungen</h2>
+      <h2 class="font-medium">{{ t("permissions.title") }}</h2>
     </template>
     <template #body>
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
-        Alpiplan braucht
-        <template v-if="speechRecognitionEnabled">Mikrofon (Spracheingabe) und </template>
-        Kontakte (Adressbuch)<template v-if="callHintsSupported">,
-        Anrufer-ID (Nummer des letzten Anrufs als Vorschlag, optional)</template>
-        sowie Benachrichtigungen für neue und verschobene Termine. Die Systemabfragen erscheinen nacheinander.
+        {{ speechRecognitionEnabled ? t("permissions.introMic") : t("permissions.introNoMic") }}<template v-if="callHintsSupported">{{ t("permissions.callerHint") }}</template>{{ t("permissions.introEnd") }}
       </p>
       <ul class="mt-4 space-y-2 text-sm">
         <li v-if="speechRecognitionEnabled" class="flex items-center justify-between gap-3">
-          <span>Mikrofon</span>
+          <span>{{ t("common.microphone") }}</span>
           <UBadge :color="microphoneGranted ? 'success' : 'neutral'" variant="subtle">
-            {{ permissionLabel(microphoneGranted) }}
+            {{ permissionLabel(microphoneGranted, t) }}
           </UBadge>
         </li>
         <li class="flex items-center justify-between gap-3">
-          <span>Kontakte</span>
+          <span>{{ t("common.contacts") }}</span>
           <UBadge :color="contactsGranted ? 'success' : 'neutral'" variant="subtle">
-            {{ permissionLabel(contactsGranted) }}
+            {{ permissionLabel(contactsGranted, t) }}
           </UBadge>
         </li>
         <li v-if="callHintsSupported" class="flex items-center justify-between gap-3">
-          <span>Anrufer-ID</span>
+          <span>{{ t("common.callerId") }}</span>
           <UBadge :color="callerIdGranted ? 'success' : 'neutral'" variant="subtle">
-            {{ permissionLabel(callerIdGranted) }}
+            {{ permissionLabel(callerIdGranted, t) }}
           </UBadge>
         </li>
         <li v-if="notificationsSupported" class="flex items-center justify-between gap-3">
-          <span>Benachrichtigungen</span>
+          <span>{{ t("common.notifications") }}</span>
           <UBadge :color="notificationsGranted ? 'success' : 'neutral'" variant="subtle">
-            {{ permissionLabel(notificationsGranted) }}
+            {{ permissionLabel(notificationsGranted, t) }}
           </UBadge>
         </li>
       </ul>
       <p v-if="anyDenied" class="mt-3 text-xs text-neutral-500">
-        Abgelehnte Rechte fragt das System nicht erneut ab — bitte in den App-Einstellungen einschalten.
+        {{ t("permissions.deniedHint") }}
       </p>
       <p v-if="lastError" class="mt-3 text-xs text-red-600 dark:text-red-400">{{ lastError }}</p>
     </template>
     <template #footer>
       <div class="flex flex-wrap justify-end gap-2 w-full">
-        <UButton type="button" variant="ghost" color="neutral" @click="open = false">Später</UButton>
+        <UButton type="button" variant="ghost" color="neutral" @click="open = false">{{ t("common.later") }}</UButton>
         <UButton
           v-if="anyDenied"
           type="button"
@@ -75,7 +72,7 @@ const {
           icon="i-lucide-settings-2"
           @click="openAppSettings"
         >
-          Einstellungen
+          {{ t("common.settings") }}
         </UButton>
         <UButton
           type="button"
@@ -85,7 +82,7 @@ const {
           :disabled="!anyAskable || requesting"
           @click="requestNow"
         >
-          Jetzt erlauben
+          {{ t("common.allowNow") }}
         </UButton>
       </div>
     </template>

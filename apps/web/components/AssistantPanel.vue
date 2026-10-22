@@ -6,29 +6,30 @@ const emit = defineEmits<{
   pickedContext: [text: string];
 }>();
 
+const { t } = useI18n();
 const step = ref(0);
 const answers = ref<string[]>([]);
 const note = ref("");
 
-const questions = [
+const questions = computed(() => [
   {
-    prompt: "Welcher „Martin“ ist gemeint?",
-    options: ["Martin Keller (Fluglehrer)", "Martin Huber (Skilehrer)"],
+    prompt: t("assistant.q1"),
+    options: [t("assistant.q1a"), t("assistant.q1b")],
   },
   {
-    prompt: "Dauer der Stunde?",
-    options: ["60 Minuten", "90 Minuten"],
+    prompt: t("assistant.q2"),
+    options: [t("assistant.q2a"), t("assistant.q2b")],
   },
-];
+]);
 
-const isDone = computed(() => step.value >= questions.length);
+const isDone = computed(() => step.value >= questions.value.length);
 
 function pick(option: string) {
   answers.value[step.value] = option;
-  if (step.value < questions.length - 1) {
+  if (step.value < questions.value.length - 1) {
     step.value += 1;
   } else {
-    step.value = questions.length;
+    step.value = questions.value.length;
   }
 }
 
@@ -39,7 +40,7 @@ function reset() {
 }
 
 function takeOver() {
-  const lines = questions
+  const lines = questions.value
     .map((q, i) => (answers.value[i] ? `${q.prompt} → ${answers.value[i]}` : null))
     .filter(Boolean) as string[];
   if (note.value.trim()) lines.push(note.value.trim());
@@ -50,12 +51,12 @@ function takeOver() {
 <template>
   <div class="space-y-4">
     <p class="text-sm text-neutral-600 dark:text-neutral-400">
-      Der Assistent stellt Gegenfragen, um den Kontext zu klären, bevor du den Termin erfasst.
+      {{ t("assistant.intro") }}
     </p>
 
     <div v-if="!isDone" class="space-y-3">
       <div class="text-xs uppercase tracking-wide text-neutral-500">
-        Frage {{ step + 1 }} / {{ questions.length }}
+        {{ t("assistant.questionOf", { current: step + 1, total: questions.length }) }}
       </div>
       <p class="font-medium">{{ questions[step].prompt }}</p>
       <div class="flex flex-col gap-2">
@@ -72,7 +73,7 @@ function takeOver() {
         </UButton>
       </div>
       <UButton variant="link" color="neutral" size="sm" @click="step = questions.length">
-        Später klären
+        {{ t("assistant.clarifyLater") }}
       </UButton>
     </div>
 
@@ -81,8 +82,8 @@ function takeOver() {
         color="success"
         variant="subtle"
         icon="i-lucide-circle-check"
-        title="Kontext vollständig"
-        description="Alle Antworten wurden erfasst – jetzt als Kontakttext übernehmen oder erweitern."
+        :title="t('assistant.contextComplete')"
+        :description="t('assistant.contextCompleteHint')"
       />
       <ul class="space-y-1 text-sm">
         <li
@@ -99,21 +100,21 @@ function takeOver() {
           </span>
         </li>
       </ul>
-      <UFormField label="Zusätzliche Notiz (optional)">
-        <UTextarea v-model="note" autoresize :rows="2" placeholder="z. B. Kunde ruft um 16 Uhr zurück" />
+      <UFormField :label="t('assistant.extraNote')">
+        <UTextarea v-model="note" autoresize :rows="2" :placeholder="t('assistant.extraNotePlaceholder')" />
       </UFormField>
     </div>
 
     <div class="flex items-center justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-      <UButton variant="ghost" color="neutral" @click="reset">Neu starten</UButton>
-      <UButton variant="ghost" color="neutral" @click="emit('close')">Schließen</UButton>
+      <UButton variant="ghost" color="neutral" @click="reset">{{ t("assistant.restart") }}</UButton>
+      <UButton variant="ghost" color="neutral" @click="emit('close')">{{ t("common.close") }}</UButton>
       <UButton
         color="primary"
         icon="i-lucide-arrow-right"
         :disabled="!isDone"
         @click="takeOver"
       >
-        In Termin übernehmen
+        {{ t("assistant.apply") }}
       </UButton>
     </div>
   </div>

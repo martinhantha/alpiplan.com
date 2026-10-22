@@ -43,6 +43,7 @@ const emit = defineEmits<{
   duplicate: [];
 }>();
 
+const { t } = useI18n();
 const { device } = useDeviceCapabilities();
 const { primaryTenant } = useAuth();
 const { whatsappApp } = useWhatsAppPreference();
@@ -110,26 +111,26 @@ const overflowItems = computed((): DropdownMenuItem[][] => {
   const items: DropdownMenuItem[] = [];
   if (canSaveContact.value) {
     items.push({
-      label: "Kontakt speichern",
+      label: t("actions.saveContact"),
       icon: "i-lucide-user-plus",
       onSelect: () => void saveDeviceContact(),
     });
   } else if (canRemoveContact.value) {
     items.push({
-      label: lookup.value.match?.googleSynced ? "Aus Google Kontakte entfernen" : "Kontakt entfernen",
+      label: lookup.value.match?.googleSynced ? t("actions.removeFromGoogle") : t("actions.removeContact"),
       icon: "i-lucide-user-minus",
       onSelect: () => void removeDeviceContact(),
     });
   }
   if (canEdit.value) {
-    items.push({ label: "Bearbeiten", icon: "i-lucide-pencil", onSelect: () => emit("edit") });
+    items.push({ label: t("common.edit"), icon: "i-lucide-pencil", onSelect: () => emit("edit") });
   }
   if (canDuplicate.value) {
-    items.push({ label: "Duplizieren", icon: "i-lucide-copy-plus", onSelect: () => emit("duplicate") });
+    items.push({ label: t("common.duplicate"), icon: "i-lucide-copy-plus", onSelect: () => emit("duplicate") });
   }
   if (canDelete.value) {
     items.push({
-      label: "Löschen",
+      label: t("common.delete"),
       icon: "i-lucide-trash-2",
       color: "error",
       onSelect: () => emit("delete"),
@@ -176,11 +177,11 @@ async function saveDeviceContact() {
 async function removeDeviceContact() {
   if (!phone.value || !canRemoveContact.value) return;
   const name = lookup.value.match?.displayName?.trim();
-  const label = name ? `Kontakt „${name}“` : "Diesen Kontakt";
+  const label = name ? t("actions.namedContact", { name }) : t("actions.thisContact");
   const ok = window.confirm(
     lookup.value.match?.googleSynced
-      ? `${label} ist mit Google Kontakte synchronisiert und wird dort ebenfalls gelöscht. Fortfahren?`
-      : `${label} wirklich vom Telefon entfernen?`,
+      ? t("actions.confirmRemoveGoogle", { label })
+      : t("actions.confirmRemovePhone", { label }),
   );
   if (!ok) return;
   removingContact.value = true;
@@ -211,10 +212,10 @@ async function removeDeviceContact() {
       variant="soft"
       icon="i-lucide-phone"
       :square="iconOnlyPrimary"
-      aria-label="Anrufen"
-      title="Anrufen"
+      :aria-label="t('actions.call')"
+      :title="t('actions.call')"
     >
-      <span v-if="showLabels">Anrufen</span>
+      <span v-if="showLabels">{{ t("actions.call") }}</span>
     </UButton>
     <UButton
       v-if="whatsappHref"
@@ -226,7 +227,7 @@ async function removeDeviceContact() {
       variant="soft"
       icon="i-lucide-message-circle"
       :square="iconOnlyPrimary"
-      :aria-label="`${whatsappLabel} öffnen`"
+      :aria-label="t('actions.openWhatsapp', { app: whatsappLabel })"
       :title="whatsappLabel"
       @click="onWhatsAppClick"
     >
@@ -240,11 +241,11 @@ async function removeDeviceContact() {
       icon="i-lucide-user-plus"
       :loading="savingContact || checkingContact"
       :square="compact"
-      aria-label="Kontakt aufs Telefon speichern"
-      title="Kontakt aufs Telefon speichern"
+      :aria-label="t('actions.saveContactPhone')"
+      :title="t('actions.saveContactPhone')"
       @click="saveDeviceContact"
     >
-      <span v-if="showLabels">{{ contactSaveState === "error" ? "Fehler" : "Kontakt" }}</span>
+      <span v-if="showLabels">{{ contactSaveState === "error" ? t("common.error") : t("actions.contact") }}</span>
     </UButton>
     <UButton
       v-else-if="canRemoveContact && isWideLayout"
@@ -254,17 +255,19 @@ async function removeDeviceContact() {
       icon="i-lucide-user-minus"
       :loading="removingContact || checkingContact"
       :square="compact"
-      :aria-label="lookup.match?.googleSynced ? 'Aus Google Kontakte entfernen' : 'Kontakt vom Telefon entfernen'"
+      :aria-label="lookup.match?.googleSynced ? t('actions.removeFromGoogle') : t('actions.removeFromPhone')"
       :title="
         lookup.match?.displayName
-          ? `Gespeichert als „${lookup.match.displayName}“ – ${lookup.match.googleSynced ? 'aus Google Kontakte entfernen' : 'vom Telefon entfernen'}`
+          ? lookup.match.googleSynced
+            ? t('actions.savedAsRemoveGoogle', { name: lookup.match.displayName })
+            : t('actions.savedAsRemovePhone', { name: lookup.match.displayName })
           : lookup.match?.googleSynced
-            ? 'Aus Google Kontakte entfernen'
-            : 'Kontakt vom Telefon entfernen'
+            ? t('actions.removeFromGoogle')
+            : t('actions.removeFromPhone')
       "
       @click="removeDeviceContact"
     >
-      <span v-if="showLabels">{{ contactSaveState === "error" ? "Fehler" : "Entfernen" }}</span>
+      <span v-if="showLabels">{{ contactSaveState === "error" ? t("common.error") : t("common.remove") }}</span>
     </UButton>
     <UButton
       v-if="canEdit && isWideLayout"
@@ -273,11 +276,11 @@ async function removeDeviceContact() {
       variant="soft"
       icon="i-lucide-pencil"
       :square="compact"
-      aria-label="Termin bearbeiten"
-      title="Bearbeiten"
+      :aria-label="t('actions.editAppointment')"
+      :title="t('common.edit')"
       @click="emit('edit')"
     >
-      <span v-if="showLabels">Bearbeiten</span>
+      <span v-if="showLabels">{{ t("common.edit") }}</span>
     </UButton>
     <UButton
       v-if="canDuplicate && isWideLayout"
@@ -286,11 +289,11 @@ async function removeDeviceContact() {
       variant="soft"
       icon="i-lucide-copy-plus"
       :square="compact"
-      aria-label="Termin duplizieren"
-      title="Duplizieren"
+      :aria-label="t('actions.duplicateAppointment')"
+      :title="t('common.duplicate')"
       @click="emit('duplicate')"
     >
-      <span v-if="showLabels">Duplizieren</span>
+      <span v-if="showLabels">{{ t("common.duplicate") }}</span>
     </UButton>
     <UButton
       v-if="canComplete"
@@ -300,11 +303,11 @@ async function removeDeviceContact() {
       icon="i-lucide-check"
       :loading="loading"
       :square="iconOnlyPrimary"
-      aria-label="Als erledigt markieren"
-      title="Erledigt"
+      :aria-label="t('actions.markDone')"
+      :title="t('actions.done')"
       @click="emit('complete')"
     >
-      <span v-if="showLabels">Erledigt</span>
+      <span v-if="showLabels">{{ t("actions.done") }}</span>
     </UButton>
     <UButton
       v-if="canDelete && isWideLayout"
@@ -314,11 +317,11 @@ async function removeDeviceContact() {
       icon="i-lucide-trash-2"
       :loading="loading"
       :square="compact"
-      aria-label="Termin löschen"
-      title="Löschen"
+      :aria-label="t('actions.deleteAppointment')"
+      :title="t('common.delete')"
       @click="emit('delete')"
     >
-      <span v-if="showLabels">Löschen</span>
+      <span v-if="showLabels">{{ t("common.delete") }}</span>
     </UButton>
     <UDropdownMenu v-if="showOverflowMenu" :items="overflowItems" :content="{ align: 'end' }">
       <UButton
@@ -327,8 +330,8 @@ async function removeDeviceContact() {
         variant="soft"
         icon="i-lucide-ellipsis-vertical"
         square
-        aria-label="Weitere Aktionen"
-        title="Weitere Aktionen"
+        :aria-label="t('common.moreActions')"
+        :title="t('common.moreActions')"
       />
     </UDropdownMenu>
   </div>

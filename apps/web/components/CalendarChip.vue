@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { avatarInitials } from "../utils/avatar";
 
+const { t } = useI18n();
+
 defineProps<{
   time: string;
   title: string;
@@ -23,12 +25,12 @@ defineProps<{
   >
     <span class="shrink-0 font-semibold tabular-nums text-neutral-800 dark:text-neutral-100">{{ time }}</span>
     <span class="min-w-0 flex-1 truncate text-neutral-700 dark:text-neutral-300">{{ title }}</span>
-    <span v-if="status === 'draft'" class="size-1.5 shrink-0 rounded-full bg-amber-500" title="Entwurf" />
+    <span v-if="status === 'draft'" class="size-1.5 shrink-0 rounded-full bg-amber-500" :title="t('appointment.status.draft')" />
     <UIcon
       v-else-if="status === 'completed'"
       name="i-lucide-circle-check"
       class="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-      title="Erledigt"
+      :title="t('appointment.status.completed')"
     />
     <span
       v-if="personName"

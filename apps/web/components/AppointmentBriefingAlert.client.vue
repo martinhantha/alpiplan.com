@@ -1,8 +1,9 @@
 <script setup lang="ts">
 const { briefing, dismiss } = useNextDayBriefing();
+const { t, intlLocale } = useAppLocale();
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     timeZone: "Europe/Rome",
     hour: "2-digit",
     minute: "2-digit",
@@ -13,7 +14,7 @@ const tomorrowLabel = computed(() => {
   if (!briefing.value) return "";
   const [year, month, day] = briefing.value.dateKey.split("-").map(Number);
   const tomorrow = new Date(Date.UTC(year, month - 1, day + 1));
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(intlLocale.value, {
     timeZone: "UTC",
     weekday: "long",
     day: "2-digit",
@@ -43,11 +44,9 @@ async function openAppointments() {
             <UIcon name="i-lucide-sunrise" class="size-5 text-primary-700 dark:text-primary-200" />
           </div>
           <div class="min-w-0 flex-1">
-            <p id="next-day-briefing-title" class="text-sm font-semibold">Termine morgen</p>
+            <p id="next-day-briefing-title" class="text-sm font-semibold">{{ t("alerts.tomorrowTitle") }}</p>
             <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-              {{ briefing.items.length }}
-              {{ briefing.items.length === 1 ? "Termin" : "Termine" }}
-              am {{ tomorrowLabel }}.
+              {{ t(briefing.items.length === 1 ? "alerts.tomorrowOne" : "alerts.tomorrowMany", { count: briefing.items.length, date: tomorrowLabel }) }}
             </p>
             <ul class="mt-2 space-y-1 text-sm">
               <li v-for="item in briefing.items" :key="item.id" class="flex gap-2 min-w-0">
@@ -56,9 +55,9 @@ async function openAppointments() {
               </li>
             </ul>
             <div class="mt-3 flex justify-end gap-2">
-              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">Schließen</UButton>
+              <UButton size="xs" variant="ghost" color="neutral" @click="dismiss">{{ t("common.close") }}</UButton>
               <UButton size="xs" color="primary" icon="i-lucide-calendar-days" @click="openAppointments">
-                Ansehen
+                {{ t("common.view") }}
               </UButton>
             </div>
           </div>

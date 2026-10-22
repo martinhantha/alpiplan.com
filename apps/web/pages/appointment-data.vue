@@ -28,14 +28,15 @@ interface ImportResult {
 }
 
 const { user, primaryTenant, canManageTenant } = useAuth();
+const { t, intlLocale } = useAppLocale();
 const tenantId = computed(() => primaryTenant.value?.tenantId ?? "");
 
-const statusLabels: Record<AppointmentStatus, string> = {
-  draft: "Entwurf",
-  confirmed: "Bestätigt",
-  completed: "Abgeschlossen",
-  cancelled: "Abgesagt",
-};
+const statusLabels = computed<Record<AppointmentStatus, string>>(() => ({
+  draft: t("dataPage.statusDraft"),
+  confirmed: t("dataPage.statusConfirmed"),
+  completed: t("dataPage.statusDone"),
+  cancelled: t("dataPage.statusCancelled"),
+}));
 const statusColors: Record<AppointmentStatus, "warning" | "primary" | "success" | "neutral"> = {
   draft: "warning",
   confirmed: "primary",
@@ -53,9 +54,9 @@ const range = reactive({ from: `${thisYear}-01-01`, to: `${thisYear}-12-31` });
 const presets = computed(() => {
   const now = new Date();
   return [
-    { label: "Dieser Monat", from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0)) },
-    { label: "Dieses Jahr", from: `${thisYear}-01-01`, to: `${thisYear}-12-31` },
-    { label: "Letztes Jahr", from: `${thisYear - 1}-01-01`, to: `${thisYear - 1}-12-31` },
+    { label: t("dataPage.thisMonth"), from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0)) },
+    { label: t("dataPage.thisYear"), from: `${thisYear}-01-01`, to: `${thisYear}-12-31` },
+    { label: t("dataPage.lastYear"), from: `${thisYear - 1}-01-01`, to: `${thisYear - 1}-12-31` },
   ];
 });
 
@@ -77,8 +78,12 @@ function apiMessage(e: unknown, fallback: string) {
 }
 
 function formatDay(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}.${month}.${year}`;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat(intlLocale.value, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
 const rangeLabel = computed(() => (rangeValid.value ? `${formatDay(range.from)} – ${formatDay(range.to)}` : "—"));
@@ -96,7 +101,7 @@ async function loadSummary() {
     });
   } catch (e: unknown) {
     summary.value = null;
-    error.value = apiMessage(e, "Übersicht konnte nicht geladen werden");
+    error.value = apiMessage(e, t("dataPage.summaryFailed"));
   } finally {
     summaryLoading.value = false;
   }
@@ -131,9 +136,9 @@ async function exportCsv() {
   info.value = "";
   try {
     await downloadCsv({ from: range.from, to: range.to }, "termine.csv");
-    info.value = `${summary.value?.active ?? ""} Termine exportiert`.trim();
+    info.value = t("dataPage.exported", { count: summary.value?.active ?? 0 });
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Export fehlgeschlagen");
+    error.value = apiMessage(e, t("dataPage.exportFailed"));
   } finally {
     exporting.value = false;
   }
@@ -143,7 +148,7 @@ async function downloadTemplate() {
   try {
     await downloadCsv({ template: "1" }, "termine_vorlage.csv");
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Vorlage konnte nicht geladen werden");
+    error.value = apiMessage(e, t("dataPage.templateFailed"));
   }
 }
 
@@ -178,13 +183,15 @@ async function runImport(dryRun: boolean) {
     });
     importResult.value = result;
     if (result.imported) {
-      info.value = `${result.toCreate} Termine importiert${result.newCustomers ? ` · ${result.newCustomers} neue Kunden` : ""}`;
+      info.value = result.newCustomers
+        ? t("dataPage.importedWithCustomers", { count: result.toCreate, customers: result.newCustomers })
+        : t("dataPage.imported", { count: result.toCreate });
       resetImport(false);
       await loadSummary();
     }
   } catch (e: unknown) {
     importResult.value = null;
-    error.value = apiMessage(e, "Import fehlgeschlagen");
+    error.value = apiMessage(e, t("dataPage.importFailed"));
   } finally {
     importing.value = false;
   }
@@ -212,21 +219,21 @@ const canImport = computed(
 
 // --- Delete ---
 
-const CONFIRM_WORD = "LÖSCHEN";
+const confirmWord = computed(() => t("dataPage.confirmWord"));
 const deleteMode = ref<"soft" | "permanent">("soft");
 const canPurge = computed(() => Boolean(user.value?.isSuperadmin));
-const deleteModeItems = [
+const deleteModeItems = computed(() => [
   {
     value: "soft",
-    label: "In den Papierkorb verschieben",
-    description: "Termine verschwinden aus Kalender und Listen, können im Papierkorb einzeln wiederhergestellt werden.",
+    label: t("dataPage.deleteSoft"),
+    description: t("dataPage.deleteSoftHint"),
   },
   {
     value: "permanent",
-    label: "Endgültig aus der Datenbank löschen",
-    description: "Entfernt alle Termine im Zeitraum inkl. Papierkorb unwiderruflich. Vorher am besten exportieren.",
+    label: t("dataPage.deleteHard"),
+    description: t("dataPage.deleteHardHint"),
   },
-];
+]);
 const deleteConfirm = ref("");
 const deleting = ref(false);
 
@@ -235,7 +242,7 @@ const deleteCount = computed(() => {
   return deleteMode.value === "permanent" ? summary.value.active + summary.value.inTrash : summary.value.active;
 });
 const canDelete = computed(
-  () => deleteCount.value > 0 && deleteConfirm.value.trim().toUpperCase() === CONFIRM_WORD && !summaryLoading.value,
+  () => deleteCount.value > 0 && deleteConfirm.value.trim().toUpperCase() === confirmWord.value.toUpperCase() && !summaryLoading.value,
 );
 
 async function deleteRange() {
@@ -254,11 +261,11 @@ async function deleteRange() {
     );
     info.value =
       result.mode === "permanent"
-        ? `${result.deleted} Termine endgültig gelöscht`
-        : `${result.deleted} Termine in den Papierkorb verschoben`;
+        ? t("dataPage.deletedPermanent", { count: result.deleted })
+        : t("dataPage.deletedSoft", { count: result.deleted });
     deleteConfirm.value = "";
   } catch (e: unknown) {
-    error.value = apiMessage(e, "Löschen fehlgeschlagen");
+    error.value = apiMessage(e, t("common.deleteFailed"));
   } finally {
     deleting.value = false;
     await loadSummary();
@@ -278,11 +285,10 @@ watch(deleteMode, () => {
 <template>
   <UContainer class="py-8 space-y-5">
     <div>
-      <p class="text-sm text-muted font-medium">Alpiplan · Termin-Daten</p>
-      <h1 class="font-display text-3xl sm:text-4xl">Termin-Daten</h1>
+      <p class="text-sm text-muted font-medium">{{ t("dataPage.breadcrumb") }}</p>
+      <h1 class="font-display text-3xl sm:text-4xl">{{ t("dataPage.title") }}</h1>
       <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-        Termine von <strong>{{ primaryTenant?.tenantName || "—" }}</strong> als CSV exportieren, importieren oder für
-        einen Zeitraum löschen.
+        {{ t("dataPage.subtitle", { tenant: primaryTenant?.tenantName || "—" }) }}
       </p>
     </div>
 
@@ -293,7 +299,7 @@ watch(deleteMode, () => {
       v-if="!primaryTenant"
       class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400"
     >
-      Für die Datenverwaltung brauchst du eine Mandanten-Mitgliedschaft.
+      {{ t("dataPage.membershipRequired") }}
     </div>
 
     <template v-else>
@@ -301,15 +307,15 @@ watch(deleteMode, () => {
         <template #header>
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-calendar-range" class="size-5 text-primary" />
-            <h2 class="font-medium">Zeitraum</h2>
+            <h2 class="font-medium">{{ t("dataPage.range") }}</h2>
           </div>
         </template>
         <div class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <UFormField label="Von">
+            <UFormField :label="t('common.from')">
               <UInput v-model="range.from" type="date" class="w-full" />
             </UFormField>
-            <UFormField label="Bis (einschließlich)">
+            <UFormField :label="t('dataPage.toInclusive')">
               <UInput v-model="range.to" type="date" class="w-full" />
             </UFormField>
           </div>
@@ -325,11 +331,11 @@ watch(deleteMode, () => {
               {{ preset.label }}
             </UButton>
           </div>
-          <p v-if="!rangeValid" class="text-sm text-error">„Von“ darf nicht nach „Bis“ liegen.</p>
+          <p v-if="!rangeValid" class="text-sm text-error">{{ t("dataPage.rangeOrder") }}</p>
           <div v-else class="flex flex-wrap items-center gap-2 text-sm">
             <span class="font-medium">
-              <template v-if="summaryLoading">Wird geladen …</template>
-              <template v-else>{{ summary?.active ?? 0 }} Termine im Zeitraum</template>
+              <template v-if="summaryLoading">{{ t("common.loading") }}</template>
+              <template v-else>{{ t("dataPage.inRange", { count: summary?.active ?? 0 }) }}</template>
             </span>
             <template v-if="summary && !summaryLoading">
               <UBadge
@@ -342,7 +348,7 @@ watch(deleteMode, () => {
                 {{ statusLabels[status] }}: {{ count }}
               </UBadge>
               <UBadge v-if="summary.inTrash" color="neutral" variant="outline">
-                Papierkorb: {{ summary.inTrash }}
+                {{ t("dataPage.trash", { count: summary.inTrash }) }}
               </UBadge>
             </template>
           </div>
@@ -353,13 +359,12 @@ watch(deleteMode, () => {
         <template #header>
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-download" class="size-5 text-primary" />
-            <h2 class="font-medium">Exportieren</h2>
+            <h2 class="font-medium">{{ t("dataPage.export") }}</h2>
           </div>
         </template>
         <div class="flex items-center justify-between gap-3 flex-wrap">
           <p class="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
-            Alle Termine im Zeitraum {{ rangeLabel }} als CSV (Trennzeichen „;“, UTF-8) – direkt in Excel, Numbers
-            oder LibreOffice zu öffnen. Zeiten in Ortszeit (Europe/Rome).
+            {{ t("dataPage.exportHint", { range: rangeLabel }) }}
           </p>
           <UButton
             icon="i-lucide-file-down"
@@ -367,7 +372,7 @@ watch(deleteMode, () => {
             :disabled="!rangeValid || !summary?.active"
             @click="exportCsv"
           >
-            CSV exportieren
+            {{ t("dataPage.exportCsv") }}
           </UButton>
         </div>
       </UCard>
@@ -377,24 +382,17 @@ watch(deleteMode, () => {
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="flex items-center gap-2">
               <UIcon name="i-lucide-upload" class="size-5 text-primary" />
-              <h2 class="font-medium">Importieren</h2>
+              <h2 class="font-medium">{{ t("dataPage.import") }}</h2>
             </div>
             <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-file-spreadsheet" @click="downloadTemplate">
-              Vorlage herunterladen
+              {{ t("dataPage.downloadTemplate") }}
             </UButton>
           </div>
         </template>
         <div class="space-y-4">
           <div class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
-            <p>
-              Pflichtspalten: <strong>Beginn</strong> und <strong>Ende</strong> (z. B. <code>2026-12-27 10:00</code>
-              oder <code>27.12.2026 10:00</code>). Termintyp, Lehrer und Ressource müssen mit vorhandenen Namen
-              übereinstimmen; unbekannte Kunden werden neu angelegt.
-            </p>
-            <p>
-              Die Datei wird zuerst geprüft – importiert wird nur, wenn alle Zeilen gültig sind. Termine mit einer
-              bereits vorhandenen ID werden übersprungen. Es findet keine Konfliktprüfung statt.
-            </p>
+            <p>{{ t("dataPage.requiredColumns") }}</p>
+            <p>{{ t("dataPage.validateFirst") }}</p>
           </div>
 
           <div class="flex items-center gap-2 flex-wrap">
@@ -412,7 +410,7 @@ watch(deleteMode, () => {
               :loading="importing && !importResult"
               @click="fileInput?.click()"
             >
-              CSV-Datei wählen
+              {{ t("dataPage.chooseFile") }}
             </UButton>
             <span v-if="importFileName" class="text-sm truncate max-w-xs">{{ importFileName }}</span>
             <UButton
@@ -421,23 +419,23 @@ watch(deleteMode, () => {
               variant="ghost"
               color="neutral"
               icon="i-lucide-x"
-              aria-label="Datei entfernen"
+              :aria-label="t('dataPage.removeFile')"
               @click="resetImport()"
             />
           </div>
 
           <div v-if="importResult && !importResult.imported" class="space-y-3">
             <div class="flex flex-wrap gap-2 text-sm">
-              <UBadge color="neutral" variant="subtle">{{ importResult.totalRows }} Zeilen</UBadge>
-              <UBadge color="primary" variant="subtle">{{ importResult.toCreate }} neu</UBadge>
+              <UBadge color="neutral" variant="subtle">{{ t("dataPage.rows", { count: importResult.totalRows }) }}</UBadge>
+              <UBadge color="primary" variant="subtle">{{ t("dataPage.toCreate", { count: importResult.toCreate }) }}</UBadge>
               <UBadge v-if="importResult.skipped" color="neutral" variant="outline">
-                {{ importResult.skipped }} übersprungen
+                {{ t("dataPage.skipped", { count: importResult.skipped }) }}
               </UBadge>
               <UBadge v-if="importResult.newCustomers" color="success" variant="subtle">
-                {{ importResult.newCustomers }} neue Kunden
+                {{ t("dataPage.newCustomers", { count: importResult.newCustomers }) }}
               </UBadge>
               <UBadge v-if="importResult.errors.length" color="error" variant="subtle">
-                {{ importResult.errors.length }} Fehler
+                {{ t("dataPage.errors", { count: importResult.errors.length }) }}
               </UBadge>
             </div>
 
@@ -445,15 +443,15 @@ watch(deleteMode, () => {
               v-if="importResult.errors.length"
               class="rounded-md border border-error/30 bg-error/5 p-3 max-h-64 overflow-y-auto"
             >
-              <p class="text-sm font-medium text-error mb-2">Bitte korrigieren und Datei erneut wählen:</p>
+              <p class="text-sm font-medium text-error mb-2">{{ t("dataPage.fixAndRetry") }}</p>
               <ul class="space-y-1 text-sm">
                 <li v-for="issue in importResult.errors.slice(0, 100)" :key="issue.line">
-                  <span class="font-mono text-xs text-neutral-500">Zeile {{ issue.line }}</span>
+                  <span class="font-mono text-xs text-neutral-500">{{ t("dataPage.line", { line: issue.line }) }}</span>
                   · {{ issue.message }}
                 </li>
               </ul>
               <p v-if="importResult.errors.length > 100" class="mt-2 text-xs text-neutral-500">
-                … und {{ importResult.errors.length - 100 }} weitere
+                {{ t("dataPage.moreErrors", { count: importResult.errors.length - 100 }) }}
               </p>
             </div>
 
@@ -463,7 +461,7 @@ watch(deleteMode, () => {
               :disabled="!canImport || importing"
               @click="runImport(false)"
             >
-              {{ importResult.toCreate }} Termine importieren
+              {{ t("dataPage.importCount", { count: importResult.toCreate }) }}
             </UButton>
           </div>
         </div>
@@ -473,13 +471,13 @@ watch(deleteMode, () => {
         <template #header>
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-trash-2" class="size-5 text-error" />
-            <h2 class="font-medium">Zeitraum löschen</h2>
+            <h2 class="font-medium">{{ t("dataPage.deleteRange") }}</h2>
           </div>
         </template>
         <div class="space-y-4">
           <URadioGroup v-if="canPurge" v-model="deleteMode" :items="deleteModeItems" />
           <p v-else class="text-sm text-muted">
-            Termine im Zeitraum werden in den Papierkorb verschoben und können dort einzeln wiederhergestellt werden.
+            {{ t("dataPage.softHint") }}
           </p>
 
           <UAlert
@@ -487,11 +485,11 @@ watch(deleteMode, () => {
             color="error"
             variant="subtle"
             icon="i-lucide-triangle-alert"
-            title="Dieser Vorgang kann nicht rückgängig gemacht werden."
+            :title="t('dataPage.permanentWarning')"
           />
 
-          <UFormField :label="`Zur Bestätigung „${CONFIRM_WORD}“ eingeben`">
-            <UInput v-model="deleteConfirm" class="w-full sm:w-64" autocomplete="off" :placeholder="CONFIRM_WORD" />
+          <UFormField :label="t('dataPage.confirmLabel', { word: confirmWord })">
+            <UInput v-model="deleteConfirm" class="w-full sm:w-64" autocomplete="off" :placeholder="confirmWord" />
           </UFormField>
 
           <UButton
@@ -502,8 +500,13 @@ watch(deleteMode, () => {
             :disabled="!canDelete || deleting"
             @click="deleteRange"
           >
-            {{ deleteCount }} Termine im Zeitraum {{ rangeLabel }}
-            {{ deleteMode === "permanent" ? "endgültig löschen" : "löschen" }}
+            {{
+              t("dataPage.deleteButton", {
+                count: deleteCount,
+                range: rangeLabel,
+                mode: deleteMode === "permanent" ? t("dataPage.deletePermanent") : t("dataPage.deleteSoftVerb"),
+              })
+            }}
           </UButton>
         </div>
       </UCard>

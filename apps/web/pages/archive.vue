@@ -118,11 +118,11 @@ const filterAutoApply = useFilterAutoApply(
   () => canLoad.value,
 );
 
-const statusOptions = [
-  { value: "completed,cancelled", label: "Archiv (alle)" },
-  { value: "completed", label: "Nur erledigt" },
-  { value: "cancelled", label: "Nur storniert" },
-];
+const statusOptions = computed(() => [
+  { value: "completed,cancelled", label: t("archive.all") },
+  { value: "completed", label: t("archive.onlyDone") },
+  { value: "cancelled", label: t("archive.onlyCancelled") },
+]);
 
 /** Einheitliche Höhe für Suche, Select und Datum im Filter. */
 const filterControlUi = { base: "min-h-10 py-2.5" };
@@ -132,7 +132,7 @@ const filterSelectUi = { base: "min-h-10 w-full" };
 const ALL_FILTER_VALUE = "__all";
 
 const teacherFilterItems = computed(() => [
-  { label: `Alle ${teacherLabel.value}`, value: ALL_FILTER_VALUE },
+  { label: t("appointments.allTeachers", { teacher: teacherLabel.value }), value: ALL_FILTER_VALUE },
   ...(options.value?.teachers ?? []).map((teacher) => ({
     label: teacher.displayName,
     value: teacher.id,
@@ -140,7 +140,7 @@ const teacherFilterItems = computed(() => [
 ]);
 
 const lessonTypeFilterItems = computed(() => [
-  { label: "Alle Termintypen", value: ALL_FILTER_VALUE },
+  { label: t("appointments.allLessonTypes"), value: ALL_FILTER_VALUE },
   ...(options.value?.lessonTypes ?? []).map((lessonType) => ({
     label: lessonType.name,
     value: lessonType.id,
@@ -175,10 +175,10 @@ const activeFilterCount = computed(() => {
 });
 
 const rangeLabel = computed(() => {
-  if (!pagination.value.total) return "0 Termine";
+  if (!pagination.value.total) return t("appointments.zero");
   const start = (pagination.value.page - 1) * pagination.value.pageSize + 1;
   const end = Math.min(pagination.value.page * pagination.value.pageSize, pagination.value.total);
-  return `${start}–${end} von ${pagination.value.total}`;
+  return t("appointments.range", { start, end, total: pagination.value.total });
 });
 
 function openAppointmentInfo(appointment: AppointmentListItem) {
@@ -208,7 +208,7 @@ async function onAppointmentSaved() {
 }
 
 function appointmentTitle(appointment: AppointmentListItem) {
-  return appointment.customer?.displayName || appointment.appointmentContactText || "Termin ohne Kontakt";
+  return appointment.customer?.displayName || appointment.appointmentContactText || t("appointments.noContact");
 }
 
 function formatDateTime(value: string) {
@@ -333,7 +333,7 @@ async function reactivateAppointment(appointment: AppointmentListItem) {
     await loadArchive();
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
-    error.value = err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht reaktiviert werden";
+    error.value = err.data?.data?.message || err.data?.message || err.statusMessage || t("archive.reactivateFailed");
   } finally {
     savingId.value = "";
   }
@@ -341,7 +341,7 @@ async function reactivateAppointment(appointment: AppointmentListItem) {
 
 async function deleteAppointment(appointment: AppointmentListItem) {
   if (!primaryTenant.value?.tenantId) return;
-  if (!confirm(`Termin „${appointmentTitle(appointment)}“ wirklich löschen? Er kann im Papierkorb wiederhergestellt werden.`)) return;
+  if (!confirm(t("appointments.deleteConfirm", { title: appointmentTitle(appointment) }))) return;
   savingId.value = appointment.id;
   error.value = "";
   try {
@@ -353,7 +353,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
   } catch (e: unknown) {
     const err = e as { data?: { data?: { message?: string }; message?: string }; statusMessage?: string };
     error.value =
-      err.data?.data?.message || err.data?.message || err.statusMessage || "Termin konnte nicht gelöscht werden";
+      err.data?.data?.message || err.data?.message || err.statusMessage || t("appointments.deleteFailed");
   } finally {
     savingId.value = "";
   }
@@ -393,24 +393,24 @@ watch(
   <UContainer class="py-8 space-y-5">
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
-        <p class="text-sm text-muted font-medium">Alpiplan · Archiv</p>
+        <p class="text-sm text-muted font-medium">{{ t("archive.breadcrumb") }}</p>
         <h1 class="font-display text-3xl sm:text-4xl">
-          Termin-Archiv
+          {{ t("archive.title") }}
           <span class="ml-2 text-sm font-normal text-neutral-500">({{ pagination.total }})</span>
         </h1>
         <p v-if="!canManageTenant" class="mt-1 text-sm text-neutral-500">
-          {{ canPlanAllAppointments ? "" : "Nur eigene Termine. " }}Löschen nur durch Admin.
+          {{ canPlanAllAppointments ? "" : t("appointments.ownOnly") }}{{ t("appointments.deleteAdminOnly") }}
         </p>
       </div>
       <UButton
         variant="outline"
         color="neutral"
         icon="i-lucide-filter"
-        aria-label="Filter"
-        title="Filter"
+        :aria-label="t('common.filter')"
+        :title="t('common.filter')"
         @click="filterOpen = !filterOpen"
       >
-        <span class="hidden sm:inline">Filter</span>
+        <span class="hidden sm:inline">{{ t("common.filter") }}</span>
         <UBadge v-if="activeFilterCount" color="primary" variant="subtle" class="sm:ml-1">
           {{ activeFilterCount }}
         </UBadge>
@@ -428,7 +428,7 @@ watch(
         :color="activeDatePreset === 'currentMonth' ? 'primary' : 'neutral'"
         @click="applyDatePreset('currentMonth')"
       >
-        Dieser Monat
+        {{ t("archive.thisMonth") }}
       </UButton>
       <UButton
         size="sm"
@@ -436,7 +436,7 @@ watch(
         :color="activeDatePreset === 'lastMonth' ? 'primary' : 'neutral'"
         @click="applyDatePreset('lastMonth')"
       >
-        Letzter Monat
+        {{ t("archive.lastMonth") }}
       </UButton>
       <UButton
         size="sm"
@@ -444,7 +444,7 @@ watch(
         :color="activeDatePreset === 'currentYear' ? 'primary' : 'neutral'"
         @click="applyDatePreset('currentYear')"
       >
-        Dieses Jahr
+        {{ t("archive.thisYear") }}
       </UButton>
       <UButton
         size="sm"
@@ -452,7 +452,7 @@ watch(
         :color="activeDatePreset === 'lastYear' ? 'primary' : 'neutral'"
         @click="applyDatePreset('lastYear')"
       >
-        Letztes Jahr
+        {{ t("archive.lastYear") }}
       </UButton>
     </div>
 
@@ -467,17 +467,17 @@ watch(
     <UCard v-if="filterOpen">
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <h2 class="font-medium">Filter</h2>
+          <h2 class="font-medium">{{ t("common.filter") }}</h2>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="filterOpen = false" />
         </div>
       </template>
       <div class="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-        <UFormField label="Suche" class="min-w-0 sm:col-span-2 lg:col-span-1">
+        <UFormField :label="t('common.searchLabel')" class="min-w-0 sm:col-span-2 lg:col-span-1">
           <UInput
             v-model="filters.q"
             size="md"
             class="w-full"
-            placeholder="Kunde oder Kontakttext"
+            :placeholder="t('appointments.searchPlaceholder')"
             icon="i-lucide-search"
             :ui="filterControlUi"
           />
@@ -491,7 +491,7 @@ watch(
             :ui="filterSelectUi"
           />
         </UFormField>
-        <UFormField label="Termintyp" class="min-w-0">
+        <UFormField :label="t('common.lessonType')" class="min-w-0">
           <USelect
             v-model="lessonTypeFilterModel"
             size="md"
@@ -500,7 +500,7 @@ watch(
             :ui="filterSelectUi"
           />
         </UFormField>
-        <UFormField label="Status" class="min-w-0">
+        <UFormField :label="t('common.status')" class="min-w-0">
           <USelect
             v-model="filters.status"
             size="md"
@@ -509,10 +509,10 @@ watch(
             :ui="filterSelectUi"
           />
         </UFormField>
-        <UFormField label="Von" class="min-w-0">
+        <UFormField :label="t('common.from')" class="min-w-0">
           <UInput v-model="filters.from" type="date" size="md" class="w-full" :ui="filterControlUi" />
         </UFormField>
-        <UFormField label="Bis" class="min-w-0">
+        <UFormField :label="t('common.to')" class="min-w-0">
           <UInput v-model="filters.to" type="date" size="md" class="w-full" :ui="filterControlUi" />
         </UFormField>
       </div>
@@ -520,11 +520,11 @@ watch(
         <div class="flex flex-wrap items-center justify-between gap-3">
           <p class="inline-flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
             <UIcon name="i-lucide-timer" class="size-3.5 shrink-0 opacity-80" />
-            Änderungen werden automatisch übernommen
+            {{ t("common.autoApply") }}
           </p>
           <div class="flex items-center gap-2">
             <UButton size="sm" variant="ghost" color="neutral" @click="resetFilters">
-              Zurücksetzen
+              {{ t("common.reset") }}
             </UButton>
             <UButton
               size="sm"
@@ -534,7 +534,7 @@ watch(
               :loading="loading"
               @click="applyFilters"
             >
-              Jetzt laden
+              {{ t("common.loadNow") }}
             </UButton>
           </div>
         </div>
@@ -544,7 +544,7 @@ watch(
     <div class="flex items-center justify-between gap-3 text-sm text-neutral-600 dark:text-neutral-400">
       <span>{{ rangeLabel }}</span>
       <div class="flex items-center gap-2">
-        <span>Pro Seite</span>
+        <span>{{ t("common.perPage") }}</span>
         <select
           v-model.number="pageSize"
           class="rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
@@ -558,10 +558,10 @@ watch(
     </div>
 
     <div v-if="!primaryTenant" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-      Für das Archiv brauchst du eine Mandanten-Mitgliedschaft.
+      {{ t("archive.membershipRequired") }}
     </div>
     <div v-else-if="!appointments.length && !loading" class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm text-neutral-600 dark:text-neutral-400">
-      Keine archivierten Termine gefunden.
+      {{ t("archive.empty") }}
     </div>
     <div v-else class="space-y-3">
       <UCard v-for="appointment in appointments" :key="appointment.id">
@@ -602,7 +602,7 @@ watch(
               :loading="savingId === appointment.id"
               @click="reactivateAppointment(appointment)"
             >
-              Reaktivieren
+              {{ t("archive.reactivate") }}
             </UButton>
             <UButton
               v-if="canManageTenant"
@@ -613,7 +613,7 @@ watch(
               :loading="savingId === appointment.id"
               @click="deleteAppointment(appointment)"
             >
-              Löschen
+              {{ t("common.delete") }}
             </UButton>
           </div>
         </div>
@@ -657,10 +657,10 @@ watch(
         :disabled="pagination.page <= 1 || loading"
         @click="goToPage(pagination.page - 1)"
       >
-        Zurück
+        {{ t("common.back") }}
       </UButton>
       <span class="text-sm text-neutral-600 dark:text-neutral-400">
-        Seite {{ pagination.page }} / {{ pagination.totalPages }}
+        {{ t("common.pageOf", { page: pagination.page, total: pagination.totalPages }) }}
       </span>
       <UButton
         size="sm"
@@ -670,7 +670,7 @@ watch(
         :disabled="pagination.page >= pagination.totalPages || loading"
         @click="goToPage(pagination.page + 1)"
       >
-        Weiter
+        {{ t("common.next") }}
       </UButton>
     </div>
   </UContainer>
