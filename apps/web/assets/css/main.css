@@ -96,6 +96,13 @@ html.capacitor-android {
 html.capacitor-ios {
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Disables double-tap zoom. Pinch is blocked in native-chrome.client.ts. */
+  touch-action: pan-x pan-y;
+}
+
+/* WebKit zooms a focused field when its computed font-size is under 16px. */
+html.capacitor-ios :is(input, textarea, select) {
+  font-size: max(16px, 1em);
 }
 
 /* iPad / large WebKit views: env() is sometimes 0 in landscape; keep chrome off the home indicator. */
