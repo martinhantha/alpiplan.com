@@ -2,7 +2,7 @@
 /**
  * Release von develop nach main.
  *
- *   pnpm deploy [--dry-run] [--yes] [--minor|--major|--version <x.y.z>]
+ *   pnpm deploy:main [--dry-run] [--yes] [--minor|--major|--version <x.y.z>]
  *
  * Alltag bleibt auf develop. Das Script erhöht nativeAppVersion in
  * apps/mobile-shell/capacitor.config.ts, committet auf develop, setzt das
@@ -206,7 +206,7 @@ function ensureHistoryCanFastForward(tag, { allowExistingTag = false } = {}) {
 
 async function main() {
   if (flag("help") || flag("h")) {
-    console.log(`pnpm deploy [Optionen]
+    console.log(`pnpm deploy:main [Optionen]
 
   Release von ${DEVELOP} nach ${MAIN}: Version in ${CONFIG} erhöhen,
   Tag vX.Y.Z setzen, ${MAIN} fast-forwarden und pushen.

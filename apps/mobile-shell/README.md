@@ -63,7 +63,7 @@ Store-Builds: Android Studio / Xcode. `READ_CALL_LOG` ist bei Google Play eine *
 
 ### Android Play Store (signiertes AAB)
 
-1. **Version** in `capacitor.config.ts` → `nativeAppVersion` (`versionCode` + `versionName`). `pnpm deploy` auf `develop` erhöht beide Felder, taggt `vX.Y.Z` und schiebt das nach `main`. Gilt für **Android und iOS** (nach `pnpm cap:sync` bzw. `patch-ios-info-plist` / `apply-android-identity`). Ein Store-Upload ohne Web-Release: die beiden Felder von Hand erhöhen.
+1. **Version** in `capacitor.config.ts` → `nativeAppVersion` (`versionCode` + `versionName`). `pnpm deploy:main` auf `develop` erhöht beide Felder, taggt `vX.Y.Z` und schiebt das nach `main`. Gilt für **Android und iOS** (nach `pnpm cap:sync` bzw. `patch-ios-info-plist` / `apply-android-identity`). Ein Store-Upload ohne Web-Release: die beiden Felder von Hand erhöhen.
 2. **Upload-Keystore:** einmalig z. B. `keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`
 3. `keystore.properties.example` nach `android/keystore.properties` kopieren, Passwörter setzen, `upload-keystore.jks` nach `android/` legen.
 4. `pnpm cap:sync` (setzt Version + Release-Signierung in `build.gradle`).

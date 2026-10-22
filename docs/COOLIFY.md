@@ -34,18 +34,20 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
 - Healthcheck: `GET /api/health`
 - DB-Migrationen: automatisch beim Container-Start (siehe Entrypoint oben); lokal manuell: `pnpm db:deploy`
 
-### Release auf main (`pnpm deploy`)
+### Release auf main (`pnpm deploy:main`)
 
 Alltagsarbeit liegt auf **`develop`**. Coolify deployt **`main`**.
 
-`pnpm deploy` erhöht `nativeAppVersion` in [`apps/mobile-shell/capacitor.config.ts`](../apps/mobile-shell/capacitor.config.ts) (`versionCode` + 1, `versionName` als Patch), committet das auf `develop`, setzt das Tag `vX.Y.Z` und fast-forwardet `main` auf denselben Commit. Danach landen `develop`, `main` und das Tag auf `origin`.
+`pnpm deploy:main` erhöht `nativeAppVersion` in [`apps/mobile-shell/capacitor.config.ts`](../apps/mobile-shell/capacitor.config.ts) (`versionCode` + 1, `versionName` als Patch), committet das auf `develop`, setzt das Tag `vX.Y.Z` und fast-forwardet `main` auf denselben Commit. Danach landen `develop`, `main` und das Tag auf `origin`.
+
+`pnpm deploy` ist ein eingebauter pnpm-Befehl und startet dieses Script nicht.
 
 ```bash
 git checkout develop
-pnpm deploy --dry-run    # nächste Version anzeigen
-pnpm deploy              # Patch, z. B. 1.0.12 → 1.0.13
-pnpm deploy --minor      # 1.0.12 → 1.1.0
-pnpm deploy --version 2.0.0
+pnpm deploy:main --dry-run    # nächste Version anzeigen
+pnpm deploy:main              # Patch, z. B. 1.0.12 → 1.0.13
+pnpm deploy:main --minor      # 1.0.12 → 1.1.0
+pnpm deploy:main --version 2.0.0
 ```
 
 `main` muss ein Vorfahre von `develop` sein. Liegen auf `main` Commits, die `develop` nicht hat, bricht das Script ab — zuerst `main` nach `develop` mergen.

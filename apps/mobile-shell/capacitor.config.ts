@@ -29,7 +29,7 @@ loadEnvFile(resolve(process.cwd(), ".env"));
 
 const serverUrl = process.env.CAPACITOR_SERVER_URL?.replace(/\/+$/, "");
 
-/** Store version. `pnpm deploy` bumps versionCode and versionName and tags the release. */
+/** Store version. `pnpm deploy:main` bumps versionCode and versionName and tags the release. */
 export const nativeAppVersion = {
   versionCode: 13,
   versionName: "1.0.12",
