@@ -54,6 +54,13 @@ const quickOpen = ref(false);
 const quickInitialContact = ref("");
 const quickStartVoice = ref(false);
 const editingAppointment = ref<AppointmentListItem | null>(null);
+const infoAppointment = ref<AppointmentListItem | null>(null);
+const infoOpen = computed({
+  get: () => Boolean(infoAppointment.value),
+  set: (open: boolean) => {
+    if (!open) infoAppointment.value = null;
+  },
+});
 const quickDuplicateSeed = ref<(AppointmentListItem & { id: "" }) | null>(null);
 
 const quickCaptureAppointment = computed(
@@ -232,6 +239,16 @@ function openAssistant() {
   quickOpen.value = true;
 }
 
+function openAppointmentInfo(appointment: AppointmentListItem) {
+  infoAppointment.value = appointment;
+}
+
+function editFromInfo() {
+  const appointment = infoAppointment.value;
+  infoAppointment.value = null;
+  if (appointment) openEditAppointment(appointment);
+}
+
 function openEditAppointment(appointment: AppointmentListItem) {
   editingAppointment.value = appointment;
   quickDuplicateSeed.value = null;
@@ -406,7 +423,12 @@ async function deleteAppointment(appointment: AppointmentListItem) {
             class="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4"
           >
             <div class="flex flex-wrap items-start gap-x-3 gap-y-2">
-              <div class="min-w-52 grow">
+              <button
+                type="button"
+                class="min-w-52 grow cursor-pointer rounded-md text-left"
+                :aria-label="t('appointment.info.open')"
+                @click="openAppointmentInfo(appointment)"
+              >
                 <div class="flex items-start gap-2">
                   <div class="min-w-0">
                     <p class="font-medium">{{ appointmentTitle(appointment) }}</p>
@@ -428,7 +450,7 @@ async function deleteAppointment(appointment: AppointmentListItem) {
                   <span v-if="resourcesEnabled && appointment.resource">{{ $t("home.resource") }}: {{ appointment.resource.name }}</span>
                   <span v-if="appointment.lessonType">{{ $t("home.type") }}: {{ appointment.lessonType.name }}</span>
                 </div>
-              </div>
+              </button>
               <AppointmentQuickActions
                 class="ml-auto shrink-0"
                 :appointment="appointment"
@@ -485,6 +507,13 @@ async function deleteAppointment(appointment: AppointmentListItem) {
         </div>
       </UCard>
     </section>
+
+    <AppointmentInfoModal
+      v-model:open="infoOpen"
+      :appointment="infoAppointment"
+      :can-edit="canAccessWorkspace"
+      @edit="editFromInfo"
+    />
 
     <UModal v-model:open="quickOpen" :ui="quickCaptureModalUi">
       <template #header>

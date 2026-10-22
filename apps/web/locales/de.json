@@ -108,6 +108,12 @@
       "confirmed": "Bestätigt",
       "completed": "Erledigt",
       "cancelled": "Storniert"
+    },
+    "info": {
+      "open": "Details anzeigen",
+      "time": "Zeit",
+      "contact": "Kontakt",
+      "note": "Notiz"
     }
   },
   "quickCapture": {

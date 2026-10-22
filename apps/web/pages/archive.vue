@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { $fetch } from "ofetch";
+import { quickCaptureModalUi } from "../utils/quick-capture-modal-ui";
 
 interface AppointmentListItem {
   id: string;
@@ -9,10 +10,20 @@ interface AppointmentListItem {
   status: "draft" | "confirmed" | "completed" | "cancelled";
   version: number;
   appointmentContactText: string | null;
+  appointmentPhoneRaw?: string | null;
+  appointmentPhoneE164?: string | null;
+  unstructuredNote?: string | null;
+  draftReminderAt?: string | null;
+  draftReminderText?: string | null;
   teacher: { id: string; displayName: string } | null;
-  resource: { id: string; name: string } | null;
-  lessonType: { id: string; name: string } | null;
-  customer: { id: string; displayName: string } | null;
+  teachers?: { id: string; displayName: string }[] | null;
+  resource: { id: string; name: string; capacity: number } | null;
+  lessonType: { id: string; name: string; defaultDurationMin: number | null } | null;
+  customer: {
+    id: string;
+    displayName: string;
+    phones?: { e164: string | null; raw: string | null; isPrimary: boolean }[];
+  } | null;
 }
 
 interface Pagination {
@@ -24,7 +35,7 @@ interface Pagination {
 
 const { primaryTenant, teacherLabel, canManageTenant, canPlanAllAppointments, canAccessWorkspace } = useAuth();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
-const { intlLocale } = useAppLocale();
+const { t, intlLocale } = useAppLocale();
 
 interface SchedulingOptions {
   teachers: { id: string; displayName: string }[];
@@ -38,6 +49,15 @@ const loading = ref(false);
 const error = ref("");
 const savingId = ref("");
 const filterOpen = ref(false);
+const infoAppointment = ref<AppointmentListItem | null>(null);
+const infoOpen = computed({
+  get: () => Boolean(infoAppointment.value),
+  set: (open: boolean) => {
+    if (!open) infoAppointment.value = null;
+  },
+});
+const quickOpen = ref(false);
+const editingAppointment = ref<AppointmentListItem | null>(null);
 
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -160,6 +180,32 @@ const rangeLabel = computed(() => {
   const end = Math.min(pagination.value.page * pagination.value.pageSize, pagination.value.total);
   return `${start}–${end} von ${pagination.value.total}`;
 });
+
+function openAppointmentInfo(appointment: AppointmentListItem) {
+  infoAppointment.value = appointment;
+}
+
+function editFromInfo() {
+  const appointment = infoAppointment.value;
+  infoAppointment.value = null;
+  if (!appointment) return;
+  editingAppointment.value = appointment;
+  quickOpen.value = true;
+}
+
+function closeQuickCapture() {
+  quickOpen.value = false;
+  editingAppointment.value = null;
+}
+
+watch(quickOpen, (open) => {
+  if (!open) editingAppointment.value = null;
+});
+
+async function onAppointmentSaved() {
+  closeQuickCapture();
+  await loadArchive();
+}
 
 function appointmentTitle(appointment: AppointmentListItem) {
   return appointment.customer?.displayName || appointment.appointmentContactText || "Termin ohne Kontakt";
@@ -520,23 +566,33 @@ watch(
     <div v-else class="space-y-3">
       <UCard v-for="appointment in appointments" :key="appointment.id">
         <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="font-medium">{{ appointmentTitle(appointment) }}</p>
-            <p class="text-sm text-neutral-600 dark:text-neutral-400">
-              {{ formatDateTime(appointment.startsAt) }}–{{ formatDateTime(appointment.endsAt).split(', ').pop() }}
-            </p>
-            <p v-if="appointment.teacher" class="mt-1 text-xs text-neutral-500">
-              {{ teacherLabel }}: {{ appointment.teacher.displayName }}
-            </p>
-          </div>
+          <button
+            type="button"
+            class="min-w-0 grow cursor-pointer text-left"
+            :aria-label="t('appointment.info.open')"
+            @click="openAppointmentInfo(appointment)"
+          >
+            <div class="flex items-start gap-2">
+              <div class="min-w-0">
+                <p class="font-medium">{{ appointmentTitle(appointment) }}</p>
+                <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                  {{ formatDateTime(appointment.startsAt) }}–{{ formatDateTime(appointment.endsAt).split(', ').pop() }}
+                </p>
+                <p v-if="appointment.teacher" class="mt-1 text-xs text-neutral-500">
+                  {{ teacherLabel }}: {{ appointment.teacher.displayName }}
+                </p>
+              </div>
+              <UBadge
+                v-if="appointmentStatusLabel(appointment.status)"
+                :color="appointmentStatusColor(appointment.status)"
+                variant="subtle"
+                class="shrink-0"
+              >
+                {{ appointmentStatusLabel(appointment.status) }}
+              </UBadge>
+            </div>
+          </button>
           <div class="flex items-center gap-2">
-            <UBadge
-              v-if="appointmentStatusLabel(appointment.status)"
-              :color="appointmentStatusColor(appointment.status)"
-              variant="subtle"
-            >
-              {{ appointmentStatusLabel(appointment.status) }}
-            </UBadge>
             <UButton
               v-if="canAccessWorkspace"
               size="sm"
@@ -563,6 +619,31 @@ watch(
         </div>
       </UCard>
     </div>
+
+    <AppointmentInfoModal
+      v-model:open="infoOpen"
+      :appointment="infoAppointment"
+      :can-edit="canAccessWorkspace"
+      @edit="editFromInfo"
+    />
+
+    <UModal v-model:open="quickOpen" :ui="quickCaptureModalUi">
+      <template #header>
+        <div class="flex w-full items-center justify-between gap-3">
+          <h2 class="min-w-0 truncate font-medium">{{ $t("home.editAppointment") }}</h2>
+          <UButton size="md" variant="ghost" color="neutral" icon="i-lucide-x" @click="closeQuickCapture" />
+        </div>
+      </template>
+      <template #body>
+        <QuickCaptureForm
+          v-if="editingAppointment"
+          :key="editingAppointment.id"
+          :appointment="editingAppointment"
+          @saved="onAppointmentSaved"
+          @cancel="closeQuickCapture"
+        />
+      </template>
+    </UModal>
 
     <div
       v-if="pagination.totalPages > 1"

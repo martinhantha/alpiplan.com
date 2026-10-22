@@ -61,7 +61,7 @@ interface UnavailabilityItem {
 
 const { primaryTenant, teacherLabel, resourcesEnabled, speechRecognitionEnabled, canManageTenant, canPlanAllAppointments, canAccessWorkspace } = useAuth();
 const { appointmentStatusLabel, appointmentStatusColor } = useAppointmentStatus();
-const { intlLocale } = useAppLocale();
+const { t, intlLocale } = useAppLocale();
 
 const appointments = ref<AppointmentListItem[]>([]);
 const pagination = ref<Pagination>({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
@@ -76,6 +76,13 @@ const quickInitialContact = ref("");
 const quickInitialStartsAt = ref("");
 const quickInitialTeacherId = ref("");
 const editingAppointment = ref<AppointmentListItem | null>(null);
+const infoAppointment = ref<AppointmentListItem | null>(null);
+const infoOpen = computed({
+  get: () => Boolean(infoAppointment.value),
+  set: (open: boolean) => {
+    if (!open) infoAppointment.value = null;
+  },
+});
 const quickDuplicateSeed = ref<(AppointmentListItem & { id: "" }) | null>(null);
 
 const quickCaptureAppointment = computed(
@@ -1043,6 +1050,16 @@ function openAssistant() {
   quickOpen.value = true;
 }
 
+function openAppointmentInfo(appointment: AppointmentListItem) {
+  infoAppointment.value = appointment;
+}
+
+function editFromInfo() {
+  const appointment = infoAppointment.value;
+  infoAppointment.value = null;
+  if (appointment) openEditAppointment(appointment);
+}
+
 function openEditAppointment(appointment: AppointmentListItem) {
   editingAppointment.value = appointment;
   quickDuplicateSeed.value = null;
@@ -1416,7 +1433,12 @@ watch(
       <div v-else class="space-y-3">
         <UCard v-for="appointment in appointments" :key="appointment.id">
           <div class="flex flex-wrap items-start gap-x-3 gap-y-2">
-            <div class="min-w-52 grow">
+            <button
+              type="button"
+              class="min-w-52 grow cursor-pointer rounded-md text-left"
+              :aria-label="t('appointment.info.open')"
+              @click="openAppointmentInfo(appointment)"
+            >
               <div class="flex items-start gap-2">
                 <div class="min-w-0">
                   <p class="font-medium">{{ appointmentTitle(appointment) }}</p>
@@ -1445,7 +1467,7 @@ watch(
                 <span v-if="resourcesEnabled && appointment.resource">Ressource: {{ appointment.resource.name }}</span>
                 <span v-if="appointment.lessonType">Art: {{ appointment.lessonType.name }}</span>
               </div>
-            </div>
+            </button>
             <AppointmentQuickActions
               :appointment="appointment"
               :loading="savingId === appointment.id"
@@ -1710,7 +1732,12 @@ watch(
                 :style="!canPlanAllAppointments || column.id === UNASSIGNED_ROW_ID ? {} : { borderLeftColor: avatarColor(column.id, column.color) }"
               >
                 <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
+                  <button
+                    type="button"
+                    class="min-w-0 flex-1 cursor-pointer rounded-md text-left"
+                    :aria-label="t('appointment.info.open')"
+                    @click="openAppointmentInfo(appointment)"
+                  >
                     <div class="flex items-center gap-2">
                       <span class="font-medium tabular-nums">
                         {{ formatTime(appointment.startsAt) }}–{{ formatTime(appointment.endsAt) }}
@@ -1729,7 +1756,7 @@ watch(
                       <span v-if="resourcesEnabled && appointment.resource">{{ appointment.resource.name }}</span>
                       <span v-if="appointment.lessonType">{{ appointment.lessonType.name }}</span>
                     </div>
-                  </div>
+                  </button>
                   <AppointmentQuickActions
                     compact
                     :appointment="appointment"
@@ -1962,6 +1989,13 @@ watch(
         </div>
       </div>
     </template>
+
+    <AppointmentInfoModal
+      v-model:open="infoOpen"
+      :appointment="infoAppointment"
+      :can-edit="canAccessWorkspace"
+      @edit="editFromInfo"
+    />
 
     <UModal v-model:open="quickOpen" :ui="quickCaptureModalUi">
       <template #header>
