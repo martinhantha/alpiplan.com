@@ -15,6 +15,7 @@
     "dev:web": "pnpm --filter @alpiplan/web dev",
     "dev:worker": "pnpm --filter @alpiplan/worker dev",
     "dev:mobile": "pnpm --filter @alpiplan/mobile-shell cap:open:android",
+    "deploy": "node scripts/deploy.mjs",
     "deploy:local": "node scripts/deploy-local.mjs",
     "import:flights": "tsx scripts/import-flights.ts",
     "import:mongo": "tsx scripts/import_from_mongo.ts",

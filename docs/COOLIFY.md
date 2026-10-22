@@ -34,6 +34,31 @@ Coolify orchestriert Docker-Compose-Stacks. Dieses Repository liefert [`docker-c
 - Healthcheck: `GET /api/health`
 - DB-Migrationen: automatisch beim Container-Start (siehe Entrypoint oben); lokal manuell: `pnpm db:deploy`
 
+### Release auf main (`pnpm deploy`)
+
+Alltagsarbeit liegt auf **`develop`**. Coolify deployt **`main`**.
+
+`pnpm deploy` erhöht `nativeAppVersion` in [`apps/mobile-shell/capacitor.config.ts`](../apps/mobile-shell/capacitor.config.ts) (`versionCode` + 1, `versionName` als Patch), committet das auf `develop`, setzt das Tag `vX.Y.Z` und fast-forwardet `main` auf denselben Commit. Danach landen `develop`, `main` und das Tag auf `origin`.
+
+```bash
+git checkout develop
+pnpm deploy --dry-run    # nächste Version anzeigen
+pnpm deploy              # Patch, z. B. 1.0.12 → 1.0.13
+pnpm deploy --minor      # 1.0.12 → 1.1.0
+pnpm deploy --version 2.0.0
+```
+
+`main` muss ein Vorfahre von `develop` sein. Liegen auf `main` Commits, die `develop` nicht hat, bricht das Script ab — zuerst `main` nach `develop` mergen.
+
+Einmalig, falls `develop` noch fehlt:
+
+```bash
+git checkout -b develop
+git push -u origin develop
+```
+
+In Coolify den Produktions-Branch auf `main` stellen. Startet Coolify den Build nicht von selbst, denselben Commit mit `pnpm deploy:local` ausliefern.
+
 ### Lokal bauen statt am Server (`pnpm deploy:local`)
 
 Für den Fall, dass der Server-Build zu schwer ist: [`scripts/deploy-local.mjs`](../scripts/deploy-local.mjs) baut das Web-Image lokal für die Server-Architektur, lädt es über den Docker-Context (SSH) auf den Server und startet den bestehenden Coolify-Container damit neu. In Coolify muss nichts umgestellt werden.
