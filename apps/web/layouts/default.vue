@@ -152,7 +152,11 @@ function navClass(to: string) {
         <main class="min-w-0 animate-fade-in">
           <slot />
         </main>
-        <DevicePermissionsModal />
+        <!-- isNative is false on the server and true in the app. Rendering the modal
+             only on the client avoids a hydration mismatch in the logged-in layout. -->
+        <ClientOnly>
+          <DevicePermissionsModal />
+        </ClientOnly>
       </div>
     </div>
   </div>
