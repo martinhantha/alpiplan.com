@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build from repository root: docker build -f apps/web/Dockerfile .
-FROM node:20-alpine AS base
+FROM node:24.22.1-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
