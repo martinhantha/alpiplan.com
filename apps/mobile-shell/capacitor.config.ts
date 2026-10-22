@@ -31,8 +31,8 @@ const serverUrl = process.env.CAPACITOR_SERVER_URL?.replace(/\/+$/, "");
 
 /** Store version. `pnpm deploy:main` bumps versionCode and versionName and tags the release. */
 export const nativeAppVersion = {
-  versionCode: 13,
-  versionName: "1.0.12",
+  versionCode: 14,
+  versionName: "1.0.13",
 } as const;
 
 const config: CapacitorConfig = {
